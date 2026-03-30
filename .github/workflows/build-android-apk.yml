@@ -216,24 +216,48 @@ jobs:
             exit 0
           fi
 
-          RAW_SECRET="${ANDROID_KEYSTORE_BASE64}"
+          rm -f android/app/upload-keystore.jks android/key.properties
 
-          if printf '%s\n' "${RAW_SECRET}" | grep -q '^ANDROID_KEYSTORE_BASE64='; then
-            KEYSTORE_BASE64="$(printf '%s\n' "${RAW_SECRET}" | sed -n 's/^ANDROID_KEYSTORE_BASE64=//p' | head -n 1)"
-          else
-            KEYSTORE_BASE64="$(printf '%s\n' "${RAW_SECRET}" | sed '/^[[:space:]]*$/d' | tr -d '\r\n\t ')"
+          if ! python3 - <<'PY'
+          import base64
+          import os
+          import pathlib
+          import re
+
+          raw = os.environ["ANDROID_KEYSTORE_BASE64"]
+
+          match = re.search(
+              r"(?mi)^\s*(?:export\s+)?ANDROID_KEYSTORE_BASE64\s*[:=]\s*(.+?)\s*$",
+              raw,
+          )
+
+          if match:
+              value = match.group(1)
+          else:
+              value = raw.strip()
+
+          value = value.strip().strip("'\"").strip()
+
+          if value.startswith("data:") and "," in value:
+              value = value.split(",", 1)[1]
+
+          value = re.sub(r"\s+", "", value)
+
+          decoded = base64.b64decode(value, validate=True)
+          pathlib.Path("android/app/upload-keystore.jks").write_bytes(decoded)
+          PY
+          then
+            echo "Invalid ANDROID_KEYSTORE_BASE64; fallback to debug signing." >&2
+            rm -f android/app/upload-keystore.jks android/key.properties
+            echo "signing_mode=debug-fallback-invalid-secret" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
-          KEYSTORE_BASE64="${KEYSTORE_BASE64#\"}"
-          KEYSTORE_BASE64="${KEYSTORE_BASE64%\"}"
-          KEYSTORE_BASE64="${KEYSTORE_BASE64#\'}"
-          KEYSTORE_BASE64="${KEYSTORE_BASE64%\'}"
-
-          printf '%s' "${KEYSTORE_BASE64}" | base64 --decode > android/app/upload-keystore.jks
-
           if ! keytool -list -keystore android/app/upload-keystore.jks -storepass "${ANDROID_KEYSTORE_PASSWORD}" >/dev/null 2>&1; then
-            echo "Decoded keystore is invalid; check ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD." >&2
-            exit 1
+            echo "Decoded keystore failed validation; fallback to debug signing." >&2
+            rm -f android/app/upload-keystore.jks android/key.properties
+            echo "signing_mode=debug-fallback-invalid-secret" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
           cat > android/key.properties <<EOF
