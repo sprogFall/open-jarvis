@@ -178,4 +178,21 @@ void main() {
     expect(controller.selectedTask?.taskId, 'task-2');
     expect(controller.selectedTask?.status, TaskStatus.pendingDispatch);
   });
+
+  test('clearSelection returns the app to empty conversation mode', () async {
+    final controller = TaskController(
+      api: FakeGatewayApi(),
+      socket: FakeGatewaySocket(),
+    );
+    await controller.connect(
+      baseUrl: 'http://127.0.0.1:8000',
+      username: 'operator',
+      password: 'passw0rd',
+    );
+
+    controller.clearSelection();
+
+    expect(controller.selectedTask, isNull);
+    expect(controller.tasks, isNotEmpty);
+  });
 }

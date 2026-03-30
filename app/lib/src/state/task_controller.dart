@@ -30,7 +30,7 @@ class TaskController extends ChangeNotifier {
       .toList(growable: false);
 
   TaskRecord? get selectedTask {
-    if (_tasks.isEmpty) {
+    if (_tasks.isEmpty || _selectedTaskId == null) {
       return null;
     }
     for (final task in _tasks) {
@@ -142,6 +142,11 @@ class TaskController extends ChangeNotifier {
 
   void selectTask(String taskId) {
     _selectedTaskId = taskId;
+    notifyListeners();
+  }
+
+  void clearSelection() {
+    _selectedTaskId = null;
     notifyListeners();
   }
 
