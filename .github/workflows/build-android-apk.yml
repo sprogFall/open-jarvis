@@ -216,12 +216,14 @@ jobs:
             exit 0
           fi
 
-          KEYSTORE_BASE64="${ANDROID_KEYSTORE_BASE64}"
-          KEYSTORE_BASE64="${KEYSTORE_BASE64//$'\r'/}"
-          KEYSTORE_BASE64="${KEYSTORE_BASE64//$'\n'/}"
-          KEYSTORE_BASE64="${KEYSTORE_BASE64//$'\t'/}"
-          KEYSTORE_BASE64="${KEYSTORE_BASE64// /}"
-          KEYSTORE_BASE64="${KEYSTORE_BASE64#ANDROID_KEYSTORE_BASE64=}"
+          RAW_SECRET="${ANDROID_KEYSTORE_BASE64}"
+
+          if printf '%s\n' "${RAW_SECRET}" | grep -q '^ANDROID_KEYSTORE_BASE64='; then
+            KEYSTORE_BASE64="$(printf '%s\n' "${RAW_SECRET}" | sed -n 's/^ANDROID_KEYSTORE_BASE64=//p' | head -n 1)"
+          else
+            KEYSTORE_BASE64="$(printf '%s\n' "${RAW_SECRET}" | sed '/^[[:space:]]*$/d' | tr -d '\r\n\t ')"
+          fi
+
           KEYSTORE_BASE64="${KEYSTORE_BASE64#\"}"
           KEYSTORE_BASE64="${KEYSTORE_BASE64%\"}"
           KEYSTORE_BASE64="${KEYSTORE_BASE64#\'}"
