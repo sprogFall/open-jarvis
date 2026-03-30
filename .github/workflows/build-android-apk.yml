@@ -113,14 +113,6 @@ jobs:
           cache: true
           pub-cache: true
 
-      - name: Cache pub packages
-        uses: actions/cache@v5
-        with:
-          path: ~/.pub-cache
-          key: ${{ runner.os }}-pub-${{ hashFiles('app/pubspec.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pub-
-
       - name: Install dependencies
         run: flutter pub get
 
@@ -159,14 +151,6 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
           pub-cache: true
-
-      - name: Cache pub packages
-        uses: actions/cache@v5
-        with:
-          path: ~/.pub-cache
-          key: ${{ runner.os }}-pub-${{ hashFiles('app/pubspec.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pub-
 
       - name: Install dependencies
         run: flutter pub get
@@ -207,14 +191,6 @@ jobs:
           cache: true
           pub-cache: true
 
-      - name: Cache pub packages
-        uses: actions/cache@v5
-        with:
-          path: ~/.pub-cache
-          key: ${{ runner.os }}-pub-${{ hashFiles('app/pubspec.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pub-
-
       - name: Install dependencies
         run: flutter pub get
 
@@ -240,7 +216,23 @@ jobs:
             exit 0
           fi
 
-          printf '%s' "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > android/app/upload-keystore.jks
+          KEYSTORE_BASE64="${ANDROID_KEYSTORE_BASE64}"
+          KEYSTORE_BASE64="${KEYSTORE_BASE64//$'\r'/}"
+          KEYSTORE_BASE64="${KEYSTORE_BASE64//$'\n'/}"
+          KEYSTORE_BASE64="${KEYSTORE_BASE64//$'\t'/}"
+          KEYSTORE_BASE64="${KEYSTORE_BASE64// /}"
+          KEYSTORE_BASE64="${KEYSTORE_BASE64#ANDROID_KEYSTORE_BASE64=}"
+          KEYSTORE_BASE64="${KEYSTORE_BASE64#\"}"
+          KEYSTORE_BASE64="${KEYSTORE_BASE64%\"}"
+          KEYSTORE_BASE64="${KEYSTORE_BASE64#\'}"
+          KEYSTORE_BASE64="${KEYSTORE_BASE64%\'}"
+
+          printf '%s' "${KEYSTORE_BASE64}" | base64 --decode > android/app/upload-keystore.jks
+
+          if ! keytool -list -keystore android/app/upload-keystore.jks -storepass "${ANDROID_KEYSTORE_PASSWORD}" >/dev/null 2>&1; then
+            echo "Decoded keystore is invalid; check ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD." >&2
+            exit 1
+          fi
 
           cat > android/key.properties <<EOF
           storePassword=${ANDROID_KEYSTORE_PASSWORD}
