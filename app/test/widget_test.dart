@@ -117,19 +117,55 @@ Future<TaskController> connectController({
   return controller;
 }
 
+Future<void> pumpApp(
+  WidgetTester tester,
+  TaskController controller, {
+  Size size = const Size(390, 844),
+}) async {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
+  await tester.pumpWidget(OmniAgentApp(controller: controller));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   setUp(() {
     TestWidgetsFlutterBinding.ensureInitialized();
   });
 
-  testWidgets('shows chat-first approval flow inside the conversation', (
+  testWidgets(
+    'renders a mobile-first chat shell and sends tasks from composer',
+    (tester) async {
+      final api = FakeGatewayApi();
+      final controller = await connectController(api: api);
+
+      await pumpApp(tester, controller);
+
+      expect(find.byKey(const Key('appBarMenuButton')), findsOneWidget);
+      expect(find.byKey(const Key('appBarSettingsButton')), findsOneWidget);
+      expect(find.text('给 Jarvis 一个目标'), findsOneWidget);
+      expect(find.text('恢复挂起任务'), findsOneWidget);
+      expect(find.byKey(const Key('chatComposerField')), findsOneWidget);
+      expect(find.byKey(const Key('chatSendButton')), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const Key('chatComposerField')),
+        '查看系统负载',
+      );
+      await tester.tap(find.byKey(const Key('chatSendButton')));
+      await tester.pumpAndSettle();
+
+      expect(api.lastInstruction, '查看系统负载');
+      expect(find.text('查看系统负载'), findsAtLeastNWidgets(1));
+    },
+  );
+
+  testWidgets('shows approval and live log cards inside the conversation', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1440, 1024);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
     final controller = await connectController(
       pendingApprovals: [
         TaskRecord.fromJson({
@@ -147,147 +183,120 @@ void main() {
       ],
     );
 
-    await tester.pumpWidget(OmniAgentApp(controller: controller));
-    await tester.pumpAndSettle();
+    await pumpApp(tester, controller);
 
-    expect(find.text('任务指挥台'), findsNothing);
-    expect(find.text('连接网关后的 AI 对话'), findsOneWidget);
-    expect(find.text('需要二次确认'), findsOneWidget);
+    expect(find.text('需要审批后继续'), findsOneWidget);
     expect(find.text('docker restart api-service'), findsOneWidget);
-    expect(find.text('AI 操作过程'), findsOneWidget);
-    expect(find.text('load1=0.42'), findsOneWidget);
     expect(find.textContaining('恢复检查点 cp_001'), findsOneWidget);
-    expect(find.text('确认执行'), findsOneWidget);
+    expect(find.text('实时日志'), findsOneWidget);
+    expect(find.text('load1=0.42'), findsOneWidget);
+    expect(find.text('批准继续'), findsOneWidget);
     expect(find.text('拒绝执行'), findsOneWidget);
   });
 
   testWidgets(
-    'shows empty chat by default and sends instructions from composer',
+    'opens the thread drawer, switches sessions, and starts a new chat',
     (tester) async {
-      tester.view.physicalSize = const Size(1440, 1024);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      final api = FakeGatewayApi();
-      final controller = await connectController(api: api);
-
-      await tester.pumpWidget(OmniAgentApp(controller: controller));
-      await tester.pumpAndSettle();
-
-      expect(find.text('现在可以直接向 AI 下发任务'), findsOneWidget);
-      expect(find.byKey(const Key('chatComposerField')), findsOneWidget);
-      expect(find.byKey(const Key('chatSendButton')), findsOneWidget);
-
-      await tester.enterText(
-        find.byKey(const Key('chatComposerField')),
-        '查看系统负载',
+      final controller = await connectController(
+        pendingApprovals: [
+          TaskRecord.fromJson({
+            'task_id': 'task-1',
+            'device_id': 'device-alpha',
+            'instruction': '重启 api-service',
+            'status': 'AWAITING_APPROVAL',
+            'checkpoint_id': 'cp_001',
+            'command': 'docker restart api-service',
+            'reason': '会影响现有服务',
+            'result': null,
+            'error': null,
+            'logs': ['pending approval'],
+          }),
+        ],
       );
-      await tester.tap(find.byKey(const Key('chatSendButton')));
+      controller.handleSocketEvent({
+        'type': 'TASK_SNAPSHOT',
+        'task': {
+          'task_id': 'task-2',
+          'device_id': 'device-alpha',
+          'instruction': '查看系统负载',
+          'status': 'COMPLETED',
+          'checkpoint_id': null,
+          'command': null,
+          'reason': null,
+          'result': 'ok',
+          'error': null,
+          'logs': ['completed'],
+        },
+      });
+
+      await pumpApp(tester, controller);
+
+      await tester.tap(find.byKey(const Key('appBarMenuButton')));
       await tester.pumpAndSettle();
 
-      expect(api.lastInstruction, '查看系统负载');
-      expect(find.text('查看系统负载'), findsAtLeastNWidgets(1));
+      expect(find.byKey(const Key('threadDrawer')), findsOneWidget);
+      expect(find.text('待处理线程'), findsOneWidget);
+      expect(find.text('最近会话'), findsOneWidget);
+      expect(find.byKey(const Key('drawerNewChatButton')), findsOneWidget);
+
+      await tester.tap(find.text('查看系统负载').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('执行已完成'), findsOneWidget);
+      expect(find.text('ok'), findsOneWidget);
+      expect(find.text('completed'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('appBarMenuButton')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('drawerNewChatButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('给 Jarvis 一个目标'), findsOneWidget);
     },
   );
 
-  testWidgets('opens settings from sidebar and edits server config', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1440, 1024);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    'opens the settings sheet from the app bar and saves gateway config',
+    (tester) async {
+      final api = FakeGatewayApi();
+      final controller = TaskController(api: api, socket: FakeGatewaySocket());
 
-    final api = FakeGatewayApi();
-    final controller = TaskController(api: api, socket: FakeGatewaySocket());
+      await pumpApp(tester, controller);
 
-    await tester.pumpWidget(OmniAgentApp(controller: controller));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('appBarSettingsButton')));
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('sidebarSettingsButton')), findsOneWidget);
+      expect(find.text('连接设置'), findsOneWidget);
+      expect(find.byKey(const Key('settingsBaseUrlField')), findsOneWidget);
+      expect(find.byKey(const Key('settingsConnectButton')), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('sidebarSettingsButton')));
-    await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('settingsBaseUrlField')),
+        'http://10.0.0.8:8000',
+      );
+      await tester.enterText(
+        find.byKey(const Key('settingsUsernameField')),
+        'root',
+      );
+      await tester.enterText(
+        find.byKey(const Key('settingsPasswordField')),
+        'secret',
+      );
+      await tester.tap(find.byKey(const Key('settingsConnectButton')));
+      await tester.pumpAndSettle();
 
-    expect(find.text('设置'), findsOneWidget);
-    expect(find.text('服务端配置'), findsOneWidget);
-    expect(find.byKey(const Key('settingsBaseUrlField')), findsOneWidget);
-    expect(find.byKey(const Key('settingsConnectButton')), findsOneWidget);
+      expect(api.lastBaseUrl, 'http://10.0.0.8:8000');
+      expect(api.lastUsername, 'root');
+      expect(api.lastPassword, 'secret');
+    },
+  );
 
-    await tester.enterText(
-      find.byKey(const Key('settingsBaseUrlField')),
-      'http://10.0.0.8:8000',
-    );
-    await tester.enterText(
-      find.byKey(const Key('settingsUsernameField')),
-      'root',
-    );
-    await tester.enterText(
-      find.byKey(const Key('settingsPasswordField')),
-      'secret',
-    );
-    await tester.tap(find.byKey(const Key('settingsConnectButton')));
-    await tester.pumpAndSettle();
+  testWidgets('keeps the thread rail visible on wide layouts', (tester) async {
+    final controller = await connectController();
 
-    expect(api.lastBaseUrl, 'http://10.0.0.8:8000');
-    expect(api.lastUsername, 'root');
-    expect(api.lastPassword, 'secret');
-  });
+    await pumpApp(tester, controller, size: const Size(1440, 1024));
 
-  testWidgets('shows grouped history and clears selection for new chat', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1440, 1024);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    final controller = await connectController(
-      pendingApprovals: [
-        TaskRecord.fromJson({
-          'task_id': 'task-1',
-          'device_id': 'device-alpha',
-          'instruction': '重启 api-service',
-          'status': 'AWAITING_APPROVAL',
-          'checkpoint_id': 'cp_001',
-          'command': 'docker restart api-service',
-          'reason': '会影响现有服务',
-          'result': null,
-          'error': null,
-          'logs': ['pending approval'],
-        }),
-      ],
-    );
-
-    controller.handleSocketEvent({
-      'type': 'TASK_SNAPSHOT',
-      'task': {
-        'task_id': 'task-2',
-        'device_id': 'device-alpha',
-        'instruction': '查看系统负载',
-        'status': 'COMPLETED',
-        'checkpoint_id': null,
-        'command': null,
-        'reason': null,
-        'result': 'ok',
-        'error': null,
-        'logs': ['completed'],
-      },
-    });
-
-    await tester.pumpWidget(OmniAgentApp(controller: controller));
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const Key('sidebarNewChatButton')), findsOneWidget);
-    expect(find.text('待处理'), findsOneWidget);
-    expect(find.text('最近聊天'), findsOneWidget);
-    expect(find.text('重启 api-service'), findsAtLeastNWidgets(1));
-    expect(find.text('查看系统负载'), findsWidgets);
-
-    await tester.tap(find.byKey(const Key('sidebarNewChatButton')));
-    await tester.pumpAndSettle();
-
-    expect(find.text('现在可以直接向 AI 下发任务'), findsOneWidget);
+    expect(find.byKey(const Key('desktopThreadRail')), findsOneWidget);
+    expect(find.byKey(const Key('appBarMenuButton')), findsNothing);
   });
 }
