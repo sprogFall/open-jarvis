@@ -4,6 +4,7 @@ import 'package:app/src/models/task_record.dart';
 import 'package:app/src/services/gateway_api.dart';
 import 'package:app/src/services/gateway_socket.dart';
 import 'package:app/src/state/task_controller.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class FakeGatewayApi implements GatewayApi {
@@ -102,6 +103,11 @@ class FakeGatewaySocket implements GatewaySocket {
 
 void main() {
   testWidgets('shows approval workspace for pending tasks', (tester) async {
+    tester.view.physicalSize = const Size(1440, 1024);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     final controller = TaskController(
       api: FakeGatewayApi(),
       socket: FakeGatewaySocket(),
@@ -115,10 +121,12 @@ void main() {
     await tester.pumpWidget(OmniAgentApp(controller: controller));
     await tester.pumpAndSettle();
 
-    expect(find.text('待审批任务'), findsOneWidget);
+    expect(find.text('任务指挥台'), findsAtLeastNWidgets(1));
+    expect(find.text('待处理审批'), findsAtLeastNWidgets(1));
+    expect(find.text('恢复检查点'), findsAtLeastNWidgets(1));
     expect(find.text('docker restart api-service'), findsOneWidget);
     expect(find.text('批准执行'), findsOneWidget);
     expect(find.text('拒绝执行'), findsOneWidget);
-    expect(find.text('load1=0.42'), findsOneWidget);
+    expect(find.text('load1=0.42'), findsAtLeastNWidgets(1));
   });
 }
