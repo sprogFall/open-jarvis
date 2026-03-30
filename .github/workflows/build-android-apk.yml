@@ -1,0 +1,314 @@
+name: Build Android APK
+
+on:
+  push:
+    paths:
+      - 'app/lib/**'
+      - 'app/test/**'
+      - 'app/android/**'
+      - 'app/pubspec.yaml'
+      - 'app/pubspec.lock'
+      - 'app/analysis_options.yaml'
+      - '.github/workflows/build-android-apk.yml'
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: Build type override
+        required: false
+        default: auto
+        type: choice
+        options:
+          - auto
+          - debug
+          - release
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-apk-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.38.9'
+
+jobs:
+  prepare:
+    name: Prepare Build Context
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.resolve.outputs.should_build }}
+      build_type: ${{ steps.resolve.outputs.build_type }}
+      apk_path: ${{ steps.resolve.outputs.apk_path }}
+      artifact_name: ${{ steps.resolve.outputs.artifact_name }}
+
+    steps:
+      - name: Resolve build plan
+        id: resolve
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_BUILD_TYPE: ${{ github.event.inputs.build_type }}
+        run: |
+          set -euo pipefail
+
+          BUILD_TYPE="${INPUT_BUILD_TYPE:-}"
+          if [ -z "$BUILD_TYPE" ] || [ "$BUILD_TYPE" = "auto" ]; then
+            if [ "$BRANCH_NAME" = "main" ]; then
+              BUILD_TYPE="release"
+            else
+              BUILD_TYPE="debug"
+            fi
+          fi
+
+          case "$BUILD_TYPE" in
+            debug)
+              APK_PATH="build/app/outputs/flutter-apk/app-debug.apk"
+              ;;
+            release)
+              APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+              ;;
+            *)
+              echo "Unsupported build type: $BUILD_TYPE" >&2
+              exit 1
+              ;;
+          esac
+
+          SHORT_SHA="$(printf '%s' "${GITHUB_SHA}" | cut -c1-7)"
+          echo "should_build=true" >> "$GITHUB_OUTPUT"
+          echo "build_type=$BUILD_TYPE" >> "$GITHUB_OUTPUT"
+          echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=omni-agent-${BUILD_TYPE}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+  flutter-analyze:
+    name: Flutter Analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: prepare
+    if: needs.prepare.outputs.should_build == 'true'
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: |
+            app/android/*.gradle.kts
+            app/android/app/*.gradle.kts
+            app/android/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+          pub-cache: true
+
+      - name: Cache pub packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('app/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze code
+        run: flutter analyze
+
+  flutter-test:
+    name: Flutter Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: prepare
+    if: needs.prepare.outputs.should_build == 'true'
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: |
+            app/android/*.gradle.kts
+            app/android/app/*.gradle.kts
+            app/android/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+          pub-cache: true
+
+      - name: Cache pub packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('app/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run Flutter tests
+        run: flutter test
+
+  build-apk:
+    name: Build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    needs: prepare
+    if: needs.prepare.outputs.should_build == 'true'
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: |
+            app/android/*.gradle.kts
+            app/android/app/*.gradle.kts
+            app/android/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+          pub-cache: true
+
+      - name: Cache pub packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('app/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Configure Android signing
+        id: signing
+        env:
+          BUILD_TYPE: ${{ needs.prepare.outputs.build_type }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+
+          if [ "$BUILD_TYPE" != "release" ]; then
+            echo "signing_mode=debug" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ -z "${ANDROID_KEYSTORE_BASE64}" ] || [ -z "${ANDROID_KEYSTORE_PASSWORD}" ] || [ -z "${ANDROID_KEY_PASSWORD}" ] || [ -z "${ANDROID_KEY_ALIAS}" ]; then
+            echo "Release signing secrets not configured; fallback to debug signing." >&2
+            echo "signing_mode=debug-fallback" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          printf '%s' "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > android/app/upload-keystore.jks
+
+          cat > android/key.properties <<EOF
+          storePassword=${ANDROID_KEYSTORE_PASSWORD}
+          keyPassword=${ANDROID_KEY_PASSWORD}
+          keyAlias=${ANDROID_KEY_ALIAS}
+          storeFile=app/upload-keystore.jks
+          EOF
+
+          echo "signing_mode=release-keystore" >> "$GITHUB_OUTPUT"
+
+      - name: Build APK
+        env:
+          BUILD_TYPE: ${{ needs.prepare.outputs.build_type }}
+        run: |
+          set -euo pipefail
+
+          COMMIT_SHA="$(git rev-parse --short HEAD)"
+          COMMIT_MESSAGE_BASE64="$(git log -1 --pretty=%B | base64 | tr -d '\n')"
+
+          if [ "$BUILD_TYPE" = "release" ]; then
+            flutter build apk --release \
+              --dart-define=APP_COMMIT_SHA="$COMMIT_SHA" \
+              --dart-define=APP_COMMIT_MESSAGE_BASE64="$COMMIT_MESSAGE_BASE64"
+          else
+            flutter build apk --debug \
+              --dart-define=APP_COMMIT_SHA="$COMMIT_SHA" \
+              --dart-define=APP_COMMIT_MESSAGE_BASE64="$COMMIT_MESSAGE_BASE64"
+          fi
+
+      - name: Collect APK info
+        id: apk-info
+        env:
+          APK_PATH: ${{ needs.prepare.outputs.apk_path }}
+          ARTIFACT_NAME: ${{ needs.prepare.outputs.artifact_name }}
+        run: |
+          set -euo pipefail
+
+          if [ ! -f "$APK_PATH" ]; then
+            echo "APK not found at $APK_PATH" >&2
+            exit 1
+          fi
+
+          APK_SIZE="$(du -h "$APK_PATH" | cut -f1)"
+          echo "apk_size=$APK_SIZE" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=$ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ steps.apk-info.outputs.artifact_name }}
+          path: app/${{ needs.prepare.outputs.apk_path }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish build summary
+        env:
+          BUILD_TYPE: ${{ needs.prepare.outputs.build_type }}
+          SIGNING_MODE: ${{ steps.signing.outputs.signing_mode }}
+          ARTIFACT_NAME: ${{ steps.apk-info.outputs.artifact_name }}
+          APK_SIZE: ${{ steps.apk-info.outputs.apk_size }}
+        run: |
+          {
+            echo "## Android APK Build"
+            echo ""
+            echo "- Branch: \`${GITHUB_REF_NAME}\`"
+            echo "- Build Type: \`${BUILD_TYPE}\`"
+            echo "- Signing: \`${SIGNING_MODE}\`"
+            echo "- Artifact: \`${ARTIFACT_NAME}\`"
+            echo "- APK Size: \`${APK_SIZE}\`"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:app/src/models/device_record.dart';
 import 'package:app/src/models/task_record.dart';
 import 'package:app/src/services/gateway_api.dart';
 import 'package:app/src/services/gateway_socket.dart';
@@ -435,7 +434,7 @@ class _Sidebar extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: selectedDeviceId,
+              initialValue: selectedDeviceId,
               isExpanded: true,
               dropdownColor: _AppPalette.surfaceRaised,
               decoration: const InputDecoration(hintText: '选择设备'),
