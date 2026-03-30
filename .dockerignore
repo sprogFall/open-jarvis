@@ -1,0 +1,14 @@
+.git
+.gitignore
+.venv
+.venv-sys
+.pytest_cache
+**/__pycache__
+**/.DS_Store
+app/.dart_tool
+app/build
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.pub-cache
+gateway/tests
+client/tests

@@ -1,0 +1,11 @@
+.venv/
+.venv-sys/
+.pytest_cache/
+
+**/__pycache__/
+*.db
+*.db-shm
+*.db-wal
+
+app/.dart_tool/
+app/build/

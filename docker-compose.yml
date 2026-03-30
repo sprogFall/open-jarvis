@@ -1,0 +1,41 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    environment:
+      OMNI_AGENT_GATEWAY_DB: ${OMNI_AGENT_GATEWAY_DB:-/data/gateway/gateway.db}
+      OMNI_AGENT_JWT_SECRET: ${OMNI_AGENT_JWT_SECRET:-change-me-change-me-change-me-1234}
+      OMNI_AGENT_ADMIN_USERNAME: ${OMNI_AGENT_ADMIN_USERNAME:-operator}
+      OMNI_AGENT_ADMIN_PASSWORD: ${OMNI_AGENT_ADMIN_PASSWORD:-passw0rd}
+      OMNI_AGENT_DEVICE_KEYS: ${OMNI_AGENT_DEVICE_KEYS:-device-alpha=device-secret}
+    volumes:
+      - gateway_data:/data/gateway
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    depends_on:
+      - gateway
+    environment:
+      OMNI_AGENT_GATEWAY_URL: ${OMNI_AGENT_GATEWAY_URL:-http://gateway:8000}
+      OMNI_AGENT_DEVICE_ID: ${OMNI_AGENT_DEVICE_ID:-device-alpha}
+      OMNI_AGENT_DEVICE_KEY: ${OMNI_AGENT_DEVICE_KEY:-device-secret}
+      OMNI_AGENT_CHECKPOINT_DB: ${OMNI_AGENT_CHECKPOINT_DB:-/data/client/client.db}
+      OMNI_AGENT_LANGGRAPH_DB: ${OMNI_AGENT_LANGGRAPH_DB:-/data/client/langgraph.db}
+      OMNI_AGENT_ALLOWED_ROOTS: ${OMNI_AGENT_ALLOWED_ROOTS:-/workspace}
+      OMNI_AGENT_IOT_BASE_URL: ${OMNI_AGENT_IOT_BASE_URL:-}
+      OMNI_AGENT_IOT_TOKEN: ${OMNI_AGENT_IOT_TOKEN:-}
+    volumes:
+      - client_data:/data/client
+      - ./:/workspace:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+volumes:
+  gateway_data:
+  client_data:
