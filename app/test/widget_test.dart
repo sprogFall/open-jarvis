@@ -121,6 +121,7 @@ void main() {
     await tester.pumpWidget(OmniAgentApp(controller: controller));
     await tester.pumpAndSettle();
 
+    expect(find.text('OpenJarvis'), findsAtLeastNWidgets(1));
     expect(find.text('任务指挥台'), findsAtLeastNWidgets(1));
     expect(find.text('待处理审批'), findsAtLeastNWidgets(1));
     expect(find.text('恢复检查点'), findsAtLeastNWidgets(1));

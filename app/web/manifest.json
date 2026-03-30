@@ -1,11 +1,11 @@
 {
-    "name": "app",
-    "short_name": "app",
+    "name": "OpenJarvis",
+    "short_name": "OpenJarvis",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "OpenJarvis control app.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

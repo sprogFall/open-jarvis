@@ -40,7 +40,7 @@ class _OmniAgentAppState extends State<OmniAgentApp> {
     final bodyTextTheme = GoogleFonts.ibmPlexSansTextTheme();
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Omni-Agent',
+      title: 'OpenJarvis',
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: _AppPalette.canvas,
@@ -318,7 +318,7 @@ class _Sidebar extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Omni-Agent', style: theme.textTheme.headlineSmall),
+                      Text('OpenJarvis', style: theme.textTheme.headlineSmall),
                       const SizedBox(height: 8),
                       Text(
                         '控制中枢',

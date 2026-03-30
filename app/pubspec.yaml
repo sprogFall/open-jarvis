@@ -1,5 +1,5 @@
 name: app
-description: Omni-Agent control app
+description: OpenJarvis control app
 publish_to: 'none'
 version: 1.0.0+1
 
