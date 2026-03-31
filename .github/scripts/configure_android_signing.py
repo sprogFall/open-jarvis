@@ -112,7 +112,7 @@ def configure_signing(
                     f"storePassword={env['ANDROID_KEYSTORE_PASSWORD']}",
                     f"keyPassword={env['ANDROID_KEY_PASSWORD']}",
                     f"keyAlias={env['ANDROID_KEY_ALIAS']}",
-                    "storeFile=app/upload-keystore.jks",
+                    "storeFile=upload-keystore.jks",
                 ]
             )
             + "\n",

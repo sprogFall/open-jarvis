@@ -166,6 +166,6 @@ def test_release_build_with_valid_keystore_writes_key_properties(tmp_path):
         "storePassword=store-pass\n"
         "keyPassword=store-pass\n"
         "keyAlias=upload\n"
-        "storeFile=app/upload-keystore.jks\n"
+        "storeFile=upload-keystore.jks\n"
     )
     assert github_output.read_text() == "signing_mode=release-keystore\n"
