@@ -89,12 +89,20 @@ class FakeGatewayApi implements GatewayApi {
 }
 
 class FakeGatewaySocket implements GatewaySocket {
+  String? connectedBaseUrl;
+  String? connectedToken;
+  void Function(Map<String, dynamic> event)? onEvent;
+
   @override
   Future<void> connect({
     required String baseUrl,
     required String token,
     required void Function(Map<String, dynamic> event) onEvent,
-  }) async {}
+  }) async {
+    connectedBaseUrl = baseUrl;
+    connectedToken = token;
+    this.onEvent = onEvent;
+  }
 
   @override
   Future<void> disconnect() async {}
@@ -117,6 +125,14 @@ Future<TaskController> connectController({
   return controller;
 }
 
+/// Pump enough frames for navigation and bottom sheet animations to finish,
+/// without relying on pumpAndSettle (which hangs on repeating animations).
+Future<void> pumpFrames(WidgetTester tester, [int frames = 40]) async {
+  for (var i = 0; i < frames; i++) {
+    await tester.pump(const Duration(milliseconds: 16));
+  }
+}
+
 Future<void> pumpApp(
   WidgetTester tester,
   TaskController controller, {
@@ -128,7 +144,9 @@ Future<void> pumpApp(
   addTearDown(tester.view.resetDevicePixelRatio);
 
   await tester.pumpWidget(OmniAgentApp(controller: controller));
-  await tester.pumpAndSettle();
+  // Use pump instead of pumpAndSettle because the app contains widgets
+  // with repeating animations (e.g. WelcomeView breathing, StreamingIndicator).
+  await tester.pump();
 }
 
 void main() {
@@ -139,7 +157,7 @@ void main() {
   testWidgets(
     'renders a mobile-first chat shell and sends tasks from composer',
     (tester) async {
-      final api = FakeGatewayApi();
+      final api = FakeGatewayApi(pendingApprovals: []);
       final controller = await connectController(api: api);
 
       await pumpApp(tester, controller);
@@ -156,7 +174,7 @@ void main() {
         '查看系统负载',
       );
       await tester.tap(find.byKey(const Key('chatSendButton')));
-      await tester.pumpAndSettle();
+      await pumpFrames(tester);
 
       expect(api.lastInstruction, '查看系统负载');
       expect(find.text('查看系统负载'), findsAtLeastNWidgets(1));
@@ -184,6 +202,7 @@ void main() {
     );
 
     await pumpApp(tester, controller);
+    await pumpFrames(tester);
 
     expect(find.text('需要审批后继续'), findsOneWidget);
     expect(find.text('docker restart api-service'), findsOneWidget);
@@ -232,7 +251,7 @@ void main() {
       await pumpApp(tester, controller);
 
       await tester.tap(find.byKey(const Key('appBarMenuButton')));
-      await tester.pumpAndSettle();
+      await pumpFrames(tester);
 
       expect(find.byKey(const Key('threadDrawer')), findsOneWidget);
       expect(find.text('待处理线程'), findsOneWidget);
@@ -240,16 +259,16 @@ void main() {
       expect(find.byKey(const Key('drawerNewChatButton')), findsOneWidget);
 
       await tester.tap(find.text('查看系统负载').last);
-      await tester.pumpAndSettle();
+      await pumpFrames(tester);
 
       expect(find.text('执行已完成'), findsOneWidget);
       expect(find.text('ok'), findsOneWidget);
       expect(find.text('completed'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('appBarMenuButton')));
-      await tester.pumpAndSettle();
+      await pumpFrames(tester);
       await tester.tap(find.byKey(const Key('drawerNewChatButton')));
-      await tester.pumpAndSettle();
+      await pumpFrames(tester);
 
       expect(find.text('给 Jarvis 一个目标'), findsOneWidget);
     },
@@ -264,7 +283,7 @@ void main() {
       await pumpApp(tester, controller);
 
       await tester.tap(find.byKey(const Key('appBarSettingsButton')));
-      await tester.pumpAndSettle();
+      await pumpFrames(tester);
 
       expect(find.text('连接设置'), findsOneWidget);
       expect(find.byKey(const Key('settingsBaseUrlField')), findsOneWidget);
@@ -283,7 +302,7 @@ void main() {
         'secret',
       );
       await tester.tap(find.byKey(const Key('settingsConnectButton')));
-      await tester.pumpAndSettle();
+      await pumpFrames(tester);
 
       expect(api.lastBaseUrl, 'http://10.0.0.8:8000');
       expect(api.lastUsername, 'root');

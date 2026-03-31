@@ -4,6 +4,7 @@ import 'package:app/src/models/task_record.dart';
 import 'package:app/src/state/task_controller.dart';
 import 'package:app/src/ui/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_highlight/flutter_highlight.dart';
 import 'package:flutter_highlight/themes/atom-one-dark.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -806,11 +807,34 @@ class _ConversationViewport extends StatelessWidget {
   }
 }
 
-class _WelcomeView extends StatelessWidget {
+class _WelcomeView extends StatefulWidget {
   const _WelcomeView({required this.controller, required this.onQuickPrompt});
 
   final TaskController controller;
   final ValueChanged<String> onQuickPrompt;
+
+  @override
+  State<_WelcomeView> createState() => _WelcomeViewState();
+}
+
+class _WelcomeViewState extends State<_WelcomeView>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _breathController;
+
+  @override
+  void initState() {
+    super.initState();
+    _breathController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _breathController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -836,16 +860,24 @@ class _WelcomeView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  color: tokens.accentSoft,
-                  borderRadius: BorderRadius.circular(18),
+              ScaleTransition(
+                scale: Tween(begin: 0.95, end: 1.05).animate(
+                  CurvedAnimation(
+                    parent: _breathController,
+                    curve: Curves.easeInOut,
+                  ),
                 ),
-                child: Icon(
-                  Icons.chat_bubble_outline_rounded,
-                  color: tokens.accent,
+                child: Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: tokens.accentSoft,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    color: tokens.accent,
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
@@ -855,7 +887,7 @@ class _WelcomeView extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                controller.status == ConnectionStatus.connected
+                widget.controller.status == ConnectionStatus.connected
                     ? '直接输入任务，系统会把审批、恢复和执行日志全部回收到这条对话。'
                     : '先完成网关连接，之后这里会变成统一的聊天工作区。',
                 style: Theme.of(context).textTheme.bodyLarge,
@@ -867,7 +899,7 @@ class _WelcomeView extends StatelessWidget {
                 children: quickPrompts
                     .map(
                       (prompt) => ActionChip(
-                        onPressed: () => onQuickPrompt(prompt.$2),
+                        onPressed: () => widget.onQuickPrompt(prompt.$2),
                         avatar: const Icon(Icons.north_east_rounded, size: 16),
                         label: Text(prompt.$1),
                       ),
@@ -911,6 +943,11 @@ class _TaskTimeline extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final timeline = <Widget>[_StatusHero(task: task)];
+
+    if (task.status == TaskStatus.running) {
+      timeline.add(const SizedBox(height: 12));
+      timeline.add(const _StreamingIndicator());
+    }
 
     if (task.command != null ||
         task.reason != null ||
@@ -971,6 +1008,71 @@ class _TaskTimeline extends StatelessWidget {
 
     return Scrollbar(
       child: ListView(padding: const EdgeInsets.all(24), children: timeline),
+    );
+  }
+}
+
+class _StreamingIndicator extends StatefulWidget {
+  const _StreamingIndicator();
+
+  @override
+  State<_StreamingIndicator> createState() => _StreamingIndicatorState();
+}
+
+class _StreamingIndicatorState extends State<_StreamingIndicator>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < 3; i++)
+          Padding(
+            padding: EdgeInsets.only(right: i < 2 ? 4 : 8),
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                final phase = (_controller.value * 3 - i) % 1.0;
+                final wave =
+                    0.5 + 0.5 * math.sin(phase * 2 * math.pi);
+                final opacity = (0.3 + 0.7 * wave).clamp(0.3, 1.0);
+                return Opacity(
+                  opacity: opacity,
+                  child: child,
+                );
+              },
+              child: Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ),
+        Text(
+          '思考中...',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
     );
   }
 }
@@ -1075,11 +1177,18 @@ class _StatusHero extends StatelessWidget {
   }
 }
 
-class _ApprovalCard extends StatelessWidget {
+class _ApprovalCard extends StatefulWidget {
   const _ApprovalCard({required this.controller, required this.task});
 
   final TaskController controller;
   final TaskRecord task;
+
+  @override
+  State<_ApprovalCard> createState() => _ApprovalCardState();
+}
+
+class _ApprovalCardState extends State<_ApprovalCard> {
+  bool _confirmedApproval = false;
 
   @override
   Widget build(BuildContext context) {
@@ -1113,7 +1222,7 @@ class _ApprovalCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      task.reason ?? '敏感操作已被挂起，等待你的确认。',
+                      widget.task.reason ?? '敏感操作已被挂起，等待你的确认。',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
@@ -1121,7 +1230,7 @@ class _ApprovalCard extends StatelessWidget {
               ),
             ],
           ),
-          if (task.command case final command?) ...[
+          if (widget.task.command case final command?) ...[
             const SizedBox(height: 16),
             SelectableText(
               command,
@@ -1150,25 +1259,39 @@ class _ApprovalCard extends StatelessWidget {
               ),
             ),
           ],
-          if (task.checkpointId case final checkpointId?) ...[
+          if (widget.task.checkpointId case final checkpointId?) ...[
             const SizedBox(height: 12),
             Text(
               '恢复检查点 $checkpointId',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
-          if (task.isAwaitingApproval) ...[
+          if (widget.task.isAwaitingApproval) ...[
             const SizedBox(height: 18),
             Wrap(
               spacing: 12,
               runSpacing: 12,
               children: [
                 FilledButton(
-                  onPressed: () => controller.submitDecision(true),
-                  child: const Text('批准继续'),
+                  style: _confirmedApproval
+                      ? FilledButton.styleFrom(
+                          backgroundColor: tokens.danger,
+                          foregroundColor: Colors.white,
+                        )
+                      : null,
+                  onPressed: () {
+                    if (_confirmedApproval) {
+                      widget.controller.submitDecision(true);
+                    } else {
+                      setState(() => _confirmedApproval = true);
+                    }
+                  },
+                  child: Text(
+                    _confirmedApproval ? '确认批准?' : '批准继续',
+                  ),
                 ),
                 OutlinedButton(
-                  onPressed: () => controller.submitDecision(false),
+                  onPressed: () => widget.controller.submitDecision(false),
                   child: const Text('拒绝执行'),
                 ),
               ],
@@ -1176,8 +1299,8 @@ class _ApprovalCard extends StatelessWidget {
           ] else ...[
             const SizedBox(height: 18),
             _StatusPill(
-              label: task.status.label,
-              color: _taskStatusColor(task.status, tokens),
+              label: widget.task.status.label,
+              color: _taskStatusColor(widget.task.status, tokens),
             ),
           ],
         ],
@@ -1200,7 +1323,35 @@ class _LiveLogCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('日志流', style: Theme.of(context).textTheme.titleLarge),
+          Row(
+            children: [
+              Text('日志流', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: tokens.surfaceMuted,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${logs.length} 行',
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: logs.join('\n')));
+                },
+                icon: Icon(
+                  Icons.copy_rounded,
+                  size: 20,
+                  color: tokens.textMuted,
+                ),
+                tooltip: '复制全部日志',
+              ),
+            ],
+          ),
           const SizedBox(height: 6),
           Text(
             '客户端 stdout 与恢复信息会不断追加到这里。',
@@ -1409,10 +1560,23 @@ class _ComposerBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              FilledButton(
-                key: const Key('chatSendButton'),
-                onPressed: canSend ? onSend : null,
-                child: const Text('发送'),
+              SizedBox(
+                width: 44,
+                height: 44,
+                child: Material(
+                  key: const Key('chatSendButton'),
+                  color: canSend ? tokens.accent : tokens.surfaceMuted,
+                  borderRadius: BorderRadius.circular(22),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(22),
+                    onTap: canSend ? onSend : null,
+                    child: Icon(
+                      Icons.arrow_upward_rounded,
+                      color: canSend ? Colors.white : tokens.textMuted,
+                      size: 22,
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
