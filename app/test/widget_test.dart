@@ -154,32 +154,45 @@ void main() {
     TestWidgetsFlutterBinding.ensureInitialized();
   });
 
-  testWidgets(
-    'renders a mobile-first chat shell and sends tasks from composer',
-    (tester) async {
-      final api = FakeGatewayApi(pendingApprovals: []);
-      final controller = await connectController(api: api);
+  testWidgets('renders a clean chat-first shell and toggles the setup tray', (
+    tester,
+  ) async {
+    final api = FakeGatewayApi(pendingApprovals: []);
+    final controller = await connectController(api: api);
 
-      await pumpApp(tester, controller);
+    await pumpApp(tester, controller);
 
-      expect(find.byKey(const Key('appBarMenuButton')), findsOneWidget);
-      expect(find.byKey(const Key('appBarSettingsButton')), findsOneWidget);
-      expect(find.text('给 Jarvis 一个目标'), findsOneWidget);
-      expect(find.text('恢复挂起任务'), findsOneWidget);
-      expect(find.byKey(const Key('chatComposerField')), findsOneWidget);
-      expect(find.byKey(const Key('chatSendButton')), findsOneWidget);
+    expect(find.byKey(const Key('appBarMenuButton')), findsOneWidget);
+    expect(find.byKey(const Key('appBarSettingsButton')), findsOneWidget);
+    expect(find.text('开始一个任务'), findsOneWidget);
+    expect(find.text('移动端 AI 工作台'), findsNothing);
+    expect(find.text('给 Jarvis 一个目标'), findsNothing);
+    expect(find.byKey(const Key('setupToggleButton')), findsOneWidget);
+    expect(find.byKey(const Key('setupPanelBody')), findsNothing);
+    expect(find.byKey(const Key('setupDeviceField')), findsNothing);
+    expect(find.text('恢复挂起任务'), findsNothing);
+    expect(find.byKey(const Key('chatComposerField')), findsOneWidget);
+    expect(find.byKey(const Key('chatSendButton')), findsOneWidget);
 
-      await tester.enterText(
-        find.byKey(const Key('chatComposerField')),
-        '查看系统负载',
-      );
-      await tester.tap(find.byKey(const Key('chatSendButton')));
-      await pumpFrames(tester);
+    await tester.tap(find.byKey(const Key('setupToggleButton')));
+    await pumpFrames(tester);
 
-      expect(api.lastInstruction, '查看系统负载');
-      expect(find.text('查看系统负载'), findsAtLeastNWidgets(1));
-    },
-  );
+    expect(find.byKey(const Key('setupPanelBody')), findsOneWidget);
+    expect(find.byKey(const Key('setupDeviceField')), findsOneWidget);
+    expect(find.text('巡检容器'), findsOneWidget);
+    expect(find.text('恢复挂起任务'), findsOneWidget);
+    expect(find.text('查看网关日志'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('chatComposerField')),
+      '查看系统负载',
+    );
+    await tester.tap(find.byKey(const Key('chatSendButton')));
+    await pumpFrames(tester);
+
+    expect(api.lastInstruction, '查看系统负载');
+    expect(find.text('查看系统负载'), findsAtLeastNWidgets(1));
+  });
 
   testWidgets('shows approval and live log cards inside the conversation', (
     tester,
@@ -270,7 +283,7 @@ void main() {
       await tester.tap(find.byKey(const Key('drawerNewChatButton')));
       await pumpFrames(tester);
 
-      expect(find.text('给 Jarvis 一个目标'), findsOneWidget);
+      expect(find.text('开始一个任务'), findsOneWidget);
     },
   );
 
@@ -310,12 +323,20 @@ void main() {
     },
   );
 
-  testWidgets('keeps the thread rail visible on wide layouts', (tester) async {
-    final controller = await connectController();
+  testWidgets(
+    'keeps a single chat canvas on wide layouts and opens the drawer on demand',
+    (tester) async {
+      final controller = await connectController();
 
-    await pumpApp(tester, controller, size: const Size(1440, 1024));
+      await pumpApp(tester, controller, size: const Size(1440, 1024));
 
-    expect(find.byKey(const Key('desktopThreadRail')), findsOneWidget);
-    expect(find.byKey(const Key('appBarMenuButton')), findsNothing);
-  });
+      expect(find.byKey(const Key('desktopThreadRail')), findsNothing);
+      expect(find.byKey(const Key('appBarMenuButton')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('appBarMenuButton')));
+      await pumpFrames(tester);
+
+      expect(find.byKey(const Key('threadDrawer')), findsOneWidget);
+    },
+  );
 }

@@ -27,6 +27,7 @@ class _OpenJarvisHomeState extends State<OpenJarvisHome> {
   final _passwordController = TextEditingController(text: 'passw0rd');
   final _composerController = TextEditingController();
   String? _selectedDeviceId;
+  bool _isSetupExpanded = false;
 
   TaskController get controller => widget.controller;
 
@@ -97,7 +98,9 @@ class _OpenJarvisHomeState extends State<OpenJarvisHome> {
     if (!mounted) {
       return;
     }
-    setState(() {});
+    setState(() {
+      _isSetupExpanded = false;
+    });
     FocusScope.of(context).unfocus();
   }
 
@@ -123,6 +126,12 @@ class _OpenJarvisHomeState extends State<OpenJarvisHome> {
     setState(() {});
   }
 
+  void _toggleSetupPanel() {
+    setState(() {
+      _isSetupExpanded = !_isSetupExpanded;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -131,7 +140,7 @@ class _OpenJarvisHomeState extends State<OpenJarvisHome> {
         _syncSelectedDevice();
         return LayoutBuilder(
           builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 1120;
+            final horizontalPadding = constraints.maxWidth >= 900 ? 24.0 : 16.0;
             final rail = _ThreadRail(
               controller: controller,
               selectedDeviceId: _selectedDeviceId,
@@ -140,28 +149,24 @@ class _OpenJarvisHomeState extends State<OpenJarvisHome> {
                   _selectedDeviceId = value;
                 });
               },
-              onNewChat: () => _startNewChat(closeDrawer: !isWide),
-              onSelectTask: (taskId) =>
-                  _selectTask(taskId, closeDrawer: !isWide),
+              onNewChat: () => _startNewChat(closeDrawer: true),
+              onSelectTask: (taskId) => _selectTask(taskId, closeDrawer: true),
             );
 
             return Scaffold(
               key: _scaffoldKey,
-              drawer: isWide
-                  ? null
-                  : Drawer(
-                      key: const Key('threadDrawer'),
-                      width: math.min(constraints.maxWidth * 0.88, 360),
-                      child: SafeArea(
-                        bottom: false,
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: rail,
-                        ),
-                      ),
-                    ),
+              drawer: Drawer(
+                key: const Key('threadDrawer'),
+                width: math.min(constraints.maxWidth * 0.88, 380),
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: rail,
+                  ),
+                ),
+              ),
               appBar: _JarvisAppBar(
-                isWide: isWide,
                 controller: controller,
                 selectedDeviceId: _selectedDeviceId,
                 onOpenMenu: () => _scaffoldKey.currentState?.openDrawer(),
@@ -170,68 +175,75 @@ class _OpenJarvisHomeState extends State<OpenJarvisHome> {
               body: _Backdrop(
                 child: SafeArea(
                   top: false,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (isWide)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 20, 0, 20),
-                          child: SizedBox(
-                            width: 320,
-                            child: KeyedSubtree(
-                              key: const Key('desktopThreadRail'),
-                              child: rail,
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 960),
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              horizontalPadding,
+                              12,
+                              horizontalPadding,
+                              0,
+                            ),
+                            child: _SetupTray(
+                              controller: controller,
+                              expanded: _isSetupExpanded,
+                              selectedDeviceId: _selectedDeviceId,
+                              onToggle: _toggleSetupPanel,
+                              onDeviceChanged: (value) {
+                                setState(() {
+                                  _selectedDeviceId = value;
+                                });
+                              },
+                              onPrefillInstruction: _prefillInstruction,
+                              onFocusPending: () {
+                                if (controller.pendingTasks.isNotEmpty) {
+                                  controller.selectTask(
+                                    controller.pendingTasks.first.taskId,
+                                  );
+                                  setState(() {
+                                    _isSetupExpanded = false;
+                                  });
+                                }
+                              },
                             ),
                           ),
-                        ),
-                      Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            isWide ? 20 : 16,
-                            20,
-                            16,
-                            16,
-                          ),
-                          child: Align(
-                            alignment: Alignment.topCenter,
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 860),
-                              child: Column(
-                                children: [
-                                  _WorkspaceSummary(
-                                    controller: controller,
-                                    selectedDeviceId: _selectedDeviceId,
-                                    onFocusPending: () {
-                                      if (controller.pendingTasks.isNotEmpty) {
-                                        controller.selectTask(
-                                          controller.pendingTasks.first.taskId,
-                                        );
-                                      }
-                                    },
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Expanded(
-                                    child: _ConversationViewport(
-                                      controller: controller,
-                                      composerController: _composerController,
-                                      onPrefillInstruction: _prefillInstruction,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  _ComposerBar(
-                                    controller: controller,
-                                    selectedDeviceId: _selectedDeviceId,
-                                    composerController: _composerController,
-                                    onComposerChanged: () => setState(() {}),
-                                    onSend: _sendInstruction,
-                                  ),
-                                ],
+                          Expanded(
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                horizontalPadding,
+                                8,
+                                horizontalPadding,
+                                8,
+                              ),
+                              child: _ConversationViewport(
+                                controller: controller,
+                                composerController: _composerController,
+                                onPrefillInstruction: _prefillInstruction,
                               ),
                             ),
                           ),
-                        ),
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              horizontalPadding,
+                              0,
+                              horizontalPadding,
+                              16,
+                            ),
+                            child: _ComposerBar(
+                              controller: controller,
+                              selectedDeviceId: _selectedDeviceId,
+                              composerController: _composerController,
+                              onComposerChanged: () => setState(() {}),
+                              onSend: _sendInstruction,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -245,14 +257,12 @@ class _OpenJarvisHomeState extends State<OpenJarvisHome> {
 
 class _JarvisAppBar extends StatelessWidget implements PreferredSizeWidget {
   const _JarvisAppBar({
-    required this.isWide,
     required this.controller,
     required this.selectedDeviceId,
     required this.onOpenMenu,
     required this.onOpenSettings,
   });
 
-  final bool isWide;
   final TaskController controller;
   final String? selectedDeviceId;
   final VoidCallback onOpenMenu;
@@ -269,14 +279,12 @@ class _JarvisAppBar extends StatelessWidget implements PreferredSizeWidget {
         .length;
 
     return AppBar(
-      leading: isWide
-          ? null
-          : IconButton(
-              key: const Key('appBarMenuButton'),
-              tooltip: '线程列表',
-              onPressed: onOpenMenu,
-              icon: const Icon(Icons.menu_rounded),
-            ),
+      leading: IconButton(
+        key: const Key('appBarMenuButton'),
+        tooltip: '线程列表',
+        onPressed: onOpenMenu,
+        icon: const Icon(Icons.menu_rounded),
+      ),
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
@@ -315,6 +323,182 @@ class _JarvisAppBar extends StatelessWidget implements PreferredSizeWidget {
         ),
         const SizedBox(width: 8),
       ],
+    );
+  }
+}
+
+class _SetupTray extends StatelessWidget {
+  const _SetupTray({
+    required this.controller,
+    required this.expanded,
+    required this.selectedDeviceId,
+    required this.onToggle,
+    required this.onDeviceChanged,
+    required this.onPrefillInstruction,
+    required this.onFocusPending,
+  });
+
+  final TaskController controller;
+  final bool expanded;
+  final String? selectedDeviceId;
+  final VoidCallback onToggle;
+  final ValueChanged<String?> onDeviceChanged;
+  final ValueChanged<String> onPrefillInstruction;
+  final VoidCallback onFocusPending;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = JarvisThemeTokens.of(context);
+    final onlineCount = controller.devices
+        .where((device) => device.connected)
+        .length;
+    final summary = <String>[
+      selectedDeviceId == null ? '未选择设备' : '设备 $selectedDeviceId',
+      '${controller.pendingTasks.length} 待审批',
+    ].join(' · ');
+    final quickPrompts = <(String, String)>[
+      ('巡检容器', '检查 docker 容器状态并汇总异常'),
+      ('恢复挂起任务', '检查当前所有挂起任务并给出恢复建议'),
+      ('查看网关日志', '查看网关最近 100 行日志并标出异常'),
+    ];
+
+    return AnimatedContainer(
+      duration: _motionDuration(context),
+      curve: Curves.easeOutCubic,
+      padding: EdgeInsets.fromLTRB(18, 16, 18, expanded ? 18 : 16),
+      decoration: BoxDecoration(
+        color: tokens.shell.withValues(alpha: 0.84),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(
+          color: expanded ? tokens.borderStrong : tokens.border,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            key: const Key('setupToggleButton'),
+            borderRadius: BorderRadius.circular(18),
+            onTap: onToggle,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '会话设置',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        expanded ? '选择设备并填充常用起手任务。' : summary,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: tokens.surface,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: tokens.border),
+                  ),
+                  child: Text(
+                    '${_connectionStatusLabel(controller.status)} · $onlineCount 在线',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                AnimatedRotation(
+                  turns: expanded ? 0.5 : 0,
+                  duration: _motionDuration(context),
+                  child: Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: tokens.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ClipRect(
+            child: AnimatedSize(
+              duration: _motionDuration(context),
+              curve: Curves.easeOutCubic,
+              child: expanded
+                  ? Column(
+                      key: const Key('setupPanelBody'),
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 16),
+                        Divider(color: tokens.border, height: 1),
+                        const SizedBox(height: 16),
+                        Text(
+                          '任务会发往选中的执行端，常用提示词可直接回填到底部输入框。',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        const SizedBox(height: 14),
+                        DropdownButtonFormField<String>(
+                          key: const Key('setupDeviceField'),
+                          initialValue: selectedDeviceId,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            hintText: '选择要协作的设备',
+                          ),
+                          items: controller.devices
+                              .map(
+                                (device) => DropdownMenuItem<String>(
+                                  value: device.deviceId,
+                                  child: Text(
+                                    device.connected
+                                        ? '${device.deviceId} · 在线'
+                                        : '${device.deviceId} · 离线',
+                                  ),
+                                ),
+                              )
+                              .toList(growable: false),
+                          onChanged: onDeviceChanged,
+                        ),
+                        const SizedBox(height: 16),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: quickPrompts
+                              .map(
+                                (prompt) => ActionChip(
+                                  onPressed: () =>
+                                      onPrefillInstruction(prompt.$2),
+                                  avatar: const Icon(
+                                    Icons.north_east_rounded,
+                                    size: 16,
+                                  ),
+                                  label: Text(prompt.$1),
+                                ),
+                              )
+                              .toList(growable: false),
+                        ),
+                        if (controller.pendingTasks.isNotEmpty &&
+                            controller.selectedTask == null) ...[
+                          const SizedBox(height: 12),
+                          TextButton.icon(
+                            onPressed: onFocusPending,
+                            icon: const Icon(Icons.playlist_play_rounded),
+                            label: Text(
+                              '恢复 ${controller.pendingTasks.length} 个挂起任务',
+                            ),
+                          ),
+                        ],
+                      ],
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -697,80 +881,6 @@ class _EmptyThreadState extends StatelessWidget {
   }
 }
 
-class _WorkspaceSummary extends StatelessWidget {
-  const _WorkspaceSummary({
-    required this.controller,
-    required this.selectedDeviceId,
-    required this.onFocusPending,
-  });
-
-  final TaskController controller;
-  final String? selectedDeviceId;
-  final VoidCallback onFocusPending;
-
-  @override
-  Widget build(BuildContext context) {
-    final onlineDevices = controller.devices
-        .where((device) => device.connected)
-        .length;
-    final selectedTask = controller.selectedTask;
-
-    return _GlassCard(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            selectedTask == null ? '移动端 AI 工作台' : '当前线程概览',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            selectedTask == null
-                ? '对话、审批、恢复和实时日志都收敛在同一条消息流里。'
-                : '当前线程状态：${selectedTask.status.label}。后续日志、审批和恢复都会继续写回这里。',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _MetricChip(
-                icon: Icons.route_rounded,
-                label: selectedDeviceId == null
-                    ? '未选择设备'
-                    : '当前设备 $selectedDeviceId',
-              ),
-              _MetricChip(
-                icon: Icons.devices_rounded,
-                label: '$onlineDevices 台在线',
-              ),
-              _MetricChip(
-                icon: Icons.pending_actions_rounded,
-                label: '${controller.pendingTasks.length} 个待审批',
-              ),
-              if (selectedTask?.checkpointId case final checkpointId?)
-                _MetricChip(
-                  icon: Icons.restore_rounded,
-                  label: '检查点 $checkpointId',
-                ),
-            ],
-          ),
-          if (controller.pendingTasks.isNotEmpty && selectedTask == null) ...[
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: onFocusPending,
-              icon: const Icon(Icons.playlist_play_rounded),
-              label: Text('恢复 ${controller.pendingTasks.length} 个挂起任务'),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 class _ConversationViewport extends StatelessWidget {
   const _ConversationViewport({
     required this.controller,
@@ -791,17 +901,13 @@ class _ConversationViewport extends StatelessWidget {
           )
         : _TaskTimeline(controller: controller, task: controller.selectedTask!);
 
-    return _GlassCard(
-      padding: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      child: AnimatedSwitcher(
-        duration: _motionDuration(context),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeOutCubic,
-        child: KeyedSubtree(
-          key: ValueKey<String?>(controller.selectedTask?.taskId),
-          child: child,
-        ),
+    return AnimatedSwitcher(
+      duration: _motionDuration(context),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeOutCubic,
+      child: KeyedSubtree(
+        key: ValueKey<String?>(controller.selectedTask?.taskId),
+        child: child,
       ),
     );
   }
@@ -839,97 +945,69 @@ class _WelcomeViewState extends State<_WelcomeView>
   @override
   Widget build(BuildContext context) {
     final tokens = JarvisThemeTokens.of(context);
-    final quickPrompts = <(String, String)>[
-      ('巡检容器', '检查 docker 容器状态并汇总异常'),
-      ('恢复挂起任务', '检查当前所有挂起任务并给出恢复建议'),
-      ('查看网关日志', '查看网关最近 100 行日志并标出异常'),
-    ];
+    final pendingCount = widget.controller.pendingTasks.length;
 
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [tokens.shellRaised, tokens.surface],
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ScaleTransition(
-                scale: Tween(begin: 0.95, end: 1.05).animate(
-                  CurvedAnimation(
-                    parent: _breathController,
-                    curve: Curves.easeInOut,
-                  ),
-                ),
-                child: Container(
-                  width: 54,
-                  height: 54,
-                  decoration: BoxDecoration(
-                    color: tokens.accentSoft,
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Icon(
-                    Icons.chat_bubble_outline_rounded,
-                    color: tokens.accent,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                '给 Jarvis 一个目标',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: 10),
-              Text(
-                widget.controller.status == ConnectionStatus.connected
-                    ? '直接输入任务，系统会把审批、恢复和执行日志全部回收到这条对话。'
-                    : '先完成网关连接，之后这里会变成统一的聊天工作区。',
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-              const SizedBox(height: 20),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: quickPrompts
-                    .map(
-                      (prompt) => ActionChip(
-                        onPressed: () => widget.onQuickPrompt(prompt.$2),
-                        avatar: const Icon(Icons.north_east_rounded, size: 16),
-                        label: Text(prompt.$1),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight - 80),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ScaleTransition(
+                      scale: Tween(begin: 0.97, end: 1.03).animate(
+                        CurvedAnimation(
+                          parent: _breathController,
+                          curve: Curves.easeInOut,
+                        ),
                       ),
-                    )
-                    .toList(growable: false),
+                      child: Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: tokens.accentSoft,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Icon(
+                          Icons.chat_bubble_outline_rounded,
+                          color: tokens.accent,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      '开始一个任务',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.displaySmall,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      widget.controller.status == ConnectionStatus.connected
+                          ? '任务下发、审批、恢复和实时日志都会留在这条对话里。顶部可展开会话设置。'
+                          : '先完成网关连接，然后在这里开始一条任务线程。',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                    if (pendingCount > 0) ...[
+                      const SizedBox(height: 14),
+                      Text(
+                        '当前还有 $pendingCount 个挂起任务可恢复。',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
-        ),
-        const SizedBox(height: 18),
-        _HintGrid(
-          cards: const [
-            _HintData(
-              icon: Icons.send_rounded,
-              title: '任务下发',
-              body: '像聊天一样下发任务，但底层仍然走网关与客户端协议。',
-            ),
-            _HintData(
-              icon: Icons.shield_outlined,
-              title: '会话内审批',
-              body: '敏感操作以审批卡形式插入消息流，不再跳到独立页面。',
-            ),
-            _HintData(
-              icon: Icons.terminal_rounded,
-              title: '实时日志',
-              body: 'stdout、恢复状态和执行结果在同一线程内连续展示。',
-            ),
-          ],
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -1050,13 +1128,9 @@ class _StreamingIndicatorState extends State<_StreamingIndicator>
               animation: _controller,
               builder: (context, child) {
                 final phase = (_controller.value * 3 - i) % 1.0;
-                final wave =
-                    0.5 + 0.5 * math.sin(phase * 2 * math.pi);
+                final wave = 0.5 + 0.5 * math.sin(phase * 2 * math.pi);
                 final opacity = (0.3 + 0.7 * wave).clamp(0.3, 1.0);
-                return Opacity(
-                  opacity: opacity,
-                  child: child,
-                );
+                return Opacity(opacity: opacity, child: child);
               },
               child: Container(
                 width: 6,
@@ -1068,10 +1142,7 @@ class _StreamingIndicatorState extends State<_StreamingIndicator>
               ),
             ),
           ),
-        Text(
-          '思考中...',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+        Text('思考中...', style: Theme.of(context).textTheme.bodySmall),
       ],
     );
   }
@@ -1286,9 +1357,7 @@ class _ApprovalCardState extends State<_ApprovalCard> {
                       setState(() => _confirmedApproval = true);
                     }
                   },
-                  child: Text(
-                    _confirmedApproval ? '确认批准?' : '批准继续',
-                  ),
+                  child: Text(_confirmedApproval ? '确认批准?' : '批准继续'),
                 ),
                 OutlinedButton(
                   onPressed: () => widget.controller.submitDecision(false),
@@ -1532,15 +1601,19 @@ class _ComposerBar extends StatelessWidget {
         controller.status == ConnectionStatus.connected &&
         selectedDeviceId != null;
 
-    return _GlassCard(
-      padding: const EdgeInsets.all(18),
-      backgroundColor: tokens.shell,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: tokens.shell.withValues(alpha: 0.92),
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: tokens.border),
+                ),
                 child: TextField(
                   key: const Key('chatComposerField'),
                   controller: composerController,
@@ -1556,39 +1629,47 @@ class _ComposerBar extends StatelessWidget {
                     hintText: controller.status == ConnectionStatus.connected
                         ? '输入一个任务，例如：检查 api-service 并在必要时重启'
                         : '先完成网关连接，再开始下发任务',
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              SizedBox(
-                width: 44,
-                height: 44,
-                child: Material(
-                  key: const Key('chatSendButton'),
-                  color: canSend ? tokens.accent : tokens.surfaceMuted,
-                  borderRadius: BorderRadius.circular(22),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(22),
-                    onTap: canSend ? onSend : null,
-                    child: Icon(
-                      Icons.arrow_upward_rounded,
-                      color: canSend ? Colors.white : tokens.textMuted,
-                      size: 22,
+                    filled: false,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 16,
                     ),
                   ),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            selectedDeviceId == null
-                ? '还没有可用设备，暂时无法把任务发出去。'
-                : '这条消息会路由到 $selectedDeviceId，并把后续审批和日志回收到当前线程。',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
-      ),
+            ),
+            const SizedBox(width: 12),
+            SizedBox(
+              width: 48,
+              height: 48,
+              child: Material(
+                key: const Key('chatSendButton'),
+                color: canSend ? tokens.accent : tokens.surfaceMuted,
+                borderRadius: BorderRadius.circular(24),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(24),
+                  onTap: canSend ? onSend : null,
+                  child: Icon(
+                    Icons.arrow_upward_rounded,
+                    color: canSend ? Colors.white : tokens.textMuted,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          selectedDeviceId == null
+              ? '请先在顶部展开会话设置并选择设备。'
+              : '发送到 $selectedDeviceId，后续审批与日志会继续写回这里。',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
     );
   }
 }
@@ -1745,81 +1826,18 @@ class _SettingsSheet extends StatelessWidget {
   }
 }
 
-class _HintGrid extends StatelessWidget {
-  const _HintGrid({required this.cards});
-
-  final List<_HintData> cards;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 720;
-        final itemWidth = wide
-            ? (constraints.maxWidth - 20) / 2
-            : constraints.maxWidth;
-        return Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: cards
-              .map(
-                (card) => SizedBox(
-                  width: itemWidth,
-                  child: _GlassCard(
-                    padding: const EdgeInsets.all(18),
-                    backgroundColor: JarvisThemeTokens.of(context).surface,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(card.icon),
-                        const SizedBox(height: 12),
-                        Text(
-                          card.title,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          card.body,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              )
-              .toList(growable: false),
-        );
-      },
-    );
-  }
-}
-
-class _HintData {
-  const _HintData({
-    required this.icon,
-    required this.title,
-    required this.body,
-  });
-
-  final IconData icon;
-  final String title;
-  final String body;
-}
-
 class _GlassCard extends StatelessWidget {
   const _GlassCard({
     required this.child,
     this.padding = const EdgeInsets.all(20),
     this.backgroundColor,
     this.borderColor,
-    this.clipBehavior = Clip.none,
   });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
   final Color? backgroundColor;
   final Color? borderColor;
-  final Clip clipBehavior;
 
   @override
   Widget build(BuildContext context) {
@@ -1839,7 +1857,7 @@ class _GlassCard extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
-        clipBehavior: clipBehavior,
+        clipBehavior: Clip.antiAlias,
         child: Padding(padding: padding, child: child),
       ),
     );
