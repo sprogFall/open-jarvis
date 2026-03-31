@@ -6,6 +6,7 @@ on:
       - 'app/lib/**'
       - 'app/test/**'
       - 'app/android/**'
+      - '.github/scripts/**'
       - 'app/pubspec.yaml'
       - 'app/pubspec.lock'
       - 'app/analysis_options.yaml'
@@ -204,70 +205,10 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           set -euo pipefail
-
-          if [ "$BUILD_TYPE" != "release" ]; then
-            echo "signing_mode=debug" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [ -z "${ANDROID_KEYSTORE_BASE64}" ] || [ -z "${ANDROID_KEYSTORE_PASSWORD}" ] || [ -z "${ANDROID_KEY_PASSWORD}" ] || [ -z "${ANDROID_KEY_ALIAS}" ]; then
-            echo "Release signing secrets not configured; fallback to debug signing." >&2
-            echo "signing_mode=debug-fallback" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          rm -f android/app/upload-keystore.jks android/key.properties
-
-          if ! python3 - <<'PY'
-          import base64
-          import os
-          import pathlib
-          import re
-
-          raw = os.environ["ANDROID_KEYSTORE_BASE64"]
-
-          match = re.search(
-              r"(?mi)^\s*(?:export\s+)?ANDROID_KEYSTORE_BASE64\s*[:=]\s*(.+?)\s*$",
-              raw,
-          )
-
-          if match:
-              value = match.group(1)
-          else:
-              value = raw.strip()
-
-          value = value.strip().strip("'\"").strip()
-
-          if value.startswith("data:") and "," in value:
-              value = value.split(",", 1)[1]
-
-          value = re.sub(r"\s+", "", value)
-
-          decoded = base64.b64decode(value, validate=True)
-          pathlib.Path("android/app/upload-keystore.jks").write_bytes(decoded)
-          PY
-          then
-            echo "Invalid ANDROID_KEYSTORE_BASE64; fallback to debug signing." >&2
-            rm -f android/app/upload-keystore.jks android/key.properties
-            echo "signing_mode=debug-fallback-invalid-secret" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if ! keytool -list -keystore android/app/upload-keystore.jks -storepass "${ANDROID_KEYSTORE_PASSWORD}" >/dev/null 2>&1; then
-            echo "Decoded keystore failed validation; fallback to debug signing." >&2
-            rm -f android/app/upload-keystore.jks android/key.properties
-            echo "signing_mode=debug-fallback-invalid-secret" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          cat > android/key.properties <<EOF
-          storePassword=${ANDROID_KEYSTORE_PASSWORD}
-          keyPassword=${ANDROID_KEY_PASSWORD}
-          keyAlias=${ANDROID_KEY_ALIAS}
-          storeFile=app/upload-keystore.jks
-          EOF
-
-          echo "signing_mode=release-keystore" >> "$GITHUB_OUTPUT"
+          python3 ../.github/scripts/configure_android_signing.py \
+            --build-type "$BUILD_TYPE" \
+            --project-dir . \
+            --github-output "$GITHUB_OUTPUT"
 
       - name: Build APK
         env:
