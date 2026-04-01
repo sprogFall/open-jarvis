@@ -4,13 +4,11 @@ services:
       context: .
       dockerfile: gateway/Dockerfile
     environment:
-      OMNI_AGENT_GATEWAY_DB: ${OMNI_AGENT_GATEWAY_DB:-/data/gateway/gateway.db}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://jarvis:jarvis@host.docker.internal:5432/jarvis}
       OMNI_AGENT_JWT_SECRET: ${OMNI_AGENT_JWT_SECRET:-change-me-change-me-change-me-1234}
       OMNI_AGENT_ADMIN_USERNAME: ${OMNI_AGENT_ADMIN_USERNAME:-operator}
       OMNI_AGENT_ADMIN_PASSWORD: ${OMNI_AGENT_ADMIN_PASSWORD:-passw0rd}
       OMNI_AGENT_DEVICE_KEYS: ${OMNI_AGENT_DEVICE_KEYS:-device-alpha=device-secret}
-    volumes:
-      - gateway_data:/data/gateway
     ports:
       - "8000:8000"
     restart: unless-stopped
@@ -37,5 +35,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  gateway_data:
   client_data:

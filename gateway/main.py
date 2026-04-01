@@ -13,6 +13,7 @@ from gateway.security import (
 )
 from gateway.settings import GatewaySettings
 from gateway.store import GatewayStore
+from dashboard.router import router as dashboard_router, api as dashboard_api
 
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -96,12 +97,16 @@ class ConnectionManager:
 
 def create_app(settings: GatewaySettings | None = None) -> FastAPI:
     settings = settings or GatewaySettings.from_env()
-    store = GatewayStore(settings.database_path)
+    store = GatewayStore(settings.database_url)
     manager = ConnectionManager()
+    settings.device_keys = store.initialize_device_registry(settings.device_keys)
+
     app = FastAPI(title="Omni-Agent Gateway")
     app.state.settings = settings
     app.state.store = store
     app.state.manager = manager
+    app.include_router(dashboard_router)
+    app.include_router(dashboard_api)
 
     def require_user(
         credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
@@ -217,6 +222,7 @@ def create_app(settings: GatewaySettings | None = None) -> FastAPI:
             raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION)
 
         await manager.connect_client(device_id, websocket)
+        store.touch_device(device_id)
         for task in store.list_tasks_for_device(device_id, ["PENDING_DISPATCH"]):
             await manager.send_task_assignment(device_id, task)
         try:

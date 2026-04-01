@@ -13,7 +13,7 @@ from gateway.settings import GatewaySettings
 
 def build_test_client(tmp_path) -> tuple[TestClient, GatewaySettings]:
     settings = GatewaySettings(
-        database_path=tmp_path / "gateway.db",
+        database_url=str(tmp_path / "gateway.db"),
         jwt_secret="test-secret-test-secret-test-secret",
         admin_username="operator",
         admin_password="passw0rd",

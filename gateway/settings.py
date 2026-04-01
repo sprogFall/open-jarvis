@@ -7,7 +7,7 @@ from pathlib import Path
 
 @dataclass(slots=True)
 class GatewaySettings:
-    database_path: Path = Path("gateway/gateway.db")
+    database_url: str = "sqlite:///gateway/gateway.db"
     jwt_secret: str = "change-me-change-me-change-me-1234"
     jwt_algorithm: str = "HS256"
     admin_username: str = "operator"
@@ -23,10 +23,13 @@ class GatewaySettings:
                 continue
             device_id, device_key = pair.split("=", 1)
             device_keys[device_id.strip()] = device_key.strip()
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            legacy_database = os.getenv("OMNI_AGENT_GATEWAY_DB")
+            if legacy_database:
+                database_url = str(Path(legacy_database).expanduser())
         return cls(
-            database_path=Path(
-                os.getenv("OMNI_AGENT_GATEWAY_DB", "gateway/gateway.db")
-            ).expanduser(),
+            database_url=database_url or "sqlite:///gateway/gateway.db",
             jwt_secret=os.getenv(
                 "OMNI_AGENT_JWT_SECRET", "change-me-change-me-change-me-1234"
             ),
