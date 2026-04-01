@@ -1,5 +1,7 @@
+import 'package:app/src/models/connection_session.dart';
 import 'package:app/src/models/device_record.dart';
 import 'package:app/src/models/task_record.dart';
+import 'package:app/src/services/connection_session_store.dart';
 import 'package:app/src/services/gateway_api.dart';
 import 'package:app/src/services/gateway_socket.dart';
 import 'package:flutter/foundation.dart';
@@ -7,22 +9,31 @@ import 'package:flutter/foundation.dart';
 enum ConnectionStatus { idle, connecting, connected, failed }
 
 class TaskController extends ChangeNotifier {
-  TaskController({required this.api, required this.socket});
+  TaskController({
+    required this.api,
+    required this.socket,
+    ConnectionSessionStore? sessionStore,
+  }) : sessionStore = sessionStore ?? const NoopConnectionSessionStore();
 
   final GatewayApi api;
   final GatewaySocket socket;
+  final ConnectionSessionStore sessionStore;
 
   ConnectionStatus _status = ConnectionStatus.idle;
   String? _token;
   String? _baseUrl;
   String? _errorMessage;
   String? _selectedTaskId;
+  ConnectionSession? _session;
   List<DeviceRecord> _devices = const <DeviceRecord>[];
   List<TaskRecord> _tasks = const <TaskRecord>[];
 
   ConnectionStatus get status => _status;
   String? get token => _token;
   String? get errorMessage => _errorMessage;
+  String? get savedBaseUrl => _session?.baseUrl;
+  String? get savedUsername => _session?.username;
+  String? get preferredDeviceId => _session?.preferredDeviceId;
   List<DeviceRecord> get devices => List<DeviceRecord>.unmodifiable(_devices);
   List<TaskRecord> get tasks => List<TaskRecord>.unmodifiable(_tasks);
   List<TaskRecord> get pendingTasks => _tasks
@@ -46,6 +57,13 @@ class TaskController extends ChangeNotifier {
     required String username,
     required String password,
   }) async {
+    final sessionDraft = ConnectionSession(
+      baseUrl: baseUrl,
+      username: username,
+      preferredDeviceId: _session?.preferredDeviceId,
+    );
+    await _saveSession(sessionDraft);
+
     _status = ConnectionStatus.connecting;
     _errorMessage = null;
     notifyListeners();
@@ -56,27 +74,12 @@ class TaskController extends ChangeNotifier {
         username: username,
         password: password,
       );
-      final devices = await api.fetchDevices(baseUrl: baseUrl, token: token);
-      final pendingApprovals = await api.fetchPendingApprovals(
-        baseUrl: baseUrl,
-        token: token,
+      await _connectWithToken(
+        sessionDraft.copyWith(token: token),
+        notifyOnStart: false,
       );
-
-      _baseUrl = baseUrl;
-      _token = token;
-      _devices = devices;
-      _tasks = pendingApprovals;
-      _selectedTaskId = pendingApprovals.isNotEmpty
-          ? pendingApprovals.first.taskId
-          : null;
-
-      await socket.connect(
-        baseUrl: baseUrl,
-        token: token,
-        onEvent: handleSocketEvent,
-      );
-      _status = ConnectionStatus.connected;
     } catch (error) {
+      await _clearConnectedState();
       _status = ConnectionStatus.failed;
       _errorMessage = error.toString();
     }
@@ -84,11 +87,26 @@ class TaskController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> restoreSavedSession() async {
+    final session = await sessionStore.load();
+    if (session == null) {
+      return;
+    }
+    _session = session;
+    final token = session.token;
+    if (token == null || token.isEmpty) {
+      notifyListeners();
+      return;
+    }
+    await _connectWithToken(session);
+  }
+
   Future<void> refresh() async {
     if (_baseUrl == null || _token == null) {
       return;
     }
     _devices = await api.fetchDevices(baseUrl: _baseUrl!, token: _token!);
+    await _reconcilePreferredDevice();
     final pending = await api.fetchPendingApprovals(
       baseUrl: _baseUrl!,
       token: _token!,
@@ -96,6 +114,19 @@ class TaskController extends ChangeNotifier {
     for (final task in pending) {
       _upsertTask(task, selectIfMissing: _selectedTaskId == null);
     }
+    notifyListeners();
+  }
+
+  Future<void> savePreferredDeviceId(String? deviceId) async {
+    final session = _session;
+    if (session == null) {
+      return;
+    }
+    await _saveSession(
+      deviceId == null
+          ? session.copyWith(clearPreferredDeviceId: true)
+          : session.copyWith(preferredDeviceId: deviceId),
+    );
     notifyListeners();
   }
 
@@ -175,6 +206,98 @@ class TaskController extends ChangeNotifier {
       );
       notifyListeners();
     }
+  }
+
+  Future<void> _connectWithToken(
+    ConnectionSession session, {
+    bool notifyOnStart = true,
+  }) async {
+    _status = ConnectionStatus.connecting;
+    _errorMessage = null;
+    if (notifyOnStart) {
+      notifyListeners();
+    }
+
+    try {
+      final token = session.token;
+      if (token == null || token.isEmpty) {
+        throw StateError('Saved gateway session is missing token');
+      }
+      final devices = await api.fetchDevices(
+        token: token,
+        baseUrl: session.baseUrl,
+      );
+      final pendingApprovals = await api.fetchPendingApprovals(
+        baseUrl: session.baseUrl,
+        token: token,
+      );
+      await socket.connect(
+        baseUrl: session.baseUrl,
+        token: token,
+        onEvent: handleSocketEvent,
+      );
+
+      _baseUrl = session.baseUrl;
+      _token = token;
+      _devices = devices;
+      _tasks = pendingApprovals;
+      _selectedTaskId = pendingApprovals.isNotEmpty
+          ? pendingApprovals.first.taskId
+          : null;
+      await _saveSession(session);
+      await _reconcilePreferredDevice();
+      _status = ConnectionStatus.connected;
+    } catch (error) {
+      await _clearConnectedState();
+      _status = ConnectionStatus.failed;
+      _errorMessage = _savedSessionError(error);
+      await _saveSession(session.copyWith(clearToken: true));
+    }
+
+    notifyListeners();
+  }
+
+  Future<void> _saveSession(ConnectionSession session) async {
+    _session = session;
+    await sessionStore.save(session);
+  }
+
+  Future<void> _reconcilePreferredDevice() async {
+    final session = _session;
+    if (session == null) {
+      return;
+    }
+    final savedDeviceId = session.preferredDeviceId;
+    final availableDeviceIds = _devices
+        .map((device) => device.deviceId)
+        .toSet();
+    final nextDeviceId = availableDeviceIds.contains(savedDeviceId)
+        ? savedDeviceId
+        : (_devices.isNotEmpty ? _devices.first.deviceId : null);
+    if (nextDeviceId == savedDeviceId) {
+      return;
+    }
+    await _saveSession(
+      nextDeviceId == null
+          ? session.copyWith(clearPreferredDeviceId: true)
+          : session.copyWith(preferredDeviceId: nextDeviceId),
+    );
+  }
+
+  Future<void> _clearConnectedState() async {
+    await socket.disconnect();
+    _token = null;
+    _devices = const <DeviceRecord>[];
+    _tasks = const <TaskRecord>[];
+    _selectedTaskId = null;
+  }
+
+  String _savedSessionError(Object error) {
+    final message = error.toString();
+    if (message.contains('401')) {
+      return '已保存的登录态失效，请重新输入密码连接。';
+    }
+    return message;
   }
 
   TaskRecord? _findTask(String taskId) {

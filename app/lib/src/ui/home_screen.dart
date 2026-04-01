@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:app/src/models/task_record.dart';
@@ -19,17 +20,26 @@ class OpenJarvisHome extends StatefulWidget {
 }
 
 class _OpenJarvisHomeState extends State<OpenJarvisHome> {
+  static const _defaultBaseUrl = 'http://127.0.0.1:8000';
+  static const _defaultUsername = 'operator';
+
   final _scaffoldKey = GlobalKey<ScaffoldState>();
-  final _baseUrlController = TextEditingController(
-    text: 'http://127.0.0.1:8000',
-  );
-  final _usernameController = TextEditingController(text: 'operator');
-  final _passwordController = TextEditingController(text: 'passw0rd');
+  final _baseUrlController = TextEditingController();
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
   final _composerController = TextEditingController();
   String? _selectedDeviceId;
   bool _isSetupExpanded = false;
 
   TaskController get controller => widget.controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _baseUrlController.text = controller.savedBaseUrl ?? _defaultBaseUrl;
+    _usernameController.text = controller.savedUsername ?? _defaultUsername;
+    _selectedDeviceId = controller.preferredDeviceId;
+  }
 
   @override
   void dispose() {
@@ -47,6 +57,12 @@ class _OpenJarvisHomeState extends State<OpenJarvisHome> {
     if (_selectedDeviceId != null &&
         !availableDeviceIds.contains(_selectedDeviceId)) {
       _selectedDeviceId = null;
+    }
+    final preferredDeviceId = controller.preferredDeviceId;
+    if (_selectedDeviceId == null &&
+        preferredDeviceId != null &&
+        availableDeviceIds.contains(preferredDeviceId)) {
+      _selectedDeviceId = preferredDeviceId;
     }
     _selectedDeviceId ??= controller.devices.isNotEmpty
         ? controller.devices.first.deviceId
@@ -104,6 +120,13 @@ class _OpenJarvisHomeState extends State<OpenJarvisHome> {
     FocusScope.of(context).unfocus();
   }
 
+  void _handleDeviceChanged(String? value) {
+    setState(() {
+      _selectedDeviceId = value;
+    });
+    unawaited(controller.savePreferredDeviceId(value));
+  }
+
   void _selectTask(String taskId, {required bool closeDrawer}) {
     controller.selectTask(taskId);
     if (closeDrawer && Navigator.of(context).canPop()) {
@@ -144,11 +167,7 @@ class _OpenJarvisHomeState extends State<OpenJarvisHome> {
             final rail = _ThreadRail(
               controller: controller,
               selectedDeviceId: _selectedDeviceId,
-              onDeviceChanged: (value) {
-                setState(() {
-                  _selectedDeviceId = value;
-                });
-              },
+              onDeviceChanged: _handleDeviceChanged,
               onNewChat: () => _startNewChat(closeDrawer: true),
               onSelectTask: (taskId) => _selectTask(taskId, closeDrawer: true),
             );
@@ -193,11 +212,7 @@ class _OpenJarvisHomeState extends State<OpenJarvisHome> {
                               expanded: _isSetupExpanded,
                               selectedDeviceId: _selectedDeviceId,
                               onToggle: _toggleSetupPanel,
-                              onDeviceChanged: (value) {
-                                setState(() {
-                                  _selectedDeviceId = value;
-                                });
-                              },
+                              onDeviceChanged: _handleDeviceChanged,
                               onPrefillInstruction: _prefillInstruction,
                               onFocusPending: () {
                                 if (controller.pendingTasks.isNotEmpty) {

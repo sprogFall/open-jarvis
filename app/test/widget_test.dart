@@ -1,6 +1,8 @@
 import 'package:app/main.dart';
+import 'package:app/src/models/connection_session.dart';
 import 'package:app/src/models/device_record.dart';
 import 'package:app/src/models/task_record.dart';
+import 'package:app/src/services/connection_session_store.dart';
 import 'package:app/src/services/gateway_api.dart';
 import 'package:app/src/services/gateway_socket.dart';
 import 'package:app/src/state/task_controller.dart';
@@ -106,6 +108,20 @@ class FakeGatewaySocket implements GatewaySocket {
 
   @override
   Future<void> disconnect() async {}
+}
+
+class FakeConnectionSessionStore implements ConnectionSessionStore {
+  FakeConnectionSessionStore({this.session});
+
+  ConnectionSession? session;
+
+  @override
+  Future<ConnectionSession?> load() async => session;
+
+  @override
+  Future<void> save(ConnectionSession nextSession) async {
+    session = nextSession;
+  }
 }
 
 Future<TaskController> connectController({
@@ -322,6 +338,32 @@ void main() {
       expect(api.lastPassword, 'secret');
     },
   );
+
+  testWidgets('restores saved connection settings after app restart', (
+    tester,
+  ) async {
+    final controller = TaskController(
+      api: FakeGatewayApi(),
+      socket: FakeGatewaySocket(),
+      sessionStore: FakeConnectionSessionStore(
+        session: const ConnectionSession(
+          baseUrl: 'http://10.0.0.8:8000',
+          username: 'root',
+          token: 'jwt-token',
+        ),
+      ),
+    );
+
+    await controller.restoreSavedSession();
+    await pumpApp(tester, controller);
+
+    await tester.tap(find.byKey(const Key('appBarSettingsButton')));
+    await pumpFrames(tester);
+
+    expect(find.text('http://10.0.0.8:8000'), findsOneWidget);
+    expect(find.text('root'), findsOneWidget);
+    expect(find.text('已连接'), findsWidgets);
+  });
 
   testWidgets(
     'keeps a single chat canvas on wide layouts and opens the drawer on demand',

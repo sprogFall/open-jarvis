@@ -1,5 +1,7 @@
 import 'package:app/src/models/device_record.dart';
+import 'package:app/src/models/connection_session.dart';
 import 'package:app/src/models/task_record.dart';
+import 'package:app/src/services/connection_session_store.dart';
 import 'package:app/src/services/gateway_api.dart';
 import 'package:app/src/services/gateway_socket.dart';
 import 'package:app/src/state/task_controller.dart';
@@ -107,6 +109,55 @@ class FakeGatewaySocket implements GatewaySocket {
   Future<void> disconnect() async {}
 }
 
+class FakeConnectionSessionStore implements ConnectionSessionStore {
+  FakeConnectionSessionStore({this.session});
+
+  ConnectionSession? session;
+
+  @override
+  Future<ConnectionSession?> load() async => session;
+
+  @override
+  Future<void> save(ConnectionSession nextSession) async {
+    session = nextSession;
+  }
+}
+
+class RestoreGatewayApi extends FakeGatewayApi {
+  @override
+  Future<String> login({
+    required String baseUrl,
+    required String username,
+    required String password,
+  }) {
+    throw StateError('restore should not call login');
+  }
+}
+
+class MultiDeviceGatewayApi extends FakeGatewayApi {
+  @override
+  Future<List<DeviceRecord>> fetchDevices({
+    required String baseUrl,
+    required String token,
+  }) async {
+    return const [
+      DeviceRecord(deviceId: 'device-alpha', connected: true),
+      DeviceRecord(deviceId: 'device-beta', connected: true),
+    ];
+  }
+}
+
+class MultiDeviceRestoreGatewayApi extends MultiDeviceGatewayApi {
+  @override
+  Future<String> login({
+    required String baseUrl,
+    required String username,
+    required String password,
+  }) {
+    throw StateError('restore should not call login');
+  }
+}
+
 void main() {
   test('connect loads pending approvals and selects the first task', () async {
     final socket = FakeGatewaySocket();
@@ -194,5 +245,68 @@ void main() {
 
     expect(controller.selectedTask, isNull);
     expect(controller.tasks, isNotEmpty);
+  });
+
+  test(
+    'connect saves a session and restore reconnects after restart',
+    () async {
+      final store = FakeConnectionSessionStore();
+      final controller = TaskController(
+        api: FakeGatewayApi(),
+        socket: FakeGatewaySocket(),
+        sessionStore: store,
+      );
+
+      await controller.connect(
+        baseUrl: 'http://10.0.0.8:8000',
+        username: 'root',
+        password: 'secret',
+      );
+
+      expect(store.session?.baseUrl, 'http://10.0.0.8:8000');
+      expect(store.session?.username, 'root');
+      expect(store.session?.token, 'jwt-token');
+
+      final restoredSocket = FakeGatewaySocket();
+      final restoredController = TaskController(
+        api: RestoreGatewayApi(),
+        socket: restoredSocket,
+        sessionStore: store,
+      );
+
+      await restoredController.restoreSavedSession();
+
+      expect(restoredController.status, ConnectionStatus.connected);
+      expect(restoredController.token, 'jwt-token');
+      expect(restoredController.selectedTask?.taskId, 'task-1');
+      expect(restoredSocket.connectedBaseUrl, 'http://10.0.0.8:8000');
+      expect(restoredSocket.connectedToken, 'jwt-token');
+    },
+  );
+
+  test('preferred device selection is preserved across restart', () async {
+    final store = FakeConnectionSessionStore();
+    final controller = TaskController(
+      api: MultiDeviceGatewayApi(),
+      socket: FakeGatewaySocket(),
+      sessionStore: store,
+    );
+
+    await controller.connect(
+      baseUrl: 'http://127.0.0.1:8000',
+      username: 'operator',
+      password: 'passw0rd',
+    );
+    await controller.savePreferredDeviceId('device-beta');
+
+    final restoredController = TaskController(
+      api: MultiDeviceRestoreGatewayApi(),
+      socket: FakeGatewaySocket(),
+      sessionStore: store,
+    );
+
+    await restoredController.restoreSavedSession();
+
+    expect(restoredController.preferredDeviceId, 'device-beta');
   });
 }

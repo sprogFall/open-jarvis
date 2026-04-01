@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:app/src/state/task_controller.dart';
@@ -20,16 +21,25 @@ class JarvisAppShell extends StatefulWidget {
 }
 
 class _JarvisAppShellState extends State<JarvisAppShell> {
+  static const _defaultBaseUrl = 'http://127.0.0.1:8000';
+  static const _defaultUsername = 'operator';
+
   final _scaffoldKey = GlobalKey<ScaffoldState>();
-  final _baseUrlController = TextEditingController(
-    text: 'http://127.0.0.1:8000',
-  );
-  final _usernameController = TextEditingController(text: 'operator');
-  final _passwordController = TextEditingController(text: 'passw0rd');
+  final _baseUrlController = TextEditingController();
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
   final _composerController = TextEditingController();
   String? _selectedDeviceId;
 
   TaskController get controller => widget.controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _baseUrlController.text = controller.savedBaseUrl ?? _defaultBaseUrl;
+    _usernameController.text = controller.savedUsername ?? _defaultUsername;
+    _selectedDeviceId = controller.preferredDeviceId;
+  }
 
   @override
   void dispose() {
@@ -47,6 +57,12 @@ class _JarvisAppShellState extends State<JarvisAppShell> {
     if (_selectedDeviceId != null &&
         !availableDeviceIds.contains(_selectedDeviceId)) {
       _selectedDeviceId = null;
+    }
+    final preferredDeviceId = controller.preferredDeviceId;
+    if (_selectedDeviceId == null &&
+        preferredDeviceId != null &&
+        availableDeviceIds.contains(preferredDeviceId)) {
+      _selectedDeviceId = preferredDeviceId;
     }
     _selectedDeviceId ??= controller.devices.isNotEmpty
         ? controller.devices.first.deviceId
@@ -102,6 +118,13 @@ class _JarvisAppShellState extends State<JarvisAppShell> {
     FocusScope.of(context).unfocus();
   }
 
+  void _handleDeviceChanged(String? value) {
+    setState(() {
+      _selectedDeviceId = value;
+    });
+    unawaited(controller.savePreferredDeviceId(value));
+  }
+
   void _selectTask(String taskId, {required bool closeDrawer}) {
     controller.selectTask(taskId);
     if (closeDrawer && Navigator.of(context).canPop()) {
@@ -136,11 +159,7 @@ class _JarvisAppShellState extends State<JarvisAppShell> {
             final rail = ThreadRail(
               controller: controller,
               selectedDeviceId: _selectedDeviceId,
-              onDeviceChanged: (value) {
-                setState(() {
-                  _selectedDeviceId = value;
-                });
-              },
+              onDeviceChanged: _handleDeviceChanged,
               onNewChat: () => _startNewChat(closeDrawer: !isWide),
               onSelectTask: (taskId) =>
                   _selectTask(taskId, closeDrawer: !isWide),
@@ -196,8 +215,7 @@ class _JarvisAppShellState extends State<JarvisAppShell> {
                           child: Align(
                             alignment: Alignment.topCenter,
                             child: ConstrainedBox(
-                              constraints:
-                                  const BoxConstraints(maxWidth: 860),
+                              constraints: const BoxConstraints(maxWidth: 860),
                               child: Column(
                                 children: [
                                   WorkspaceSummary(
@@ -206,10 +224,7 @@ class _JarvisAppShellState extends State<JarvisAppShell> {
                                     onFocusPending: () {
                                       if (controller.pendingTasks.isNotEmpty) {
                                         controller.selectTask(
-                                          controller
-                                              .pendingTasks
-                                              .first
-                                              .taskId,
+                                          controller.pendingTasks.first.taskId,
                                         );
                                       }
                                     },
