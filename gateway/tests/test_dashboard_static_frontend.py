@@ -122,3 +122,39 @@ def test_dashboard_skill_management_mentions_zip_upload_flow():
     assert "zip" in skill_editor_content.lower()
     assert "归档" in skills_tab_content
     assert "zip" in readme_content.lower()
+
+
+def test_dashboard_visible_copy_stays_focused_on_business_workflows():
+    dashboard_root = Path(__file__).resolve().parents[2] / "dashboard" / "src"
+    login_screen = (dashboard_root / "features" / "auth" / "LoginScreen.tsx").read_text(
+        encoding="utf-8"
+    )
+    settings_tab = (dashboard_root / "features" / "settings" / "SettingsTab.tsx").read_text(
+        encoding="utf-8"
+    )
+    app_shell = (dashboard_root / "app" / "AppShell.tsx").read_text(encoding="utf-8")
+    app_model = (dashboard_root / "app" / "model.ts").read_text(encoding="utf-8")
+    app_entry = (dashboard_root / "App.tsx").read_text(encoding="utf-8")
+
+    forbidden_copy = [
+        "dist / static",
+        "Nginx",
+        "same-origin",
+        "Deployment",
+        "部署信息",
+        "静态前端",
+    ]
+
+    for snippet in forbidden_copy:
+        assert snippet not in login_screen
+        assert snippet not in settings_tab
+        assert snippet not in app_shell
+
+    assert "gatewayLabel" not in login_screen
+    assert "gatewayLabel" not in app_entry
+    assert "Gateway:" not in app_shell
+    assert "部署信息" not in app_model
+
+    assert "统一查看任务、设备与技能状态" in login_screen
+    assert "运行信息" in settings_tab
+    assert "业务配置与账号范围" in app_model

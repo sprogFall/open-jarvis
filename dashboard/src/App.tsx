@@ -49,7 +49,6 @@ export default function App() {
 
       {!token ? (
         <LoginScreen
-          gatewayLabel={dashboardApi.gatewayBaseUrl || "same-origin"}
           loginPending={loginPending}
           loginError={loginError}
           onSubmit={submitLogin}

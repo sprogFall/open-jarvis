@@ -1,14 +1,12 @@
 import type { FormEvent } from "react";
 
 type LoginScreenProps = {
-  gatewayLabel: string;
   loginPending: boolean;
   loginError: string | null;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 };
 
 export function LoginScreen({
-  gatewayLabel,
   loginPending,
   loginError,
   onSubmit,
@@ -17,18 +15,18 @@ export function LoginScreen({
     <main className="login-scene">
       <section className="login-poster">
         <p className="eyebrow">OpenJarvis Control Plane</p>
-        <h1>纯前端部署的运维面板</h1>
+        <h1>任务、设备、技能统一控制台</h1>
         <p className="poster-copy">
-          使用 Nginx 托管静态资源，通过 JWT 与网关 API 交互，保留设备、Skill 与任务的统一控制面。
+          统一查看任务、设备与技能状态，处理审批、跟踪执行过程，并保持三端协作闭环。
         </p>
         <div className="poster-grid">
           <div>
-            <span>Build</span>
-            <strong>dist / static</strong>
+            <span>任务协同</span>
+            <strong>下发、审批、恢复</strong>
           </div>
           <div>
-            <span>Runtime</span>
-            <strong>{gatewayLabel}</strong>
+            <span>执行范围</span>
+            <strong>设备、Skills、实时日志</strong>
           </div>
         </div>
       </section>

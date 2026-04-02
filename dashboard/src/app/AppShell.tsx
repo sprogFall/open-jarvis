@@ -1,6 +1,5 @@
 import { startTransition } from "react";
 
-import { dashboardApi } from "../api";
 import { tabs, type TabId } from "./model";
 import { useDashboardController } from "./useDashboardController";
 import { AssignmentSheet } from "../features/devices/AssignmentSheet";
@@ -40,7 +39,7 @@ export function AppShell({
         <div className="sidebar-brand">
           <p className="eyebrow">OpenJarvis</p>
           <h1>Dashboard</h1>
-          <p className="muted">独立静态前端 · 连接网关 API</p>
+          <p className="muted">任务编排、设备执行、审批闭环</p>
         </div>
 
         <nav className="tab-list">
@@ -72,9 +71,6 @@ export function AppShell({
         <header className="workspace-header">
           <h2>{activeTab?.label}</h2>
           <div className="header-actions">
-            <span className="signal-copy">
-              Gateway: {dashboardApi.gatewayBaseUrl || "same-origin proxy"}
-            </span>
             <button
               className="ghost-button"
               onClick={() => void controller.refreshTab()}

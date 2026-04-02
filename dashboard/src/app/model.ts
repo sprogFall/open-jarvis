@@ -30,7 +30,7 @@ export const tabs: Array<{ id: TabId; label: string; hint: string }> = [
   { id: "devices", label: "设备", hint: "注册、轮换、分配 Skill" },
   { id: "skills", label: "Skills", hint: "能力目录与配置" },
   { id: "tasks", label: "任务", hint: "任务状态与日志" },
-  { id: "settings", label: "系统", hint: "网关参数与部署信息" },
+  { id: "settings", label: "系统", hint: "业务配置与账号范围" },
 ];
 
 export const taskStatuses: TaskStatus[] = [
