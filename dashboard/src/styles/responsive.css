@@ -1,0 +1,71 @@
+@media (max-width: 1080px) {
+  .login-scene {
+    grid-template-columns: 1fr;
+  }
+
+  .login-poster {
+    min-height: auto;
+  }
+
+  .sidebar {
+    position: static;
+    min-height: auto;
+    margin: 1rem;
+  }
+
+  .workspace {
+    margin-left: 0;
+    padding: 0 1rem 1.5rem;
+  }
+
+  .metric-strip,
+  .system-grid,
+  .detail-grid,
+  .inline-metadata {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .metric-strip,
+  .poster-grid,
+  .system-grid,
+  .detail-grid,
+  .inline-metadata {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-header,
+  .panel-head,
+  .tasks-head,
+  .sidebar-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .task-filters,
+  .row-actions,
+  .header-actions {
+    width: 100%;
+  }
+
+  .ghost-button,
+  .primary-button,
+  .danger-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .bar-row {
+    grid-template-columns: 1fr;
+  }
+
+  .sheet-panel {
+    width: 100vw;
+    border-radius: 1.25rem 1.25rem 0 0;
+    min-height: auto;
+    max-height: 92vh;
+    margin-top: auto;
+    overflow-y: auto;
+  }
+}

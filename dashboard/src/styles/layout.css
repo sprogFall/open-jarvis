@@ -1,0 +1,169 @@
+.login-scene {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1.2fr minmax(20rem, 26rem);
+  gap: 2rem;
+  padding: 2rem;
+}
+
+.login-poster,
+.login-card,
+.sidebar,
+.panel,
+.sheet-panel {
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+}
+
+.login-poster {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: clamp(2rem, 5vw, 4rem);
+  border-radius: 2rem;
+  min-height: calc(100vh - 4rem);
+}
+
+.login-poster h1 {
+  margin: 0;
+  max-width: 8ch;
+  font-size: clamp(3.2rem, 8vw, 6rem);
+  line-height: 0.92;
+}
+
+.poster-copy {
+  max-width: 32rem;
+  margin: 1.5rem 0 0;
+  font-size: 1.08rem;
+  color: #d8e1e7;
+}
+
+.login-card {
+  align-self: center;
+  padding: 2rem;
+  border-radius: 1.75rem;
+}
+
+.login-card h2,
+.workspace-header h2,
+.panel h3,
+.sheet-header h2 {
+  margin: 0;
+  font-size: 1.8rem;
+}
+
+.sidebar {
+  position: sticky;
+  top: 1.5rem;
+  align-self: start;
+  min-height: calc(100vh - 3rem);
+  margin: 1.5rem;
+  padding: 1.5rem;
+  border-radius: 1.75rem;
+}
+
+.sidebar-brand h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.tab-list {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 2rem;
+}
+
+.sidebar-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.sidebar-footer div {
+  display: inline-flex;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.workspace {
+  margin-left: 22rem;
+  padding: 1.5rem 1.5rem 2rem 0;
+}
+
+.workspace-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0 1.5rem;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.surface-grid,
+.panel-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.panel {
+  padding: 1.25rem;
+  border-radius: 1.75rem;
+}
+
+.panel-nested {
+  background: var(--panel-strong);
+  box-shadow: none;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.panel-head.compact {
+  margin-bottom: 0.75rem;
+}
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(2, 7, 12, 0.62);
+  backdrop-filter: blur(10px);
+}
+
+.sheet-panel {
+  width: min(34rem, 100vw);
+  min-height: 100vh;
+  padding: 1.25rem;
+  border-radius: 1.5rem 0 0 1.5rem;
+  animation: slide-in 180ms ease;
+}
+
+.sheet-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.sheet-body {
+  padding-top: 1rem;
+}

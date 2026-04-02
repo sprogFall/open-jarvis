@@ -3,9 +3,11 @@ from __future__ import annotations
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketException, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
+from gateway.dashboard_api import dashboard_api
 from gateway.security import (
     issue_access_token,
     verify_access_token,
@@ -13,7 +15,6 @@ from gateway.security import (
 )
 from gateway.settings import GatewaySettings
 from gateway.store import GatewayStore
-from dashboard.router import router as dashboard_router, api as dashboard_api
 
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -105,7 +106,14 @@ def create_app(settings: GatewaySettings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.store = store
     app.state.manager = manager
-    app.include_router(dashboard_router)
+    if settings.dashboard_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.dashboard_origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
     app.include_router(dashboard_api)
 
     def require_user(

@@ -1,18 +1,14 @@
 from __future__ import annotations
 
 import secrets
-from pathlib import Path
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
 from gateway.security import verify_access_token
 from gateway.store import GatewayStore
 
-
-# ── request / response models ────────────────────────────────────────────────
 
 class DeviceCreate(BaseModel):
     device_id: str = Field(min_length=1)
@@ -45,8 +41,6 @@ class AssignSkill(BaseModel):
     config: dict = Field(default_factory=dict)
 
 
-# ── auth ─────────────────────────────────────────────────────────────────────
-
 _bearer = HTTPBearer(auto_error=False)
 
 
@@ -55,7 +49,6 @@ def _require_dashboard_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     _token: str | None = Cookie(default=None, alias="dashboard_token"),
 ) -> dict:
-    """从 Bearer 或 cookie 获取 JWT，验证后返回 payload."""
     token = credentials.credentials if credentials else _token
     if not token:
         raise HTTPException(401, "未登录")
@@ -64,8 +57,6 @@ def _require_dashboard_user(
     except Exception as exc:
         raise HTTPException(401, "登录已过期") from exc
 
-
-# ── helpers ──────────────────────────────────────────────────────────────────
 
 def _get_store(request: Request) -> GatewayStore:
     return request.app.state.store
@@ -79,24 +70,13 @@ def _get_connection_info(request: Request) -> dict:
     }
 
 
-# ── routers ──────────────────────────────────────────────────────────────────
-
-router = APIRouter(prefix="/dashboard")
-api = APIRouter(prefix="/dashboard/api", dependencies=[Depends(_require_dashboard_user)])
-
-
-# ── pages ────────────────────────────────────────────────────────────────────
-
-@router.get("", response_class=HTMLResponse)
-@router.get("/", response_class=HTMLResponse)
-def dashboard_page() -> HTMLResponse:
-    html_path = Path(__file__).parent / "templates" / "index.html"
-    return HTMLResponse(html_path.read_text(encoding="utf-8"))
+dashboard_api = APIRouter(
+    prefix="/dashboard/api",
+    dependencies=[Depends(_require_dashboard_user)],
+)
 
 
-# ── overview ─────────────────────────────────────────────────────────────────
-
-@api.get("/overview")
+@dashboard_api.get("/overview")
 def overview(
     request: Request,
     store: GatewayStore = Depends(_get_store),
@@ -108,21 +88,19 @@ def overview(
     return stats
 
 
-# ── devices ──────────────────────────────────────────────────────────────────
-
-@api.get("/devices")
+@dashboard_api.get("/devices")
 def list_devices(
     request: Request,
     store: GatewayStore = Depends(_get_store),
 ) -> list[dict]:
     devices = store.list_devices()
     conn_info = _get_connection_info(request)
-    for d in devices:
-        d["connected"] = d["device_id"] in conn_info["connected_devices"]
+    for device in devices:
+        device["connected"] = device["device_id"] in conn_info["connected_devices"]
     return devices
 
 
-@api.post("/devices", status_code=201)
+@dashboard_api.post("/devices", status_code=201)
 def create_device(
     body: DeviceCreate,
     request: Request,
@@ -136,7 +114,7 @@ def create_device(
     return device
 
 
-@api.get("/devices/{device_id}")
+@dashboard_api.get("/devices/{device_id}")
 def get_device(
     device_id: str,
     request: Request,
@@ -151,7 +129,7 @@ def get_device(
     return device
 
 
-@api.put("/devices/{device_id}")
+@dashboard_api.put("/devices/{device_id}")
 def update_device(
     device_id: str,
     body: DeviceUpdate,
@@ -167,7 +145,7 @@ def update_device(
     return device
 
 
-@api.delete("/devices/{device_id}", status_code=204)
+@dashboard_api.delete("/devices/{device_id}", status_code=204)
 def delete_device(
     device_id: str,
     request: Request,
@@ -178,14 +156,12 @@ def delete_device(
     request.app.state.settings.device_keys.pop(device_id, None)
 
 
-# ── skills ───────────────────────────────────────────────────────────────────
-
-@api.get("/skills")
+@dashboard_api.get("/skills")
 def list_skills(store: GatewayStore = Depends(_get_store)) -> list[dict]:
     return store.list_skills()
 
 
-@api.post("/skills", status_code=201)
+@dashboard_api.post("/skills", status_code=201)
 def create_skill(
     body: SkillCreate,
     store: GatewayStore = Depends(_get_store),
@@ -195,7 +171,7 @@ def create_skill(
     return store.create_skill(body.skill_id, body.name, body.description, body.config)
 
 
-@api.get("/skills/{skill_id}")
+@dashboard_api.get("/skills/{skill_id}")
 def get_skill(
     skill_id: str,
     store: GatewayStore = Depends(_get_store),
@@ -206,7 +182,7 @@ def get_skill(
     return skill
 
 
-@api.put("/skills/{skill_id}")
+@dashboard_api.put("/skills/{skill_id}")
 def update_skill(
     skill_id: str,
     body: SkillUpdate,
@@ -218,7 +194,7 @@ def update_skill(
     return store.update_skill(skill_id, **updates)
 
 
-@api.delete("/skills/{skill_id}", status_code=204)
+@dashboard_api.delete("/skills/{skill_id}", status_code=204)
 def delete_skill(
     skill_id: str,
     store: GatewayStore = Depends(_get_store),
@@ -227,9 +203,7 @@ def delete_skill(
         raise HTTPException(404, "Skill 不存在")
 
 
-# ── device-skill assignment ──────────────────────────────────────────────────
-
-@api.get("/devices/{device_id}/skills")
+@dashboard_api.get("/devices/{device_id}/skills")
 def list_device_skills(
     device_id: str,
     store: GatewayStore = Depends(_get_store),
@@ -239,7 +213,7 @@ def list_device_skills(
     return store.list_device_skills(device_id)
 
 
-@api.post("/devices/{device_id}/skills", status_code=201)
+@dashboard_api.post("/devices/{device_id}/skills", status_code=201)
 def assign_skill_to_device(
     device_id: str,
     body: AssignSkill,
@@ -252,7 +226,7 @@ def assign_skill_to_device(
     return store.assign_skill(device_id, body.skill_id, body.config)
 
 
-@api.delete("/devices/{device_id}/skills/{skill_id}", status_code=204)
+@dashboard_api.delete("/devices/{device_id}/skills/{skill_id}", status_code=204)
 def unassign_skill_from_device(
     device_id: str,
     skill_id: str,
@@ -262,9 +236,7 @@ def unassign_skill_from_device(
         raise HTTPException(404, "分配关系不存在")
 
 
-# ── tasks (只读) ─────────────────────────────────────────────────────────────
-
-@api.get("/tasks")
+@dashboard_api.get("/tasks")
 def list_tasks(
     request: Request,
     status: str | None = None,
@@ -275,14 +247,17 @@ def list_tasks(
     return store.list_tasks_filtered(status=status, device_id=device_id, limit=limit)
 
 
-# ── system info ──────────────────────────────────────────────────────────────
-
-@api.get("/system")
+@dashboard_api.get("/system")
 def system_info(request: Request) -> dict:
     settings = request.app.state.settings
     return {
-        "database_url": settings.database_url.split("@")[-1] if "@" in settings.database_url else settings.database_url,
+        "database_url": (
+            settings.database_url.split("@")[-1]
+            if "@" in settings.database_url
+            else settings.database_url
+        ),
         "jwt_algorithm": settings.jwt_algorithm,
         "admin_username": settings.admin_username,
         "configured_devices": list(settings.device_keys.keys()),
+        "dashboard_origins": settings.dashboard_origins,
     }

@@ -1,0 +1,222 @@
+.stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.field span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.field input,
+.field select,
+.field textarea,
+.task-filters select {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  border: 1px solid transparent;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus,
+.task-filters select:focus {
+  border-color: rgba(125, 245, 180, 0.4);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.primary-button,
+.ghost-button,
+.danger-button {
+  border-radius: 999px;
+  padding: 0.75rem 1.1rem;
+  transition: transform 160ms ease, opacity 160ms ease, background 160ms ease;
+}
+
+.primary-button {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  color: #052414;
+  font-weight: 700;
+}
+
+.ghost-button {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+
+.danger-button {
+  background: rgba(255, 127, 127, 0.1);
+  color: var(--danger);
+  border: 1px solid rgba(255, 127, 127, 0.28);
+}
+
+.primary-button:hover,
+.ghost-button:hover,
+.danger-button:hover,
+.tab-chip:hover {
+  transform: translateY(-1px);
+}
+
+.error-text,
+.banner-error {
+  color: #ffd4d4;
+  background: rgba(120, 18, 18, 0.34);
+  border: 1px solid rgba(255, 127, 127, 0.24);
+  border-radius: 1rem;
+  padding: 0.85rem 1rem;
+}
+
+.tab-chip {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.95rem 1rem;
+  text-align: left;
+  color: var(--text);
+  border-radius: 1.2rem;
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.tab-chip small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.tab-chip.active {
+  background: linear-gradient(
+    135deg,
+    rgba(125, 245, 180, 0.14),
+    rgba(25, 137, 255, 0.12)
+  );
+  border-color: rgba(125, 245, 180, 0.22);
+}
+
+.live-dot {
+  width: 0.72rem;
+  height: 0.72rem;
+  display: inline-block;
+  border-radius: 999px;
+  background: rgba(125, 245, 180, 0.45);
+  box-shadow: 0 0 0 0 rgba(125, 245, 180, 0.48);
+  animation: pulse 2.2s infinite;
+}
+
+.live-dot.solid {
+  animation: none;
+  background: var(--accent);
+}
+
+.table-shell {
+  overflow-x: auto;
+  border-radius: 1.25rem;
+  border: 1px solid var(--line);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  text-align: left;
+}
+
+th {
+  color: var(--muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+td strong {
+  display: block;
+}
+
+.cell-subtle {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.86rem;
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 5.75rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  border: 1px solid transparent;
+}
+
+.status-pending-dispatch,
+.status-approved {
+  background: rgba(125, 245, 180, 0.14);
+  border-color: rgba(125, 245, 180, 0.28);
+  color: var(--accent);
+}
+
+.status-running,
+.status-connected,
+.status-active {
+  background: rgba(59, 207, 136, 0.18);
+  border-color: rgba(59, 207, 136, 0.28);
+  color: #93ffc8;
+}
+
+.status-awaiting-approval {
+  background: rgba(246, 195, 91, 0.12);
+  border-color: rgba(246, 195, 91, 0.24);
+  color: var(--warning);
+}
+
+.status-rejected,
+.status-failed,
+.status-offline {
+  background: rgba(255, 127, 127, 0.1);
+  border-color: rgba(255, 127, 127, 0.22);
+  color: var(--danger);
+}
+
+.status-completed {
+  background: rgba(25, 137, 255, 0.14);
+  border-color: rgba(25, 137, 255, 0.2);
+  color: #7fc4ff;
+}
+
+.log-panel {
+  padding: 1rem;
+  border-radius: 1.25rem;
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--line);
+}
+
+.log-panel pre {
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  color: #dce6ed;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.86rem;
+  line-height: 1.6;
+}

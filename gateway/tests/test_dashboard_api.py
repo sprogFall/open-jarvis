@@ -6,23 +6,23 @@ from gateway.main import create_app
 from gateway.settings import GatewaySettings
 
 
-def _setup(tmp_path) -> tuple[TestClient, dict[str, str]]:
+def _setup(tmp_path, dashboard_origins: list[str] | None = None) -> tuple[TestClient, dict[str, str]]:
     settings = GatewaySettings(
         database_url=str(tmp_path / "test.db"),
         jwt_secret="test-secret-test-secret-test-secret",
         admin_username="operator",
         admin_password="passw0rd",
         device_keys={"device-alpha": "device-secret"},
+        dashboard_origins=dashboard_origins or [],
     )
     client = TestClient(create_app(settings))
-    token = client.post("/auth/login", json={
-        "username": "operator", "password": "passw0rd"
-    }).json()["access_token"]
+    token = client.post(
+        "/auth/login",
+        json={"username": "operator", "password": "passw0rd"},
+    ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     return client, headers
 
-
-# ── auth required ────────────────────────────────────────────────────────────
 
 def test_dashboard_api_returns_401_without_token(tmp_path):
     settings = GatewaySettings(
@@ -37,18 +37,20 @@ def test_dashboard_api_returns_401_without_token(tmp_path):
     assert client.get("/dashboard/api/system").status_code == 401
 
 
-def test_dashboard_page_is_public(tmp_path):
-    settings = GatewaySettings(
-        database_url=str(tmp_path / "test.db"),
-        jwt_secret="test-secret-test-secret-test-secret",
+def test_dashboard_api_supports_configured_cors_origin(tmp_path):
+    client, _headers = _setup(tmp_path, ["https://dashboard.example.com"])
+
+    response = client.options(
+        "/dashboard/api/overview",
+        headers={
+            "Origin": "https://dashboard.example.com",
+            "Access-Control-Request-Method": "GET",
+        },
     )
-    client = TestClient(create_app(settings))
-    resp = client.get("/dashboard/")
-    assert resp.status_code == 200
-    assert "OpenJarvis" in resp.text
 
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://dashboard.example.com"
 
-# ── overview ─────────────────────────────────────────────────────────────────
 
 def test_overview_returns_stats(tmp_path):
     client, headers = _setup(tmp_path)
@@ -59,8 +61,6 @@ def test_overview_returns_stats(tmp_path):
     assert isinstance(data["connected_devices"], list)
     assert isinstance(data["task_counts"], dict)
 
-
-# ── device CRUD ──────────────────────────────────────────────────────────────
 
 def test_create_list_delete_device(tmp_path):
     client, headers = _setup(tmp_path)
@@ -111,8 +111,6 @@ def test_create_device_auto_generates_key(tmp_path):
     assert resp.json()["device_key"]
 
 
-# ── skill CRUD ───────────────────────────────────────────────────────────────
-
 def test_create_list_delete_skill(tmp_path):
     client, headers = _setup(tmp_path)
 
@@ -140,8 +138,6 @@ def test_create_duplicate_skill_fails(tmp_path):
     resp = client.post("/dashboard/api/skills", headers=headers, json={"skill_id": "s1", "name": "B"})
     assert resp.status_code == 400
 
-
-# ── device-skill assignment ──────────────────────────────────────────────────
 
 def test_assign_and_unassign_skill(tmp_path):
     client, headers = _setup(tmp_path)
@@ -179,8 +175,6 @@ def test_assign_nonexistent_skill_fails(tmp_path):
     assert resp.status_code == 404
 
 
-# ── tasks (read-only) ────────────────────────────────────────────────────────
-
 def test_list_tasks_empty(tmp_path):
     client, headers = _setup(tmp_path)
     resp = client.get("/dashboard/api/tasks", headers=headers)
@@ -207,30 +201,15 @@ def test_list_tasks_with_filters(tmp_path):
     assert len(resp.json()) == 1
 
 
-# ── system info ──────────────────────────────────────────────────────────────
-
 def test_system_info(tmp_path):
-    client, headers = _setup(tmp_path)
+    client, headers = _setup(tmp_path, ["https://dashboard.example.com"])
     resp = client.get("/dashboard/api/system", headers=headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["admin_username"] == "operator"
     assert "device-alpha" in data["configured_devices"]
+    assert data["dashboard_origins"] == ["https://dashboard.example.com"]
 
-
-# ── dashboard HTML ───────────────────────────────────────────────────────────
-
-def test_dashboard_page_no_trailing_slash(tmp_path):
-    settings = GatewaySettings(
-        database_url=str(tmp_path / "test.db"),
-        jwt_secret="test-secret-test-secret-test-secret",
-    )
-    client = TestClient(create_app(settings))
-    resp = client.get("/dashboard")
-    assert resp.status_code == 200
-
-
-# ── existing gateway tests still pass ────────────────────────────────────────
 
 def test_existing_gateway_health(tmp_path):
     client, _ = _setup(tmp_path)
