@@ -14,6 +14,10 @@ export type SkillForm = {
   name: string;
   description: string;
   config: string;
+  archive_file: File | null;
+  existing_archive_filename: string;
+  existing_archive_sha256: string;
+  existing_archive_size: number;
 };
 
 export type AssignmentForm = {
@@ -44,7 +48,16 @@ export function createEmptyDeviceForm(): DeviceForm {
 }
 
 export function createEmptySkillForm(): SkillForm {
-  return { skill_id: "", name: "", description: "", config: "{}" };
+  return {
+    skill_id: "",
+    name: "",
+    description: "",
+    config: "{}",
+    archive_file: null,
+    existing_archive_filename: "",
+    existing_archive_sha256: "",
+    existing_archive_size: 0,
+  };
 }
 
 export function createEmptyAssignmentForm(): AssignmentForm {

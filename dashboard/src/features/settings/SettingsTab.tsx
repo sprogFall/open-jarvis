@@ -30,6 +30,10 @@ export function SettingsTab({ systemInfo }: SettingsTabProps) {
           <span>已配置设备</span>
           <strong>{systemInfo?.configured_devices.join(", ") || "-"}</strong>
         </article>
+        <article>
+          <span>Skill 归档目录</span>
+          <strong>{systemInfo?.skill_archives_path ?? "-"}</strong>
+        </article>
       </div>
       <div className="callout">
         <p className="eyebrow">Deployment</p>

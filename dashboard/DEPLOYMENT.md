@@ -14,6 +14,12 @@
   - `/jarvis/api/dashboard/api/overview`
   - `/jarvis/api/dashboard/api/devices`
 
+另外，Skills 管理现在依赖 Gateway 的归档目录与 Client 的本地技能工作目录：
+
+- Gateway 需要可写的 `OMNI_AGENT_SKILL_ARCHIVES_DIR`，用于保存上传的 zip 归档
+- Client 可通过 `OMNI_AGENT_SKILLS_WORKSPACE` 指定技能解压目录
+- 设备分配 Skill 后，会通过网关同步归档元数据，再按需下载 zip 并解压成文件夹
+
 ## 1. 构建
 
 在 `dashboard/` 目录执行：
@@ -87,7 +93,27 @@ OMNI_AGENT_DASHBOARD_ORIGINS=https://static.example.com
 
 当前网关会把该配置写入 CORS 中间件。
 
-## 4. 登录与接口路径映射
+## 4. Skills 归档存储
+
+如果希望把 Skills 归档放到独立目录，可在 Gateway 环境变量中设置：
+
+```bash
+OMNI_AGENT_SKILL_ARCHIVES_DIR=/srv/open-jarvis/data/skill-archives
+```
+
+Client 侧可设置：
+
+```bash
+OMNI_AGENT_SKILLS_WORKSPACE=/srv/open-jarvis/client/skills-runtime
+```
+
+这样，设备拿到分配后的 skill 时，会自动解压到：
+
+```text
+/srv/open-jarvis/client/skills-runtime/<skill_id>/
+```
+
+## 5. 登录与接口路径映射
 
 前端固定调用这两组逻辑路径：
 
@@ -104,7 +130,7 @@ OMNI_AGENT_DASHBOARD_ORIGINS=https://static.example.com
 | `/jarvis/api` | `/jarvis/api/auth/login` | `/jarvis/api/dashboard/api/devices` |
 | `https://gw.example.com/jarvis/api` | `https://gw.example.com/jarvis/api/auth/login` | `https://gw.example.com/jarvis/api/dashboard/api/devices` |
 
-## 5. 部署检查清单
+## 6. 部署检查清单
 
 上线前建议确认：
 
@@ -113,3 +139,5 @@ OMNI_AGENT_DASHBOARD_ORIGINS=https://static.example.com
 3. 设备列表请求发往 `https://xx.com/jarvis/api/dashboard/api/devices`
 4. 如果跨域部署，响应里存在正确的 `Access-Control-Allow-Origin`
 5. nginx 对 `/jarvis/dashboard/` 使用 `try_files` 回退到 `index.html`
+6. Gateway 进程对 `OMNI_AGENT_SKILL_ARCHIVES_DIR` 目录有写权限
+7. Client 进程对 `OMNI_AGENT_SKILLS_WORKSPACE` 目录有写权限

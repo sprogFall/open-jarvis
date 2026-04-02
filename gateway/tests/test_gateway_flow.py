@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import io
 import time
+import zipfile
 
 import pytest
 from fastapi.testclient import TestClient
@@ -33,6 +35,24 @@ def login(client: TestClient) -> str:
     )
     assert response.status_code == 200
     return response.json()["access_token"]
+
+
+def build_skill_archive(skill_id: str, *, root: str = "skill") -> bytes:
+    archive = io.BytesIO()
+    prefix = f"{root.strip('/')}/"
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr(
+            f"{prefix}SKILL.md",
+            (
+                "---\n"
+                f"name: {skill_id}\n"
+                "description: test skill\n"
+                "---\n\n"
+                "Hello.\n"
+            ),
+        )
+        bundle.writestr(f"{prefix}references/guide.md", "# Guide\n")
+    return archive.getvalue()
 
 
 def receive_until_task_status(websocket, status: str) -> dict:
@@ -205,3 +225,123 @@ def test_rejects_invalid_app_token(tmp_path):
     with pytest.raises(WebSocketDisconnect):
         with client.websocket_connect("/ws/app?token=bad-token"):
             pass
+
+
+def test_connected_device_receives_skill_sync_and_can_download_archive(tmp_path):
+    client, settings = build_test_client(tmp_path)
+    token = login(client)
+    client.post(
+        "/dashboard/api/skills",
+        headers=auth_headers(token),
+        json={"skill_id": "incident-kit", "name": "Incident Kit"},
+    )
+    archive = build_skill_archive("incident-kit", root="skills/incident-kit")
+    upload_response = client.put(
+        "/dashboard/api/skills/incident-kit/archive",
+        headers={
+            **auth_headers(token),
+            "Content-Type": "application/zip",
+            "X-Skill-Archive-Name": "incident-kit.zip",
+        },
+        content=archive,
+    )
+    assert upload_response.status_code == 200
+
+    timestamp = 1700000002
+    signature = sign_device_request(
+        device_id="device-alpha",
+        timestamp=timestamp,
+        device_key=settings.device_keys["device-alpha"],
+    )
+
+    with client.websocket_connect(
+        f"/ws/client?device_id=device-alpha&timestamp={timestamp}&signature={signature}"
+    ) as device_ws:
+        assign_response = client.post(
+            "/dashboard/api/devices/device-alpha/skills",
+            headers=auth_headers(token),
+            json={"skill_id": "incident-kit", "config": {"workspace": ".codex/skills"}},
+        )
+        assert assign_response.status_code == 201
+
+        sync_payload = device_ws.receive_json()
+        assert sync_payload["type"] == "DEVICE_SKILLS_SYNC"
+        assert sync_payload["device_id"] == "device-alpha"
+        assert sync_payload["skills"] == [
+            {
+                "skill_id": "incident-kit",
+                "name": "Incident Kit",
+                "description": "",
+                "assigned_at": assign_response.json()["assigned_at"],
+                "config": {"workspace": ".codex/skills"},
+                "skill_config": {},
+                "archive_filename": "incident-kit.zip",
+                "archive_sha256": upload_response.json()["archive_sha256"],
+                "archive_size": len(archive),
+                "archive_updated_at": upload_response.json()["archive_updated_at"],
+                "archive_ready": True,
+                "download_path": "/client/skills/incident-kit/archive",
+            }
+        ]
+
+        download_response = client.get(
+            "/client/skills/incident-kit/archive",
+            params={
+                "device_id": "device-alpha",
+                "timestamp": timestamp,
+                "signature": signature,
+            },
+        )
+        assert download_response.status_code == 200
+        assert download_response.content == archive
+        assert download_response.headers["content-type"] == "application/zip"
+
+
+def test_device_connect_receives_skill_sync_before_pending_tasks(tmp_path):
+    client, settings = build_test_client(tmp_path)
+    token = login(client)
+    client.post(
+        "/dashboard/api/skills",
+        headers=auth_headers(token),
+        json={"skill_id": "runbook", "name": "Runbook"},
+    )
+    client.put(
+        "/dashboard/api/skills/runbook/archive",
+        headers={
+            **auth_headers(token),
+            "Content-Type": "application/zip",
+            "X-Skill-Archive-Name": "runbook.zip",
+        },
+        content=build_skill_archive("runbook"),
+    )
+    client.post(
+        "/dashboard/api/devices/device-alpha/skills",
+        headers=auth_headers(token),
+        json={"skill_id": "runbook"},
+    )
+    create_response = client.post(
+        "/tasks",
+        headers=auth_headers(token),
+        json={
+            "device_id": "device-alpha",
+            "instruction": "查看系统负载",
+        },
+    )
+    assert create_response.status_code == 201
+
+    timestamp = 1700000003
+    signature = sign_device_request(
+        device_id="device-alpha",
+        timestamp=timestamp,
+        device_key=settings.device_keys["device-alpha"],
+    )
+
+    with client.websocket_connect(
+        f"/ws/client?device_id=device-alpha&timestamp={timestamp}&signature={signature}"
+    ) as device_ws:
+        first_payload = device_ws.receive_json()
+        second_payload = device_ws.receive_json()
+
+    assert first_payload["type"] == "DEVICE_SKILLS_SYNC"
+    assert first_payload["skills"][0]["skill_id"] == "runbook"
+    assert second_payload["type"] == "TASK_ASSIGNED"

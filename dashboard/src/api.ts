@@ -125,6 +125,20 @@ export const dashboardApi = {
   deleteSkill(token: string, skillId: string): Promise<void> {
     return request(`/dashboard/api/skills/${skillId}`, { method: "DELETE" }, token);
   },
+  uploadSkillArchive(token: string, skillId: string, archive: File): Promise<Skill> {
+    return request(
+      `/dashboard/api/skills/${skillId}/archive`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/zip",
+          "X-Skill-Archive-Name": archive.name,
+        },
+        body: archive,
+      },
+      token,
+    );
+  },
   assignSkill(
     token: string,
     deviceId: string,

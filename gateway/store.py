@@ -50,11 +50,15 @@ CREATE TABLE IF NOT EXISTS devices (
     last_seen_at TEXT
 );
 CREATE TABLE IF NOT EXISTS skills (
-    skill_id    TEXT PRIMARY KEY,
-    name        TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    config_json TEXT NOT NULL DEFAULT '{}',
-    created_at  TEXT NOT NULL
+    skill_id           TEXT PRIMARY KEY,
+    name               TEXT NOT NULL,
+    description        TEXT NOT NULL DEFAULT '',
+    config_json        TEXT NOT NULL DEFAULT '{}',
+    archive_filename   TEXT,
+    archive_sha256     TEXT,
+    archive_size       INTEGER NOT NULL DEFAULT 0,
+    archive_updated_at TEXT,
+    created_at         TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS device_skills (
     device_id   TEXT NOT NULL REFERENCES devices(device_id) ON DELETE CASCADE,
@@ -79,6 +83,10 @@ _MIGRATIONS = {
     "skills": {
         "description": "TEXT NOT NULL DEFAULT ''",
         "config_json": "TEXT NOT NULL DEFAULT '{}'",
+        "archive_filename": "TEXT",
+        "archive_sha256": "TEXT",
+        "archive_size": "INTEGER NOT NULL DEFAULT 0",
+        "archive_updated_at": "TEXT",
         "created_at": "TEXT NOT NULL DEFAULT ''",
     },
     "device_skills": {
@@ -299,6 +307,8 @@ class GatewayStore:
         for key in list(d):
             if key.endswith("_json"):
                 d[key.removesuffix("_json")] = json.loads(d.pop(key))
+        if "archive_sha256" in d:
+            d["archive_ready"] = bool(d.get("archive_sha256"))
         return d
 
     def sync_device(self, device_id: str, device_key: str) -> dict:
@@ -397,7 +407,10 @@ class GatewayStore:
         now = self._now()
         with self._connect() as db:
             db.execute(
-                "INSERT INTO skills (skill_id, name, description, config_json, created_at) VALUES (?,?,?,?,?)",
+                "INSERT INTO skills "
+                "(skill_id, name, description, config_json, archive_filename, archive_sha256, "
+                "archive_size, archive_updated_at, created_at) "
+                "VALUES (?, ?, ?, ?, NULL, NULL, 0, NULL, ?)",
                 (skill_id, name, description, json.dumps(config or {}, ensure_ascii=False), now),
             )
         return self.get_skill(skill_id)  # type: ignore[return-value]
@@ -435,6 +448,23 @@ class GatewayStore:
             cur = db.execute("DELETE FROM skills WHERE skill_id = ?", (skill_id,))
         return cur.rowcount > 0
 
+    def set_skill_archive(
+        self,
+        skill_id: str,
+        *,
+        filename: str,
+        sha256: str,
+        size: int,
+    ) -> dict:
+        now = self._now()
+        with self._connect() as db:
+            db.execute(
+                "UPDATE skills SET archive_filename = ?, archive_sha256 = ?, archive_size = ?, "
+                "archive_updated_at = ? WHERE skill_id = ?",
+                (filename, sha256, size, now, skill_id),
+            )
+        return self.get_skill(skill_id)  # type: ignore[return-value]
+
     # ── device-skill 分配 ─────────────────────────────────────────────────
 
     def assign_skill(self, device_id: str, skill_id: str, config: dict | None = None) -> dict:
@@ -448,6 +478,14 @@ class GatewayStore:
             )
         return {"device_id": device_id, "skill_id": skill_id, "assigned_at": now, "config": config or {}}
 
+    def list_devices_for_skill(self, skill_id: str) -> list[str]:
+        with self._connect() as db:
+            rows = db.execute(
+                "SELECT device_id FROM device_skills WHERE skill_id = ? ORDER BY assigned_at ASC",
+                (skill_id,),
+            ).fetchall()
+        return [self._row_value(row, "device_id") for row in rows]
+
     def unassign_skill(self, device_id: str, skill_id: str) -> bool:
         with self._connect() as db:
             cur = db.execute(
@@ -459,7 +497,9 @@ class GatewayStore:
     def list_device_skills(self, device_id: str) -> list[dict]:
         with self._connect() as db:
             rows = db.execute(
-                "SELECT s.skill_id, s.name, s.description, ds.assigned_at, ds.config_json "
+                "SELECT s.skill_id, s.name, s.description, ds.assigned_at, ds.config_json, "
+                "s.config_json AS skill_config_json, s.archive_filename, s.archive_sha256, "
+                "s.archive_size, s.archive_updated_at "
                 "FROM device_skills ds "
                 "JOIN skills s ON s.skill_id = ds.skill_id "
                 "WHERE ds.device_id = ? ORDER BY ds.assigned_at ASC",

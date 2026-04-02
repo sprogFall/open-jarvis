@@ -14,6 +14,7 @@ class GatewaySettings:
     admin_password: str = "passw0rd"
     device_keys: dict[str, str] = field(default_factory=lambda: {"device-alpha": "device-secret"})
     dashboard_origins: list[str] = field(default_factory=list)
+    skill_archives_path: Path | None = None
 
     @classmethod
     def from_env(cls) -> "GatewaySettings":
@@ -44,4 +45,9 @@ class GatewaySettings:
             admin_password=os.getenv("OMNI_AGENT_ADMIN_PASSWORD", "passw0rd"),
             device_keys=device_keys or {"device-alpha": "device-secret"},
             dashboard_origins=dashboard_origins,
+            skill_archives_path=(
+                Path(os.getenv("OMNI_AGENT_SKILL_ARCHIVES_DIR")).expanduser().resolve()
+                if os.getenv("OMNI_AGENT_SKILL_ARCHIVES_DIR")
+                else None
+            ),
         )

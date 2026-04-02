@@ -6,8 +6,8 @@ import time
 from client.checkpoints import CheckpointStore
 from client.config import ClientConfig
 from client.planner import RuleBasedPlanner
-from client.runtime import ActionRegistry, TaskRunner
 from client.security import build_device_signature
+from client.skill_runtime import GatewaySkillArchiveFetcher, SkillWorkspaceManager
 from client.skills import DockerSkill, FileSystemSkill, IoTSkill, ProcessSkill
 
 try:
@@ -29,7 +29,9 @@ class NullTransport:
         del payload
 
 
-def build_default_registry(config: ClientConfig) -> ActionRegistry:
+def build_default_registry(config: ClientConfig):
+    from client.runtime import ActionRegistry
+
     registry = ActionRegistry()
     filesystem = FileSystemSkill(config.allowed_roots)
     process = ProcessSkill()
@@ -60,9 +62,10 @@ def build_default_registry(config: ClientConfig) -> ActionRegistry:
 
 
 class ClientService:
-    def __init__(self, runner, transport) -> None:
+    def __init__(self, runner, transport, skill_workspace=None) -> None:
         self.runner = runner
         self.transport = transport
+        self.skill_workspace = skill_workspace
 
     def handle_gateway_message(self, payload: dict) -> None:
         message_type = payload.get("type")
@@ -71,12 +74,20 @@ class ClientService:
             self.runner.handle_assignment(task["task_id"], task["instruction"])
         elif message_type == "APPROVAL_DECISION":
             self.runner.handle_approval(payload["task_id"], bool(payload["approved"]))
+        elif message_type == "DEVICE_SKILLS_SYNC" and self.skill_workspace is not None:
+            self.skill_workspace.sync(payload.get("skills", []))
 
 
 def create_default_service(config: ClientConfig | None = None) -> ClientService:
+    from client.runtime import TaskRunner
+
     config = config or ClientConfig.from_env()
     registry = build_default_registry(config)
     transport = NullTransport()
+    skill_workspace = SkillWorkspaceManager(
+        workspace_root=config.skills_workspace,
+        archive_fetcher=GatewaySkillArchiveFetcher(config),
+    )
     runner = TaskRunner(
         planner=RuleBasedPlanner(),
         registry=registry,
@@ -84,10 +95,12 @@ def create_default_service(config: ClientConfig | None = None) -> ClientService:
         checkpoints=CheckpointStore(config.checkpoint_path),
         workflow_store_path=config.workflow_store_path,
     )
-    return ClientService(runner=runner, transport=transport)
+    return ClientService(runner=runner, transport=transport, skill_workspace=skill_workspace)
 
 
 def run_forever(config: ClientConfig | None = None) -> None:
+    from client.runtime import TaskRunner
+
     config = config or ClientConfig.from_env()
     if ws_connect is None:
         raise RuntimeError("websockets is required to run the client service")
@@ -95,6 +108,10 @@ def run_forever(config: ClientConfig | None = None) -> None:
     checkpoint_store = CheckpointStore(config.checkpoint_path)
     registry = build_default_registry(config)
     planner = RuleBasedPlanner()
+    skill_workspace = SkillWorkspaceManager(
+        workspace_root=config.skills_workspace,
+        archive_fetcher=GatewaySkillArchiveFetcher(config),
+    )
 
     while True:
         timestamp = int(time.time())
@@ -114,7 +131,11 @@ def run_forever(config: ClientConfig | None = None) -> None:
                     workflow_store_path=config.workflow_store_path,
                 )
                 try:
-                    service = ClientService(runner=runner, transport=transport)
+                    service = ClientService(
+                        runner=runner,
+                        transport=transport,
+                        skill_workspace=skill_workspace,
+                    )
                     for raw_message in connection:
                         service.handle_gateway_message(json.loads(raw_message))
                 finally:

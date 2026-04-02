@@ -41,6 +41,11 @@
   gap: 1rem;
 }
 
+.compact-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 1.25rem;
+}
+
 .metric-strip strong {
   font-size: clamp(1.6rem, 2.8vw, 2.4rem);
 }

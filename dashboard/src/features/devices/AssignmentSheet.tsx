@@ -2,6 +2,7 @@ import type { FormEvent } from "react";
 
 import { SideSheet } from "../../components/SideSheet";
 import type { AssignmentForm } from "../../app/model";
+import { formatBytes } from "../../lib/format";
 import type { Device, DeviceSkill, Skill } from "../../types";
 
 type AssignmentSheetProps = {
@@ -25,10 +26,12 @@ export function AssignmentSheet({
   onChange,
   onRemove,
 }: AssignmentSheetProps) {
+  const readySkills = skills.filter((skill) => skill.archive_ready);
+
   return (
     <SideSheet
       title={`分配 Skill · ${device.device_id}`}
-      subtitle="已分配的 Skill 会立即进入设备能力清单。"
+      subtitle="已分配的 Skill 会通过 Gateway 同步到设备，并在设备工作目录中解压为技能文件夹。"
       onClose={onClose}
     >
       <div className="stack">
@@ -47,16 +50,19 @@ export function AssignmentSheet({
           <label className="field">
             <span>选择 Skill</span>
             <select
-              value={form.skill_id}
+              value={readySkills.length ? form.skill_id : ""}
               onChange={(event) => onChange({ skill_id: event.target.value })}
             >
-              {skills.map((skill) => (
+              {readySkills.map((skill) => (
                 <option key={skill.skill_id} value={skill.skill_id}>
                   {skill.name} ({skill.skill_id})
                 </option>
               ))}
             </select>
           </label>
+          {!readySkills.length ? (
+            <p className="error-text">当前没有可分配的 Skill。请先在 Skills 页面上传 zip 归档。</p>
+          ) : null}
           <label className="field">
             <span>分配配置 JSON</span>
             <textarea
@@ -66,7 +72,7 @@ export function AssignmentSheet({
             />
           </label>
           {error ? <p className="error-text">{error}</p> : null}
-          <button className="primary-button" disabled={!skills.length} type="submit">
+          <button className="primary-button" disabled={!readySkills.length} type="submit">
             分配 Skill
           </button>
         </form>
@@ -85,6 +91,11 @@ export function AssignmentSheet({
                   <div>
                     <strong>{skill.name || skill.skill_id}</strong>
                     <span>{skill.description || skill.skill_id}</span>
+                    <span>
+                      {skill.archive_filename
+                        ? `${skill.archive_filename} · ${formatBytes(skill.archive_size)}`
+                        : "等待同步归档"}
+                    </span>
                   </div>
                   <button
                     className="danger-button"

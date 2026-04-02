@@ -12,6 +12,7 @@ class ClientConfig:
     device_key: str = "device-secret"
     checkpoint_path: Path = Path("client/client.db")
     workflow_store_path: Path = Path("client/langgraph.db")
+    skills_workspace: Path = Path("client/skills-runtime")
     allowed_roots: list[Path] = field(default_factory=lambda: [Path.cwd()])
     iot_base_url: str | None = None
     iot_token: str | None = None
@@ -32,6 +33,9 @@ class ClientConfig:
             checkpoint_path=Path(os.getenv("OMNI_AGENT_CHECKPOINT_DB", "client/client.db")),
             workflow_store_path=Path(
                 os.getenv("OMNI_AGENT_LANGGRAPH_DB", "client/langgraph.db")
+            ),
+            skills_workspace=Path(
+                os.getenv("OMNI_AGENT_SKILLS_WORKSPACE", "client/skills-runtime")
             ),
             allowed_roots=[Path(root).expanduser().resolve() for root in roots if root],
             iot_base_url=os.getenv("OMNI_AGENT_IOT_BASE_URL"),

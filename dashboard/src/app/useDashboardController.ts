@@ -286,6 +286,10 @@ export function useDashboardController({
       name: skill.name,
       description: skill.description,
       config: JSON.stringify(skill.config ?? {}, null, 2),
+      archive_file: null,
+      existing_archive_filename: skill.archive_filename ?? "",
+      existing_archive_sha256: skill.archive_sha256 ?? "",
+      existing_archive_size: skill.archive_size ?? 0,
     });
     setSkillFormError(null);
   }
@@ -301,7 +305,12 @@ export function useDashboardController({
       return;
     }
     setSkillFormError(null);
+    let createdSkillId: string | null = null;
     try {
+      if (skillEditorMode === "create" && !skillForm.archive_file) {
+        setSkillFormError("请上传包含 SKILL.md 的 zip 压缩包");
+        return;
+      }
       const config = parseJsonInput(skillForm.config);
       if (skillEditorMode === "create") {
         await dashboardApi.createSkill(token, {
@@ -310,18 +319,30 @@ export function useDashboardController({
           description: skillForm.description,
           config,
         });
+        createdSkillId = skillForm.skill_id;
+        if (skillForm.archive_file) {
+          await dashboardApi.uploadSkillArchive(token, skillForm.skill_id, skillForm.archive_file);
+        }
       } else {
         await dashboardApi.updateSkill(token, skillForm.skill_id, {
           name: skillForm.name,
           description: skillForm.description,
           config,
         });
+        if (skillForm.archive_file) {
+          await dashboardApi.uploadSkillArchive(token, skillForm.skill_id, skillForm.archive_file);
+        }
       }
-      closeSkillEditor();
-      await Promise.all([refreshTab("skills"), refreshTab("devices")]);
     } catch (error) {
+      if (createdSkillId) {
+        await dashboardApi.deleteSkill(token, createdSkillId).catch(() => undefined);
+      }
       setSkillFormError(getErrorMessage(error));
+      return;
     }
+
+    closeSkillEditor();
+    await Promise.all([refreshTab("skills"), refreshTab("devices")]);
   }
 
   async function removeSkill(skill: Skill) {
@@ -342,10 +363,11 @@ export function useDashboardController({
         dashboardApi.getDevice(token, deviceId),
         dashboardApi.listSkills(token),
       ]);
+      const readySkills = nextSkills.filter((skill) => skill.archive_ready);
       setAssignmentDevice(device);
       setSkills(nextSkills);
       setAssignmentForm({
-        skill_id: nextSkills[0]?.skill_id ?? "",
+        skill_id: readySkills[0]?.skill_id ?? "",
         config: "{}",
       });
       setAssignmentError(null);
@@ -362,6 +384,10 @@ export function useDashboardController({
   async function submitAssignment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!assignmentDevice) {
+      return;
+    }
+    if (!assignmentForm.skill_id) {
+      setAssignmentError("当前没有可分配的 Skill 压缩包，请先在 Skills 页面上传 zip");
       return;
     }
     setAssignmentError(null);

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import io
+import zipfile
+
 from fastapi.testclient import TestClient
 
 from gateway.main import create_app
@@ -22,6 +25,30 @@ def _setup(tmp_path, dashboard_origins: list[str] | None = None) -> tuple[TestCl
     ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     return client, headers
+
+
+def _build_skill_archive(
+    skill_id: str,
+    *,
+    root: str | None = None,
+    include_skill_md: bool = True,
+) -> bytes:
+    archive = io.BytesIO()
+    prefix = f"{root.strip('/')}/" if root else ""
+    with zipfile.ZipFile(archive, "w") as bundle:
+        if include_skill_md:
+            bundle.writestr(
+                f"{prefix}SKILL.md",
+                (
+                    "---\n"
+                    f"name: {skill_id}\n"
+                    "description: Test skill\n"
+                    "---\n\n"
+                    "Body.\n"
+                ),
+            )
+        bundle.writestr(f"{prefix}references/guide.md", "# Guide\n")
+    return archive.getvalue()
 
 
 def test_dashboard_api_returns_401_without_token(tmp_path):
@@ -132,6 +159,56 @@ def test_create_list_delete_skill(tmp_path):
     assert resp.status_code == 404
 
 
+def test_upload_skill_archive_updates_skill_metadata(tmp_path):
+    client, headers = _setup(tmp_path)
+    client.post(
+        "/dashboard/api/skills",
+        headers=headers,
+        json={"skill_id": "web-search", "name": "网页搜索"},
+    )
+
+    payload = _build_skill_archive("web-search", root="skills/web-search")
+    resp = client.put(
+        "/dashboard/api/skills/web-search/archive",
+        headers={
+            **headers,
+            "Content-Type": "application/zip",
+            "X-Skill-Archive-Name": "web-search.zip",
+        },
+        content=payload,
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["archive_ready"] is True
+    assert body["archive_filename"] == "web-search.zip"
+    assert body["archive_size"] == len(payload)
+    assert len(body["archive_sha256"]) == 64
+    assert body["archive_updated_at"]
+
+
+def test_upload_skill_archive_rejects_invalid_zip(tmp_path):
+    client, headers = _setup(tmp_path)
+    client.post(
+        "/dashboard/api/skills",
+        headers=headers,
+        json={"skill_id": "broken-skill", "name": "损坏 Skill"},
+    )
+
+    resp = client.put(
+        "/dashboard/api/skills/broken-skill/archive",
+        headers={
+            **headers,
+            "Content-Type": "application/zip",
+            "X-Skill-Archive-Name": "broken.zip",
+        },
+        content=_build_skill_archive("broken-skill", include_skill_md=False),
+    )
+
+    assert resp.status_code == 400
+    assert "SKILL.md" in resp.json()["detail"]
+
+
 def test_create_duplicate_skill_fails(tmp_path):
     client, headers = _setup(tmp_path)
     client.post("/dashboard/api/skills", headers=headers, json={"skill_id": "s1", "name": "A"})
@@ -145,6 +222,16 @@ def test_assign_and_unassign_skill(tmp_path):
     client.post("/dashboard/api/skills", headers=headers, json={
         "skill_id": "code-exec", "name": "代码执行"
     })
+    upload_resp = client.put(
+        "/dashboard/api/skills/code-exec/archive",
+        headers={
+            **headers,
+            "Content-Type": "application/zip",
+            "X-Skill-Archive-Name": "code-exec.zip",
+        },
+        content=_build_skill_archive("code-exec", root="code-exec"),
+    )
+    assert upload_resp.status_code == 200
 
     resp = client.post("/dashboard/api/devices/device-alpha/skills", headers=headers, json={
         "skill_id": "code-exec"
@@ -173,6 +260,20 @@ def test_assign_nonexistent_skill_fails(tmp_path):
     client, headers = _setup(tmp_path)
     resp = client.post("/dashboard/api/devices/device-alpha/skills", headers=headers, json={"skill_id": "nope"})
     assert resp.status_code == 404
+
+
+def test_assign_skill_without_archive_fails(tmp_path):
+    client, headers = _setup(tmp_path)
+    client.post("/dashboard/api/skills", headers=headers, json={"skill_id": "s1", "name": "A"})
+
+    resp = client.post(
+        "/dashboard/api/devices/device-alpha/skills",
+        headers=headers,
+        json={"skill_id": "s1"},
+    )
+
+    assert resp.status_code == 400
+    assert "压缩包" in resp.json()["detail"]
 
 
 def test_list_tasks_empty(tmp_path):

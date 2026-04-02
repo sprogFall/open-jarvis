@@ -106,3 +106,19 @@ def test_dashboard_css_is_split_into_style_modules():
     main_file = src_root / "main.tsx"
     content = main_file.read_text(encoding="utf-8")
     assert './styles/index.css' in content or "\"./styles/index.css\"" in content
+
+
+def test_dashboard_skill_management_mentions_zip_upload_flow():
+    dashboard_root = Path(__file__).resolve().parents[2] / "dashboard"
+    skill_editor = dashboard_root / "src" / "features" / "skills" / "SkillEditorSheet.tsx"
+    skills_tab = dashboard_root / "src" / "features" / "skills" / "SkillsTab.tsx"
+    readme = dashboard_root / "README.md"
+
+    skill_editor_content = skill_editor.read_text(encoding="utf-8")
+    skills_tab_content = skills_tab.read_text(encoding="utf-8")
+    readme_content = readme.read_text(encoding="utf-8")
+
+    assert 'type="file"' in skill_editor_content
+    assert "zip" in skill_editor_content.lower()
+    assert "归档" in skills_tab_content
+    assert "zip" in readme_content.lower()

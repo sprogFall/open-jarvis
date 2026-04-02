@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+from pathlib import Path
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketException, status
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
-from gateway.dashboard_api import dashboard_api
+from gateway.dashboard_api import build_device_skill_sync_payload, dashboard_api
+from gateway.skill_archive import SkillArchiveStore
 from gateway.security import (
     issue_access_token,
     verify_access_token,
@@ -95,16 +98,41 @@ class ConnectionManager:
             {"type": "APPROVAL_DECISION", "task_id": task_id, "approved": approved}
         )
 
+    async def send_device_skills_sync(self, device_id: str, payload: dict) -> None:
+        websocket = self.client_connections.get(device_id)
+        if websocket is None:
+            return
+        try:
+            await websocket.send_json(payload)
+        except Exception:
+            self.disconnect_client(device_id, websocket)
+
+
+def _resolve_skill_archives_path(settings: GatewaySettings) -> Path:
+    if settings.skill_archives_path is not None:
+        return settings.skill_archives_path
+    database_url = settings.database_url
+    if database_url.startswith("sqlite:///"):
+        database_url = database_url[len("sqlite:///"):]
+    elif database_url.startswith("sqlite://"):
+        database_url = database_url[len("sqlite://"):]
+    if database_url.startswith("postgresql"):
+        return Path("gateway/skill_archives").resolve()
+    return (Path(database_url).expanduser().resolve().parent / "skill_archives")
+
 
 def create_app(settings: GatewaySettings | None = None) -> FastAPI:
     settings = settings or GatewaySettings.from_env()
     store = GatewayStore(settings.database_url)
+    settings.skill_archives_path = _resolve_skill_archives_path(settings)
+    skill_archives = SkillArchiveStore(settings.skill_archives_path)
     manager = ConnectionManager()
     settings.device_keys = store.initialize_device_registry(settings.device_keys)
 
     app = FastAPI(title="Omni-Agent Gateway")
     app.state.settings = settings
     app.state.store = store
+    app.state.skill_archives = skill_archives
     app.state.manager = manager
     if settings.dashboard_origins:
         app.add_middleware(
@@ -125,6 +153,15 @@ def create_app(settings: GatewaySettings | None = None) -> FastAPI:
             return verify_access_token(settings, credentials.credentials)
         except Exception as exc:
             raise HTTPException(status_code=401, detail="Invalid token") from exc
+
+    def require_device_request(
+        device_id: str,
+        timestamp: int,
+        signature: str,
+    ) -> str:
+        if not verify_device_signature(settings, device_id, timestamp, signature):
+            raise HTTPException(status_code=401, detail="Invalid device signature")
+        return device_id
 
     @app.get("/health")
     def healthcheck() -> dict:
@@ -184,6 +221,33 @@ def create_app(settings: GatewaySettings | None = None) -> FastAPI:
             )
         return devices
 
+    @app.get("/client/skills/{skill_id}/archive")
+    def download_skill_archive(
+        skill_id: str,
+        device_id: str = Depends(require_device_request),
+    ) -> Response:
+        assigned = {
+            skill["skill_id"]
+            for skill in store.list_device_skills(device_id)
+            if skill.get("archive_ready")
+        }
+        if skill_id not in assigned:
+            raise HTTPException(status_code=404, detail="Skill archive not assigned")
+        skill = store.get_skill(skill_id)
+        if not skill or not skill.get("archive_ready"):
+            raise HTTPException(status_code=404, detail="Skill archive not found")
+        try:
+            archive = skill_archives.read_archive(skill_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Skill archive not found") from exc
+        return Response(
+            content=archive,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{skill["archive_filename"]}"',
+            },
+        )
+
     @app.post("/tasks/{task_id}/decision", status_code=202)
     async def submit_decision(
         task_id: str,
@@ -231,6 +295,9 @@ def create_app(settings: GatewaySettings | None = None) -> FastAPI:
 
         await manager.connect_client(device_id, websocket)
         store.touch_device(device_id)
+        skill_sync = build_device_skill_sync_payload(store, device_id)
+        if skill_sync["skills"]:
+            await manager.send_device_skills_sync(device_id, skill_sync)
         for task in store.list_tasks_for_device(device_id, ["PENDING_DISPATCH"]):
             await manager.send_task_assignment(device_id, task)
         try:
