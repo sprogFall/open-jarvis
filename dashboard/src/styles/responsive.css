@@ -7,15 +7,26 @@
     min-height: auto;
   }
 
+  .app-layout {
+    grid-template-columns: 1fr;
+  }
+
   .sidebar {
     position: static;
-    min-height: auto;
-    margin: 1rem;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .tab-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 1rem;
   }
 
   .workspace {
-    margin-left: 0;
-    padding: 0 1rem 1.5rem;
+    padding: 1rem;
   }
 
   .metric-strip,

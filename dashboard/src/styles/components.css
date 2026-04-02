@@ -78,13 +78,14 @@
 
 .tab-chip {
   display: grid;
-  gap: 0.15rem;
-  padding: 0.95rem 1rem;
+  gap: 0.1rem;
+  padding: 0.7rem 0.85rem;
   text-align: left;
   color: var(--text);
-  border-radius: 1.2rem;
+  border-radius: 0.75rem;
   background: transparent;
   border: 1px solid transparent;
+  transition: background 120ms ease, border-color 120ms ease;
 }
 
 .tab-chip small {

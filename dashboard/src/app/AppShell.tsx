@@ -35,6 +35,7 @@ export function AppShell({
 
   return (
     <>
+      <div className="app-layout">
       <aside className="sidebar">
         <div className="sidebar-brand">
           <p className="eyebrow">OpenJarvis</p>
@@ -69,10 +70,7 @@ export function AppShell({
 
       <main className="workspace">
         <header className="workspace-header">
-          <div>
-            <p className="eyebrow">Operational Surface</p>
-            <h2>{activeTab?.label}</h2>
-          </div>
+          <h2>{activeTab?.label}</h2>
           <div className="header-actions">
             <span className="signal-copy">
               Gateway: {dashboardApi.gatewayBaseUrl || "same-origin proxy"}
@@ -131,6 +129,7 @@ export function AppShell({
           <SettingsTab systemInfo={controller.systemInfo} />
         ) : null}
       </main>
+      </div>
 
       {controller.deviceEditorMode ? (
         <DeviceEditorSheet
