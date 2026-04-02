@@ -345,3 +345,54 @@ def test_device_connect_receives_skill_sync_before_pending_tasks(tmp_path):
     assert first_payload["type"] == "DEVICE_SKILLS_SYNC"
     assert first_payload["skills"][0]["skill_id"] == "runbook"
     assert second_payload["type"] == "TASK_ASSIGNED"
+
+
+def test_device_connect_receives_ai_config_sync_before_pending_tasks(tmp_path):
+    client, settings = build_test_client(tmp_path)
+    token = login(client)
+    config_response = client.put(
+        "/dashboard/api/ai/devices/device-alpha",
+        headers=auth_headers(token),
+        json={
+            "provider": "custom",
+            "model": "deepseek-chat",
+            "api_key": "device-secret-key",
+            "base_url": "https://llm.example/v1/chat/completions",
+        },
+    )
+    assert config_response.status_code == 204
+
+    create_response = client.post(
+        "/tasks",
+        headers=auth_headers(token),
+        json={
+            "device_id": "device-alpha",
+            "instruction": "查看系统负载",
+        },
+    )
+    assert create_response.status_code == 201
+
+    timestamp = 1700000004
+    signature = sign_device_request(
+        device_id="device-alpha",
+        timestamp=timestamp,
+        device_key=settings.device_keys["device-alpha"],
+    )
+
+    with client.websocket_connect(
+        f"/ws/client?device_id=device-alpha&timestamp={timestamp}&signature={signature}"
+    ) as device_ws:
+        first_payload = device_ws.receive_json()
+        second_payload = device_ws.receive_json()
+
+    assert first_payload == {
+        "type": "DEVICE_AI_CONFIG_SYNC",
+        "device_id": "device-alpha",
+        "config": {
+            "provider": "custom",
+            "model": "deepseek-chat",
+            "api_key": "device-secret-key",
+            "base_url": "https://llm.example/v1/chat/completions",
+        },
+    }
+    assert second_payload["type"] == "TASK_ASSIGNED"

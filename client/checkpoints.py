@@ -24,6 +24,14 @@ class CheckpointStore:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ai_config (
+                    scope TEXT PRIMARY KEY,
+                    payload_json TEXT NOT NULL
+                )
+                """
+            )
 
     def save(self, task_id: str, payload: dict) -> None:
         with self._connect() as connection:
@@ -50,3 +58,26 @@ class CheckpointStore:
         with self._connect() as connection:
             connection.execute("DELETE FROM checkpoints WHERE task_id = ?", (task_id,))
 
+    def save_ai_config(self, payload: dict) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO ai_config(scope, payload_json)
+                VALUES ('default', ?)
+                ON CONFLICT(scope) DO UPDATE SET payload_json = excluded.payload_json
+                """,
+                (json.dumps(payload, ensure_ascii=False),),
+            )
+
+    def load_ai_config(self) -> dict | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT payload_json FROM ai_config WHERE scope = 'default'"
+            ).fetchone()
+        if row is None:
+            return None
+        return json.loads(row[0])
+
+    def delete_ai_config(self) -> None:
+        with self._connect() as connection:
+            connection.execute("DELETE FROM ai_config WHERE scope = 'default'")

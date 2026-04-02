@@ -63,6 +63,11 @@ cd app && flutter run
 | `OMNI_AGENT_ADMIN_PASSWORD` | **是** | `passw0rd` | 管理员密码，**生产环境必须修改** |
 | `OMNI_AGENT_DEVICE_KEYS` | 否 | `device-alpha=device-secret` | 预注册设备，格式 `id1=key1,id2=key2`。也可通过 Dashboard 动态添加 |
 | `OMNI_AGENT_DASHBOARD_ORIGINS` | 否 | 空 | 允许 Dashboard 跨域访问的 Origin 列表，逗号分隔，例如 `https://static.example.com` |
+| `OMNI_AGENT_GATEWAY_AI_PROVIDER` | 否 | 空 | Gateway 侧 AI 供应商标识；若数据库已有覆盖配置，则数据库优先 |
+| `OMNI_AGENT_GATEWAY_AI_MODEL` | 否 | 空 | Gateway 侧 AI 模型名 |
+| `OMNI_AGENT_GATEWAY_AI_API_KEY` | 否 | 空 | Gateway 侧 AI Key |
+| `OMNI_AGENT_GATEWAY_AI_BASE_URL` | 否 | 空 | 自定义或 OpenAI-compatible 网关地址 |
+| `OMNI_AGENT_GATEWAY_ALLOWED_ROOTS` | 否 | 当前工作目录 | Gateway 本机执行时允许访问的文件根目录，使用 `:` 分隔 |
 
 ### Client 端环境变量
 
@@ -76,6 +81,10 @@ cd app && flutter run
 | `OMNI_AGENT_ALLOWED_ROOTS` | `/workspace` | 文件系统技能允许访问的根目录 |
 | `OMNI_AGENT_IOT_BASE_URL` | (空) | IoT 平台接口地址 |
 | `OMNI_AGENT_IOT_TOKEN` | (空) | IoT 平台认证 Token |
+| `OMNI_AGENT_CLIENT_AI_PROVIDER` | (空) | Client 侧 AI 供应商标识；若本地数据库已有覆盖配置，则本地数据库优先 |
+| `OMNI_AGENT_CLIENT_AI_MODEL` | (空) | Client 侧 AI 模型名 |
+| `OMNI_AGENT_CLIENT_AI_API_KEY` | (空) | Client 侧 AI Key |
+| `OMNI_AGENT_CLIENT_AI_BASE_URL` | (空) | 自定义或 OpenAI-compatible 网关地址 |
 
 ---
 
@@ -174,6 +183,11 @@ VITE_GATEWAY_BASE_URL=/jarvis/api npm run build
 | POST | `/tasks/{task_id}/decision` | Bearer | 审批决策 |
 | GET | `/devices` | Bearer | 设备列表 |
 
+补充说明：
+
+- `POST /tasks` 仍然支持显式传入 `device_id`
+- 当不传 `device_id` 时，Gateway 会使用自身 AI 配置在已注册 CLI 与 `gateway-local` 本机执行端之间做自动路由
+
 ### WebSocket
 
 | 路径 | 认证 | 说明 |
@@ -194,6 +208,8 @@ VITE_GATEWAY_BASE_URL=/jarvis/api npm run build
 | DELETE | `/dashboard/api/devices/{id}/skills/{sid}` | 移除设备 Skill |
 | GET | `/dashboard/api/tasks` | 任务列表（支持 ?status=&device_id=&limit=） |
 | GET | `/dashboard/api/system` | 系统信息 |
+| PUT/DELETE | `/dashboard/api/ai/gateway` | 写入 / 清除 Gateway AI 覆盖配置（不提供读接口） |
+| PUT/DELETE | `/dashboard/api/ai/devices/{id}` | 写入 / 清除指定 CLI 的 AI 覆盖配置（不提供读接口） |
 
 ---
 

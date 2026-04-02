@@ -312,6 +312,53 @@ def test_system_info(tmp_path):
     assert data["dashboard_origins"] == ["https://dashboard.example.com"]
 
 
+def test_dashboard_ai_override_is_write_only_for_gateway(tmp_path):
+    client, headers = _setup(tmp_path)
+
+    response = client.put(
+        "/dashboard/api/ai/gateway",
+        headers=headers,
+        json={
+            "provider": "openai",
+            "model": "gpt-4o-mini",
+            "api_key": "gateway-secret",
+        },
+    )
+
+    assert response.status_code == 204
+    assert client.get("/dashboard/api/ai/gateway", headers=headers).status_code == 405
+    stored = client.app.state.store.get_ai_config("gateway")
+    assert stored["provider"] == "openai"
+    assert stored["model"] == "gpt-4o-mini"
+    assert stored["api_key"] == "gateway-secret"
+
+    system_info = client.get("/dashboard/api/system", headers=headers).json()
+    assert "gateway_ai" not in system_info
+    assert "client_ai" not in system_info
+
+
+def test_dashboard_ai_override_can_target_device_without_readback(tmp_path):
+    client, headers = _setup(tmp_path)
+
+    response = client.put(
+        "/dashboard/api/ai/devices/device-alpha",
+        headers=headers,
+        json={
+            "provider": "custom",
+            "model": "qwen-max",
+            "api_key": "client-secret",
+            "base_url": "https://llm.example/v1/chat/completions",
+        },
+    )
+
+    assert response.status_code == 204
+    assert client.get("/dashboard/api/ai/devices/device-alpha", headers=headers).status_code == 405
+    stored = client.app.state.store.get_ai_config("client", device_id="device-alpha")
+    assert stored["provider"] == "custom"
+    assert stored["model"] == "qwen-max"
+    assert stored["base_url"] == "https://llm.example/v1/chat/completions"
+
+
 def test_existing_gateway_health(tmp_path):
     client, _ = _setup(tmp_path)
     assert client.get("/health").json() == {"status": "ok"}

@@ -41,6 +41,13 @@ class AssignSkill(BaseModel):
     config: dict = Field(default_factory=dict)
 
 
+class AIConfigUpdate(BaseModel):
+    provider: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    api_key: str = Field(min_length=1)
+    base_url: str | None = None
+
+
 _bearer = HTTPBearer(auto_error=False)
 
 
@@ -92,6 +99,27 @@ async def _sync_skill_targets(request: Request, skill_id: str) -> None:
     store: GatewayStore = request.app.state.store
     for device_id in store.list_devices_for_skill(skill_id):
         await _sync_device_skills(request, device_id)
+
+
+def build_device_ai_config_sync_payload(store: GatewayStore, device_id: str) -> dict:
+    config = store.get_ai_config("client", device_id=device_id)
+    if config is not None:
+        config = {
+            "provider": config["provider"],
+            "model": config["model"],
+            "api_key": config["api_key"],
+            "base_url": config.get("base_url"),
+        }
+    return {
+        "type": "DEVICE_AI_CONFIG_SYNC",
+        "device_id": device_id,
+        "config": config,
+    }
+
+
+async def _sync_device_ai_config(request: Request, device_id: str) -> None:
+    payload = build_device_ai_config_sync_payload(request.app.state.store, device_id)
+    await request.app.state.manager.send_device_ai_config_sync(device_id, payload)
 
 
 dashboard_api = APIRouter(
@@ -305,6 +333,59 @@ async def unassign_skill_from_device(
     if not store.unassign_skill(device_id, skill_id):
         raise HTTPException(404, "分配关系不存在")
     await _sync_device_skills(request, device_id)
+
+
+@dashboard_api.put("/ai/gateway", status_code=204)
+def update_gateway_ai_config(
+    body: AIConfigUpdate,
+    request: Request,
+    store: GatewayStore = Depends(_get_store),
+) -> None:
+    store.save_ai_config(
+        "gateway",
+        provider=body.provider,
+        model=body.model,
+        api_key=body.api_key,
+        base_url=body.base_url,
+    )
+    del request
+
+
+@dashboard_api.delete("/ai/gateway", status_code=204)
+def delete_gateway_ai_config(store: GatewayStore = Depends(_get_store)) -> None:
+    store.delete_ai_config("gateway")
+
+
+@dashboard_api.put("/ai/devices/{device_id}", status_code=204)
+async def update_device_ai_config(
+    device_id: str,
+    body: AIConfigUpdate,
+    request: Request,
+    store: GatewayStore = Depends(_get_store),
+) -> None:
+    if not store.get_device(device_id):
+        raise HTTPException(404, "设备不存在")
+    store.save_ai_config(
+        "client",
+        device_id=device_id,
+        provider=body.provider,
+        model=body.model,
+        api_key=body.api_key,
+        base_url=body.base_url,
+    )
+    await _sync_device_ai_config(request, device_id)
+
+
+@dashboard_api.delete("/ai/devices/{device_id}", status_code=204)
+async def delete_device_ai_config(
+    device_id: str,
+    request: Request,
+    store: GatewayStore = Depends(_get_store),
+) -> None:
+    if not store.get_device(device_id):
+        raise HTTPException(404, "设备不存在")
+    store.delete_ai_config("client", device_id=device_id)
+    await _sync_device_ai_config(request, device_id)
 
 
 @dashboard_api.get("/tasks")

@@ -67,6 +67,16 @@ CREATE TABLE IF NOT EXISTS device_skills (
     config_json TEXT NOT NULL DEFAULT '{}',
     PRIMARY KEY (device_id, skill_id)
 );
+CREATE TABLE IF NOT EXISTS ai_configs (
+    scope      TEXT NOT NULL,
+    device_id  TEXT NOT NULL DEFAULT '',
+    provider   TEXT NOT NULL,
+    model      TEXT NOT NULL,
+    api_key    TEXT NOT NULL,
+    base_url   TEXT,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (scope, device_id)
+);
 """
 
 _MIGRATIONS = {
@@ -522,6 +532,56 @@ class GatewayStore:
             "skill_count": skill_count,
             "task_counts": task_counts,
         }
+
+    # ── ai config ────────────────────────────────────────────────────────────
+
+    def save_ai_config(
+        self,
+        scope: str,
+        *,
+        provider: str,
+        model: str,
+        api_key: str,
+        base_url: str | None = None,
+        device_id: str | None = None,
+    ) -> dict:
+        normalized_device_id = device_id or ""
+        now = self._now()
+        with self._connect() as db:
+            db.execute(
+                "INSERT INTO ai_configs (scope, device_id, provider, model, api_key, base_url, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(scope, device_id) DO UPDATE SET "
+                "provider = excluded.provider, model = excluded.model, "
+                "api_key = excluded.api_key, base_url = excluded.base_url, "
+                "updated_at = excluded.updated_at",
+                (scope, normalized_device_id, provider, model, api_key, base_url, now),
+            )
+        return self.get_ai_config(scope, device_id=device_id)  # type: ignore[return-value]
+
+    def get_ai_config(self, scope: str, *, device_id: str | None = None) -> dict | None:
+        normalized_device_id = device_id or ""
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT scope, device_id, provider, model, api_key, base_url, updated_at "
+                "FROM ai_configs WHERE scope = ? AND device_id = ?",
+                (scope, normalized_device_id),
+            ).fetchone()
+        if row is None:
+            return None
+        payload = dict(row)
+        if not payload["device_id"]:
+            payload.pop("device_id", None)
+        return payload
+
+    def delete_ai_config(self, scope: str, *, device_id: str | None = None) -> bool:
+        normalized_device_id = device_id or ""
+        with self._connect() as db:
+            cursor = db.execute(
+                "DELETE FROM ai_configs WHERE scope = ? AND device_id = ?",
+                (scope, normalized_device_id),
+            )
+        return cursor.rowcount > 0
 
 
 # ── thin wrappers to normalise sqlite3 / psycopg2 differences ────────────

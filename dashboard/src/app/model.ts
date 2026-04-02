@@ -25,6 +25,21 @@ export type AssignmentForm = {
   config: string;
 };
 
+export type GatewayAiForm = {
+  provider: string;
+  model: string;
+  api_key: string;
+  base_url: string;
+};
+
+export type DeviceAiForm = {
+  device_id: string;
+  provider: string;
+  model: string;
+  api_key: string;
+  base_url: string;
+};
+
 export const tabs: Array<{ id: TabId; label: string; hint: string }> = [
   { id: "overview", label: "概览", hint: "任务与连接状态" },
   { id: "devices", label: "设备", hint: "注册、轮换、分配 Skill" },
@@ -62,4 +77,23 @@ export function createEmptySkillForm(): SkillForm {
 
 export function createEmptyAssignmentForm(): AssignmentForm {
   return { skill_id: "", config: "{}" };
+}
+
+export function createEmptyGatewayAiForm(): GatewayAiForm {
+  return {
+    provider: "",
+    model: "",
+    api_key: "",
+    base_url: "",
+  };
+}
+
+export function createEmptyDeviceAiForm(): DeviceAiForm {
+  return {
+    device_id: "",
+    provider: "",
+    model: "",
+    api_key: "",
+    base_url: "",
+  };
 }

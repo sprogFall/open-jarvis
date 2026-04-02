@@ -171,4 +171,41 @@ export const dashboardApi = {
   getSystemInfo(token: string): Promise<SystemInfo> {
     return request("/dashboard/api/system", {}, token);
   },
+  saveGatewayAiConfig(
+    token: string,
+    payload: {
+      provider: string;
+      model: string;
+      api_key: string;
+      base_url?: string;
+    },
+  ): Promise<void> {
+    return request(
+      "/dashboard/api/ai/gateway",
+      { method: "PUT", body: JSON.stringify(payload) },
+      token,
+    );
+  },
+  clearGatewayAiConfig(token: string): Promise<void> {
+    return request("/dashboard/api/ai/gateway", { method: "DELETE" }, token);
+  },
+  saveDeviceAiConfig(
+    token: string,
+    deviceId: string,
+    payload: {
+      provider: string;
+      model: string;
+      api_key: string;
+      base_url?: string;
+    },
+  ): Promise<void> {
+    return request(
+      `/dashboard/api/ai/devices/${deviceId}`,
+      { method: "PUT", body: JSON.stringify(payload) },
+      token,
+    );
+  },
+  clearDeviceAiConfig(token: string, deviceId: string): Promise<void> {
+    return request(`/dashboard/api/ai/devices/${deviceId}`, { method: "DELETE" }, token);
+  },
 };

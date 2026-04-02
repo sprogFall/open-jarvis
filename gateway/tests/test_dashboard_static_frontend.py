@@ -158,3 +158,20 @@ def test_dashboard_visible_copy_stays_focused_on_business_workflows():
     assert "统一查看任务、设备与技能状态" in login_screen
     assert "运行信息" in settings_tab
     assert "业务配置与账号范围" in app_model
+
+
+def test_dashboard_settings_exposes_write_only_ai_override_entrypoints():
+    dashboard_root = Path(__file__).resolve().parents[2] / "dashboard" / "src"
+    settings_tab = (dashboard_root / "features" / "settings" / "SettingsTab.tsx").read_text(
+        encoding="utf-8"
+    )
+    controller = (dashboard_root / "app" / "useDashboardController.ts").read_text(
+        encoding="utf-8"
+    )
+    api = (dashboard_root / "api.ts").read_text(encoding="utf-8")
+
+    assert "AI 覆盖配置" in settings_tab
+    assert "saveGatewayAiConfig" in controller
+    assert "saveDeviceAiConfig" in controller
+    assert "/dashboard/api/ai/gateway" in api
+    assert "/dashboard/api/ai/devices/" in api

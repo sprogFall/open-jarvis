@@ -21,6 +21,18 @@ class RecordingSkillWorkspace:
         self.syncs.append(skills)
 
 
+class RecordingAIConfigStore:
+    def __init__(self) -> None:
+        self.saved: list[dict] = []
+        self.deleted = 0
+
+    def save_ai_config(self, payload: dict) -> None:
+        self.saved.append(payload)
+
+    def delete_ai_config(self) -> None:
+        self.deleted += 1
+
+
 def test_service_routes_gateway_messages_to_runner():
     runner = RecordingRunner()
     workspace = RecordingSkillWorkspace()
@@ -82,3 +94,48 @@ def test_service_routes_skill_sync_messages_to_workspace():
             }
         ]
     ]
+
+
+def test_service_routes_ai_config_sync_messages_to_store():
+    runner = RecordingRunner()
+    workspace = RecordingSkillWorkspace()
+    ai_config_store = RecordingAIConfigStore()
+    service = ClientService(
+        runner=runner,
+        transport=None,
+        skill_workspace=workspace,
+        ai_config_store=ai_config_store,
+    )
+
+    service.handle_gateway_message(
+        {
+            "type": "DEVICE_AI_CONFIG_SYNC",
+            "device_id": "device-alpha",
+            "config": {
+                "provider": "custom",
+                "model": "qwen-max",
+                "api_key": "client-secret",
+                "base_url": "https://llm.example/v1/chat/completions",
+            },
+        }
+    )
+    service.handle_gateway_message(
+        {
+            "type": "DEVICE_AI_CONFIG_SYNC",
+            "device_id": "device-alpha",
+            "config": None,
+        }
+    )
+
+    assert runner.assignments == []
+    assert runner.approvals == []
+    assert workspace.syncs == []
+    assert ai_config_store.saved == [
+        {
+            "provider": "custom",
+            "model": "qwen-max",
+            "api_key": "client-secret",
+            "base_url": "https://llm.example/v1/chat/completions",
+        }
+    ]
+    assert ai_config_store.deleted == 1

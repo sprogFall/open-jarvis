@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from uuid import uuid4
 
@@ -9,7 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
+from gateway.ai import GATEWAY_LOCAL_DEVICE_ID, GatewayTaskRouter
 from gateway.dashboard_api import build_device_skill_sync_payload, dashboard_api
+from gateway.dashboard_api import build_device_ai_config_sync_payload
+from gateway.local_executor import GatewayLocalExecutor
 from gateway.skill_archive import SkillArchiveStore
 from gateway.security import (
     issue_access_token,
@@ -33,7 +37,7 @@ class LoginResponse(BaseModel):
 
 
 class CreateTaskRequest(BaseModel):
-    device_id: str
+    device_id: str | None = None
     instruction: str = Field(min_length=1)
 
 
@@ -99,6 +103,12 @@ class ConnectionManager:
         )
 
     async def send_device_skills_sync(self, device_id: str, payload: dict) -> None:
+        await self._send_client_payload(device_id, payload)
+
+    async def send_device_ai_config_sync(self, device_id: str, payload: dict) -> None:
+        await self._send_client_payload(device_id, payload)
+
+    async def _send_client_payload(self, device_id: str, payload: dict) -> None:
         websocket = self.client_connections.get(device_id)
         if websocket is None:
             return
@@ -106,6 +116,36 @@ class ConnectionManager:
             await websocket.send_json(payload)
         except Exception:
             self.disconnect_client(device_id, websocket)
+
+
+def _build_task_router_candidates(store: GatewayStore) -> list[dict]:
+    candidates: list[dict] = []
+    for device in store.list_devices():
+        candidates.append(
+            {
+                "device_id": device["device_id"],
+                "name": device.get("name"),
+                "type": device.get("type"),
+                "skills": [skill["skill_id"] for skill in store.list_device_skills(device["device_id"])],
+            }
+        )
+    candidates.append(
+        {
+            "device_id": GATEWAY_LOCAL_DEVICE_ID,
+            "name": "Gateway Local",
+            "type": "gateway",
+            "skills": [
+                "filesystem.read_file",
+                "filesystem.search_suffix",
+                "process.inspect_load",
+                "process.list_processes",
+                "docker.list_containers",
+                "docker.restart",
+                "shell.exec",
+            ],
+        }
+    )
+    return candidates
 
 
 def _resolve_skill_archives_path(settings: GatewaySettings) -> Path:
@@ -134,6 +174,8 @@ def create_app(settings: GatewaySettings | None = None) -> FastAPI:
     app.state.store = store
     app.state.skill_archives = skill_archives
     app.state.manager = manager
+    app.state.task_router = GatewayTaskRouter(store, settings)
+    app.state.local_executor = GatewayLocalExecutor(store, manager, settings)
     if settings.dashboard_origins:
         app.add_middleware(
             CORSMiddleware,
@@ -183,12 +225,32 @@ def create_app(settings: GatewaySettings | None = None) -> FastAPI:
         request: CreateTaskRequest,
         _user: dict = Depends(require_user),
     ) -> dict:
-        if request.device_id not in settings.device_keys:
+        resolved_device_id = request.device_id
+        resolved_instruction = request.instruction
+        if not resolved_device_id:
+            try:
+                routing = app.state.task_router.route(
+                    request.instruction,
+                    _build_task_router_candidates(store),
+                )
+            except Exception as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            resolved_device_id = routing["device_id"]
+            resolved_instruction = routing.get("instruction") or request.instruction
+        if (
+            resolved_device_id != GATEWAY_LOCAL_DEVICE_ID
+            and resolved_device_id not in settings.device_keys
+        ):
             raise HTTPException(status_code=404, detail="Unknown device")
         task_id = uuid4().hex[:12]
-        task = store.create_task(task_id, request.device_id, request.instruction)
+        task = store.create_task(task_id, resolved_device_id, resolved_instruction)
         await manager.broadcast_task(task)
-        await manager.send_task_assignment(request.device_id, task)
+        if resolved_device_id == GATEWAY_LOCAL_DEVICE_ID:
+            if hasattr(app.state.local_executor, "bind_loop"):
+                app.state.local_executor.bind_loop(asyncio.get_running_loop())
+            app.state.local_executor.handle_assignment(task_id, resolved_instruction)
+        else:
+            await manager.send_task_assignment(resolved_device_id, task)
         return task
 
     @app.get("/tasks/pending_approvals")
@@ -260,11 +322,16 @@ def create_app(settings: GatewaySettings | None = None) -> FastAPI:
         status_value = "APPROVED" if request.approved else "REJECTED"
         updated = store.update_task(task_id, status=status_value)
         await manager.broadcast_task(updated)
-        await manager.send_approval_decision(
-            task["device_id"],
-            task_id=task_id,
-            approved=request.approved,
-        )
+        if task["device_id"] == GATEWAY_LOCAL_DEVICE_ID:
+            if hasattr(app.state.local_executor, "bind_loop"):
+                app.state.local_executor.bind_loop(asyncio.get_running_loop())
+            app.state.local_executor.handle_approval(task_id, request.approved)
+        else:
+            await manager.send_approval_decision(
+                task["device_id"],
+                task_id=task_id,
+                approved=request.approved,
+            )
         return updated
 
     @app.websocket("/ws/app")
@@ -298,6 +365,9 @@ def create_app(settings: GatewaySettings | None = None) -> FastAPI:
         skill_sync = build_device_skill_sync_payload(store, device_id)
         if skill_sync["skills"]:
             await manager.send_device_skills_sync(device_id, skill_sync)
+        ai_sync = build_device_ai_config_sync_payload(store, device_id)
+        if ai_sync["config"] is not None:
+            await manager.send_device_ai_config_sync(device_id, ai_sync)
         for task in store.list_tasks_for_device(device_id, ["PENDING_DISPATCH"]):
             await manager.send_task_assignment(device_id, task)
         try:

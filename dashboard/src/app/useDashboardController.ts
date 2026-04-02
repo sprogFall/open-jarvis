@@ -3,11 +3,15 @@ import type { FormEvent } from "react";
 
 import { dashboardApi } from "../api";
 import {
+  createEmptyDeviceAiForm,
   createEmptyAssignmentForm,
   createEmptyDeviceForm,
+  createEmptyGatewayAiForm,
   createEmptySkillForm,
   type AssignmentForm,
+  type DeviceAiForm,
   type DeviceForm,
+  type GatewayAiForm,
   type SkillForm,
   type TabId,
 } from "./model";
@@ -50,6 +54,10 @@ export function useDashboardController({
     createEmptyAssignmentForm(),
   );
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
+  const [gatewayAiForm, setGatewayAiForm] = useState<GatewayAiForm>(createEmptyGatewayAiForm());
+  const [gatewayAiError, setGatewayAiError] = useState<string | null>(null);
+  const [deviceAiForm, setDeviceAiForm] = useState<DeviceAiForm>(createEmptyDeviceAiForm());
+  const [deviceAiError, setDeviceAiError] = useState<string | null>(null);
 
   const [taskDetail, setTaskDetail] = useState<Task | null>(null);
 
@@ -214,6 +222,14 @@ export function useDashboardController({
 
   function patchAssignmentForm(patch: Partial<AssignmentForm>) {
     setAssignmentForm((current) => ({ ...current, ...patch }));
+  }
+
+  function patchGatewayAiForm(patch: Partial<GatewayAiForm>) {
+    setGatewayAiForm((current) => ({ ...current, ...patch }));
+  }
+
+  function patchDeviceAiForm(patch: Partial<DeviceAiForm>) {
+    setDeviceAiForm((current) => ({ ...current, ...patch }));
   }
 
   function openDeviceCreate() {
@@ -430,6 +446,70 @@ export function useDashboardController({
     setTaskDetail(null);
   }
 
+  async function saveGatewayAiConfig(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setGatewayAiError(null);
+    try {
+      await dashboardApi.saveGatewayAiConfig(token, {
+        provider: gatewayAiForm.provider.trim(),
+        model: gatewayAiForm.model.trim(),
+        api_key: gatewayAiForm.api_key.trim(),
+        base_url: gatewayAiForm.base_url.trim() || undefined,
+      });
+      setGatewayAiForm(createEmptyGatewayAiForm());
+      setBannerMessage("Gateway AI 覆盖已保存");
+    } catch (error) {
+      setGatewayAiError(getErrorMessage(error));
+    }
+  }
+
+  async function clearGatewayAiConfig() {
+    try {
+      await dashboardApi.clearGatewayAiConfig(token);
+      setGatewayAiForm(createEmptyGatewayAiForm());
+      setGatewayAiError(null);
+      setBannerMessage("Gateway AI 覆盖已清除，后续将回退到环境变量");
+    } catch (error) {
+      handleApiError(error);
+    }
+  }
+
+  async function saveDeviceAiConfig(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setDeviceAiError(null);
+    if (!deviceAiForm.device_id) {
+      setDeviceAiError("请选择需要覆盖的 CLI 设备");
+      return;
+    }
+    try {
+      await dashboardApi.saveDeviceAiConfig(token, deviceAiForm.device_id, {
+        provider: deviceAiForm.provider.trim(),
+        model: deviceAiForm.model.trim(),
+        api_key: deviceAiForm.api_key.trim(),
+        base_url: deviceAiForm.base_url.trim() || undefined,
+      });
+      setDeviceAiForm((current) => ({ ...createEmptyDeviceAiForm(), device_id: current.device_id }));
+      setBannerMessage(`CLI 设备 ${deviceAiForm.device_id} 的 AI 覆盖已保存`);
+    } catch (error) {
+      setDeviceAiError(getErrorMessage(error));
+    }
+  }
+
+  async function clearDeviceAiConfig() {
+    if (!deviceAiForm.device_id) {
+      setDeviceAiError("请选择需要清除覆盖的 CLI 设备");
+      return;
+    }
+    try {
+      await dashboardApi.clearDeviceAiConfig(token, deviceAiForm.device_id);
+      setDeviceAiForm((current) => ({ ...createEmptyDeviceAiForm(), device_id: current.device_id }));
+      setDeviceAiError(null);
+      setBannerMessage(`CLI 设备 ${deviceAiForm.device_id} 的 AI 覆盖已清除`);
+    } catch (error) {
+      handleApiError(error);
+    }
+  }
+
   return {
     activeTab,
     bannerMessage,
@@ -450,6 +530,10 @@ export function useDashboardController({
     assignmentDevice,
     assignmentForm,
     assignmentError,
+    gatewayAiForm,
+    gatewayAiError,
+    deviceAiForm,
+    deviceAiError,
     taskDetail,
     setTaskStatusFilter,
     setTaskDeviceFilter,
@@ -472,6 +556,12 @@ export function useDashboardController({
     patchAssignmentForm,
     submitAssignment,
     removeAssignment,
+    patchGatewayAiForm,
+    patchDeviceAiForm,
+    saveGatewayAiConfig,
+    saveDeviceAiConfig,
+    clearGatewayAiConfig,
+    clearDeviceAiConfig,
     openTaskDetail,
     closeTaskDetail,
   };

@@ -122,7 +122,20 @@ export function AppShell({
         ) : null}
 
         {controller.activeTab === "settings" ? (
-          <SettingsTab systemInfo={controller.systemInfo} />
+          <SettingsTab
+            systemInfo={controller.systemInfo}
+            devices={controller.devices}
+            gatewayAiForm={controller.gatewayAiForm}
+            gatewayAiError={controller.gatewayAiError}
+            deviceAiForm={controller.deviceAiForm}
+            deviceAiError={controller.deviceAiError}
+            onGatewayAiChange={controller.patchGatewayAiForm}
+            onDeviceAiChange={controller.patchDeviceAiForm}
+            onSaveGatewayAiConfig={controller.saveGatewayAiConfig}
+            onSaveDeviceAiConfig={controller.saveDeviceAiConfig}
+            onClearGatewayAiConfig={controller.clearGatewayAiConfig}
+            onClearDeviceAiConfig={controller.clearDeviceAiConfig}
+          />
         ) : null}
       </main>
       </div>

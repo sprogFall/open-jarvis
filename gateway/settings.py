@@ -4,6 +4,8 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from client.ai import AIModelConfig, coerce_ai_config
+
 
 @dataclass(slots=True)
 class GatewaySettings:
@@ -15,6 +17,25 @@ class GatewaySettings:
     device_keys: dict[str, str] = field(default_factory=lambda: {"device-alpha": "device-secret"})
     dashboard_origins: list[str] = field(default_factory=list)
     skill_archives_path: Path | None = None
+    allowed_roots: list[Path] = field(default_factory=lambda: [Path.cwd().resolve()])
+    iot_base_url: str | None = None
+    iot_token: str | None = None
+    local_checkpoint_path: Path = Path("gateway/local-client.db")
+    local_workflow_store_path: Path = Path("gateway/local-langgraph.db")
+    ai_provider: str | None = None
+    ai_model: str | None = None
+    ai_api_key: str | None = None
+    ai_base_url: str | None = None
+
+    def ai_config(self) -> AIModelConfig | None:
+        return coerce_ai_config(
+            {
+                "provider": self.ai_provider,
+                "model": self.ai_model,
+                "api_key": self.ai_api_key,
+                "base_url": self.ai_base_url,
+            }
+        )
 
     @classmethod
     def from_env(cls) -> "GatewaySettings":
@@ -36,6 +57,7 @@ class GatewaySettings:
             for origin in raw_dashboard_origins.split(",")
             if origin.strip()
         ]
+        roots = os.getenv("OMNI_AGENT_GATEWAY_ALLOWED_ROOTS", str(Path.cwd())).split(":")
         return cls(
             database_url=database_url or "sqlite:///gateway/gateway.db",
             jwt_secret=os.getenv(
@@ -50,4 +72,17 @@ class GatewaySettings:
                 if os.getenv("OMNI_AGENT_SKILL_ARCHIVES_DIR")
                 else None
             ),
+            allowed_roots=[Path(root).expanduser().resolve() for root in roots if root],
+            iot_base_url=os.getenv("OMNI_AGENT_GATEWAY_IOT_BASE_URL"),
+            iot_token=os.getenv("OMNI_AGENT_GATEWAY_IOT_TOKEN"),
+            local_checkpoint_path=Path(
+                os.getenv("OMNI_AGENT_GATEWAY_LOCAL_CHECKPOINT_DB", "gateway/local-client.db")
+            ),
+            local_workflow_store_path=Path(
+                os.getenv("OMNI_AGENT_GATEWAY_LOCAL_LANGGRAPH_DB", "gateway/local-langgraph.db")
+            ),
+            ai_provider=os.getenv("OMNI_AGENT_GATEWAY_AI_PROVIDER"),
+            ai_model=os.getenv("OMNI_AGENT_GATEWAY_AI_MODEL"),
+            ai_api_key=os.getenv("OMNI_AGENT_GATEWAY_AI_API_KEY"),
+            ai_base_url=os.getenv("OMNI_AGENT_GATEWAY_AI_BASE_URL"),
         )

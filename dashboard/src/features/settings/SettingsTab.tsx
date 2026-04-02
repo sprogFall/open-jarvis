@@ -1,11 +1,39 @@
-import type { SystemInfo } from "../../types";
+import type { FormEvent } from "react";
+
+import type { Device, SystemInfo } from "../../types";
+import type { DeviceAiForm, GatewayAiForm } from "../../app/model";
 
 type SettingsTabProps = {
   systemInfo: SystemInfo | null;
+  devices: Device[];
+  gatewayAiForm: GatewayAiForm;
+  gatewayAiError: string | null;
+  deviceAiForm: DeviceAiForm;
+  deviceAiError: string | null;
+  onGatewayAiChange: (patch: Partial<GatewayAiForm>) => void;
+  onDeviceAiChange: (patch: Partial<DeviceAiForm>) => void;
+  onSaveGatewayAiConfig: (event: FormEvent<HTMLFormElement>) => void;
+  onSaveDeviceAiConfig: (event: FormEvent<HTMLFormElement>) => void;
+  onClearGatewayAiConfig: () => void;
+  onClearDeviceAiConfig: () => void;
 };
 
-export function SettingsTab({ systemInfo }: SettingsTabProps) {
+export function SettingsTab({
+  systemInfo,
+  devices,
+  gatewayAiForm,
+  gatewayAiError,
+  deviceAiForm,
+  deviceAiError,
+  onGatewayAiChange,
+  onDeviceAiChange,
+  onSaveGatewayAiConfig,
+  onSaveDeviceAiConfig,
+  onClearGatewayAiConfig,
+  onClearDeviceAiConfig,
+}: SettingsTabProps) {
   const configuredDevices = systemInfo?.configured_devices ?? [];
+  const clientDevices = devices.filter((device) => device.type === "cli");
 
   return (
     <section className="panel panel-stack">
@@ -43,6 +71,128 @@ export function SettingsTab({ systemInfo }: SettingsTabProps) {
             : " 当前还没有纳管设备。"}
         </p>
       </div>
+      <div className="callout">
+        <p className="eyebrow">AI</p>
+        <h4>AI 覆盖配置</h4>
+        <p>
+          Dashboard 只负责覆盖写入或清除覆盖，不展示已有数据库配置，也不会回显环境变量里的供应商。
+          每次进入页面表单都保持为空，请按需重新填写。
+        </p>
+      </div>
+      <form className="panel panel-stack" onSubmit={onSaveGatewayAiConfig}>
+        <div className="panel-head">
+          <div>
+            <p className="eyebrow">Gateway</p>
+            <h4>Gateway AI 覆盖</h4>
+          </div>
+        </div>
+        <label className="field">
+          <span>供应商</span>
+          <input
+            value={gatewayAiForm.provider}
+            onChange={(event) => onGatewayAiChange({ provider: event.target.value })}
+            placeholder="openai / anthropic / custom"
+          />
+        </label>
+        <label className="field">
+          <span>模型</span>
+          <input
+            value={gatewayAiForm.model}
+            onChange={(event) => onGatewayAiChange({ model: event.target.value })}
+            placeholder="gpt-4o-mini"
+          />
+        </label>
+        <label className="field">
+          <span>API Key</span>
+          <input
+            type="password"
+            value={gatewayAiForm.api_key}
+            onChange={(event) => onGatewayAiChange({ api_key: event.target.value })}
+            placeholder="sk-..."
+          />
+        </label>
+        <label className="field">
+          <span>Base URL（可选）</span>
+          <input
+            value={gatewayAiForm.base_url}
+            onChange={(event) => onGatewayAiChange({ base_url: event.target.value })}
+            placeholder="https://llm.example/v1/chat/completions"
+          />
+        </label>
+        {gatewayAiError ? <div className="banner-error">{gatewayAiError}</div> : null}
+        <div className="panel-head">
+          <button className="primary-button" type="submit">
+            保存 Gateway 覆盖
+          </button>
+          <button className="ghost-button" onClick={onClearGatewayAiConfig} type="button">
+            清除覆盖
+          </button>
+        </div>
+      </form>
+      <form className="panel panel-stack" onSubmit={onSaveDeviceAiConfig}>
+        <div className="panel-head">
+          <div>
+            <p className="eyebrow">CLI</p>
+            <h4>CLI AI 覆盖</h4>
+          </div>
+        </div>
+        <label className="field">
+          <span>目标设备</span>
+          <select
+            value={deviceAiForm.device_id}
+            onChange={(event) => onDeviceAiChange({ device_id: event.target.value })}
+          >
+            <option value="">请选择 CLI 设备</option>
+            {clientDevices.map((device) => (
+              <option key={device.device_id} value={device.device_id}>
+                {device.name} ({device.device_id})
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>供应商</span>
+          <input
+            value={deviceAiForm.provider}
+            onChange={(event) => onDeviceAiChange({ provider: event.target.value })}
+            placeholder="custom / openai / anthropic"
+          />
+        </label>
+        <label className="field">
+          <span>模型</span>
+          <input
+            value={deviceAiForm.model}
+            onChange={(event) => onDeviceAiChange({ model: event.target.value })}
+            placeholder="deepseek-chat"
+          />
+        </label>
+        <label className="field">
+          <span>API Key</span>
+          <input
+            type="password"
+            value={deviceAiForm.api_key}
+            onChange={(event) => onDeviceAiChange({ api_key: event.target.value })}
+            placeholder="sk-..."
+          />
+        </label>
+        <label className="field">
+          <span>Base URL（可选）</span>
+          <input
+            value={deviceAiForm.base_url}
+            onChange={(event) => onDeviceAiChange({ base_url: event.target.value })}
+            placeholder="https://llm.example/v1/chat/completions"
+          />
+        </label>
+        {deviceAiError ? <div className="banner-error">{deviceAiError}</div> : null}
+        <div className="panel-head">
+          <button className="primary-button" type="submit">
+            保存 CLI 覆盖
+          </button>
+          <button className="ghost-button" onClick={onClearDeviceAiConfig} type="button">
+            清除覆盖
+          </button>
+        </div>
+      </form>
     </section>
   );
 }
