@@ -1,6 +1,6 @@
 # OpenJarvis Dashboard
 
-独立前端控制台，使用 `npm` 构建为静态资源，产物输出到 `dist/`。
+独立前端控制台，使用 `npm run build` 产出静态资源到 `dist/`，也提供 `dashboard/Dockerfile` 直接构建容器镜像。
 
 当前 Skills 流程分为两类：
 
@@ -20,9 +20,10 @@ npm install
 npm run dev
 ```
 
-## 构建
+## 本地构建
 
 ```bash
+npm install
 npm run build
 ```
 
@@ -43,10 +44,40 @@ VITE_GATEWAY_BASE_URL=/jarvis/api npm run build
 VITE_GATEWAY_BASE_URL=https://gateway.example.com/jarvis/api npm run build
 ```
 
+## 容器镜像构建
+
+直接在仓库根目录执行：
+
+```bash
+docker build -f dashboard/Dockerfile \
+  --build-arg VITE_GATEWAY_BASE_URL=/jarvis/api \
+  -t open-jarvis-dashboard .
+```
+
+容器内置 Nginx 配置会：
+
+- 提供 `/jarvis/dashboard/` 静态页面
+- 反代 `/jarvis/api/*` 到 `gateway:8000`
+- 兼容 WebSocket 升级头
+
+如果直接使用仓库自带编排，执行：
+
+```bash
+docker compose up --build -d dashboard gateway
+```
+
+默认访问：
+
+- `http://localhost:8080/jarvis/dashboard/`
+- `http://localhost:8080/jarvis/api/auth/login`
+
 ## 子路径与 Nginx 部署
 
-将 `dist/` 部署到 Nginx 静态目录，并把 `/auth/` 与 `/dashboard/api/` 反代到网关。
-可参考：
+仓库提供两份可直接参考的配置：
 
-- [nginx.conf.example](/home/coder/project/open-jarvis/dashboard/nginx.conf.example)
-- [DEPLOYMENT.md](/home/coder/project/open-jarvis/dashboard/DEPLOYMENT.md)
+- `dashboard/nginx.conf`
+- `dashboard/nginx.conf.example`
+
+完整部署说明见：
+
+- `dashboard/DEPLOYMENT.md`

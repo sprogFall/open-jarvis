@@ -1,0 +1,22 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /src/dashboard
+
+ARG VITE_GATEWAY_BASE_URL=/jarvis/api
+ENV VITE_GATEWAY_BASE_URL=${VITE_GATEWAY_BASE_URL}
+
+COPY dashboard/package.json dashboard/package-lock.json ./
+RUN npm ci
+
+COPY dashboard /src/dashboard
+RUN npm run build
+
+FROM nginx:1.27-alpine
+
+COPY dashboard/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /src/dashboard/dist/ /usr/share/nginx/html/
+
+EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget -q -O /dev/null http://127.0.0.1/health || exit 1

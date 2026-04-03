@@ -1,16 +1,50 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-jarvis}
+      POSTGRES_USER: ${POSTGRES_USER:-jarvis}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jarvis}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jarvis} -d ${POSTGRES_DB:-jarvis}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
   gateway:
     build:
       context: .
       dockerfile: gateway/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://jarvis:jarvis@host.docker.internal:5432/jarvis}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-jarvis}:${POSTGRES_PASSWORD:-jarvis}@postgres:5432/${POSTGRES_DB:-jarvis}}
       OMNI_AGENT_JWT_SECRET: ${OMNI_AGENT_JWT_SECRET:-change-me-change-me-change-me-1234}
       OMNI_AGENT_ADMIN_USERNAME: ${OMNI_AGENT_ADMIN_USERNAME:-operator}
       OMNI_AGENT_ADMIN_PASSWORD: ${OMNI_AGENT_ADMIN_PASSWORD:-passw0rd}
       OMNI_AGENT_DEVICE_KEYS: ${OMNI_AGENT_DEVICE_KEYS:-device-alpha=device-secret}
+      OMNI_AGENT_GATEWAY_ALLOWED_ROOTS: ${OMNI_AGENT_GATEWAY_ALLOWED_ROOTS:-/workspace}
+      OMNI_AGENT_GATEWAY_LOCAL_CHECKPOINT_DB: ${OMNI_AGENT_GATEWAY_LOCAL_CHECKPOINT_DB:-/data/gateway/local-client.db}
+      OMNI_AGENT_GATEWAY_LOCAL_LANGGRAPH_DB: ${OMNI_AGENT_GATEWAY_LOCAL_LANGGRAPH_DB:-/data/gateway/local-langgraph.db}
+      OMNI_AGENT_SKILL_ARCHIVES_DIR: ${OMNI_AGENT_SKILL_ARCHIVES_DIR:-/data/gateway/skill-archives}
+      OMNI_AGENT_DASHBOARD_ORIGINS: ${OMNI_AGENT_DASHBOARD_ORIGINS:-}
+      OMNI_AGENT_GATEWAY_IOT_BASE_URL: ${OMNI_AGENT_GATEWAY_IOT_BASE_URL:-}
+      OMNI_AGENT_GATEWAY_IOT_TOKEN: ${OMNI_AGENT_GATEWAY_IOT_TOKEN:-}
+      OMNI_AGENT_GATEWAY_AI_PROVIDER: ${OMNI_AGENT_GATEWAY_AI_PROVIDER:-}
+      OMNI_AGENT_GATEWAY_AI_MODEL: ${OMNI_AGENT_GATEWAY_AI_MODEL:-}
+      OMNI_AGENT_GATEWAY_AI_API_KEY: ${OMNI_AGENT_GATEWAY_AI_API_KEY:-}
+      OMNI_AGENT_GATEWAY_AI_BASE_URL: ${OMNI_AGENT_GATEWAY_AI_BASE_URL:-}
     ports:
-      - "8000:8000"
+      - "${GATEWAY_PORT:-8000}:8000"
+    volumes:
+      - gateway_data:/data/gateway
+      - ./:/workspace:ro
+      - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 
   client:
@@ -18,21 +52,42 @@ services:
       context: .
       dockerfile: client/Dockerfile
     depends_on:
-      - gateway
+      gateway:
+        condition: service_healthy
     environment:
       OMNI_AGENT_GATEWAY_URL: ${OMNI_AGENT_GATEWAY_URL:-http://gateway:8000}
       OMNI_AGENT_DEVICE_ID: ${OMNI_AGENT_DEVICE_ID:-device-alpha}
       OMNI_AGENT_DEVICE_KEY: ${OMNI_AGENT_DEVICE_KEY:-device-secret}
       OMNI_AGENT_CHECKPOINT_DB: ${OMNI_AGENT_CHECKPOINT_DB:-/data/client/client.db}
       OMNI_AGENT_LANGGRAPH_DB: ${OMNI_AGENT_LANGGRAPH_DB:-/data/client/langgraph.db}
+      OMNI_AGENT_SKILLS_WORKSPACE: ${OMNI_AGENT_SKILLS_WORKSPACE:-/data/client/skills-runtime}
       OMNI_AGENT_ALLOWED_ROOTS: ${OMNI_AGENT_ALLOWED_ROOTS:-/workspace}
       OMNI_AGENT_IOT_BASE_URL: ${OMNI_AGENT_IOT_BASE_URL:-}
       OMNI_AGENT_IOT_TOKEN: ${OMNI_AGENT_IOT_TOKEN:-}
+      OMNI_AGENT_CLIENT_AI_PROVIDER: ${OMNI_AGENT_CLIENT_AI_PROVIDER:-}
+      OMNI_AGENT_CLIENT_AI_MODEL: ${OMNI_AGENT_CLIENT_AI_MODEL:-}
+      OMNI_AGENT_CLIENT_AI_API_KEY: ${OMNI_AGENT_CLIENT_AI_API_KEY:-}
+      OMNI_AGENT_CLIENT_AI_BASE_URL: ${OMNI_AGENT_CLIENT_AI_BASE_URL:-}
     volumes:
       - client_data:/data/client
       - ./:/workspace:ro
       - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+      args:
+        VITE_GATEWAY_BASE_URL: ${VITE_GATEWAY_BASE_URL:-/jarvis/api}
+    depends_on:
+      gateway:
+        condition: service_healthy
+    ports:
+      - "${DASHBOARD_PORT:-8080}:80"
+    restart: unless-stopped
+
 volumes:
+  postgres_data:
+  gateway_data:
   client_data:

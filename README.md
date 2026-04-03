@@ -3,7 +3,7 @@
 初始化实现包含四个模块：
 
 - `gateway`: FastAPI 网关，负责任务状态、审批持久化、JWT 与设备鉴权、WebSocket 路由。
-- `dashboard`: 独立静态前端项目，负责设备/Skill/任务管理，可通过 `npm build` 输出 `dist/` 并部署到 Nginx。
+- `dashboard`: 独立静态前端项目，负责设备/Skill/任务管理，可通过 `npm run build` 输出 `dist/` 并部署到 Nginx。
 - `client`: Python 执行端，基于 LangGraph 驱动规划/执行/审批中断恢复，负责技能执行、本地 checkpoint、日志脱敏。
 - `app`: Flutter 控制端，负责待审批恢复、任务派发、命令预览与实时日志工作台。
 
@@ -13,9 +13,9 @@
 
 ### 前置依赖
 
-- Python 3.11+
-- PostgreSQL 14+（生产环境）
-- Docker & Docker Compose（容器部署）
+- Docker & Docker Compose（推荐，仓库已内置完整容器栈）
+- Python 3.11+（本地调试 `gateway` / `client`）
+- Node.js 20+（本地调试 `dashboard`）
 - Flutter 3.x（移动端开发）
 
 ### 本地开发（SQLite）
@@ -23,9 +23,9 @@
 不配置 `DATABASE_URL` 时自动使用 SQLite，无需 PostgreSQL：
 
 ```bash
-pip install -r gateway/requirements.txt
-pytest -q                          # 运行测试
-uvicorn gateway.main:app --reload  # 启动开发服务器
+pip install -r requirements.txt -r gateway/requirements.txt
+pytest -q
+uvicorn gateway.main:app --reload
 ```
 
 如需启动 Dashboard 前端：
@@ -36,55 +36,84 @@ npm install
 npm run dev
 ```
 
-### 容器部署
+### 容器部署（开箱即用）
+
+拉取仓库后，`docker-compose.yml` 会同时启动：
+
+- `postgres`：内置 PostgreSQL
+- `gateway`：API、WebSocket、审批状态机、本机执行端
+- `client`：CLI 执行端
+- `dashboard`：内置 Nginx，提供 `/jarvis/dashboard/` 静态站点并反代 `/jarvis/api`
 
 ```bash
-# 1. 配置环境变量
+# 1. 准备环境变量
 cp .env.example .env
-# 编辑 .env，填入 DATABASE_URL 等
+# 至少修改 JWT、管理员密码、设备密钥、数据库密码
 
-# 2. 启动
+# 2. 构建并启动全部容器
 docker compose up --build -d
 
-# 3. 运行 Flutter 端
-cd app && flutter run
+# 3. 查看状态
+docker compose ps
+docker compose logs -f gateway client dashboard
 ```
+
+启动后默认访问地址：
+
+- Dashboard：`http://localhost:8080/jarvis/dashboard/`
+- Gateway 健康检查：`http://localhost:8000/health`
+- Flutter App 网关地址：`http://<宿主机IP>:8080/jarvis/api`
+
+> Flutter App 仍需单独运行或打包安装；它不是常驻服务容器的一部分。
 
 ---
 
 ## 环境变量
 
-| 变量名 | 必填 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `DATABASE_URL` | 生产必填 | `sqlite:///gateway/gateway.db` | 数据库连接地址。生产用 `postgresql://user:pass@host:5432/dbname`，本地开发可不配（自动用 SQLite） |
-| `OMNI_AGENT_GATEWAY_DB` | 否 | 无 | 旧版 SQLite 路径变量，当前仍兼容；仅当未设置 `DATABASE_URL` 时生效 |
-| `OMNI_AGENT_JWT_SECRET` | **是** | `change-me-change-me-change-me-1234` | JWT 签名密钥，**生产环境必须修改**，建议 32 字符以上随机字符串 |
-| `OMNI_AGENT_ADMIN_USERNAME` | 否 | `operator` | 管理员账号，用于登录 Dashboard 和 App |
-| `OMNI_AGENT_ADMIN_PASSWORD` | **是** | `passw0rd` | 管理员密码，**生产环境必须修改** |
-| `OMNI_AGENT_DEVICE_KEYS` | 否 | `device-alpha=device-secret` | 预注册设备，格式 `id1=key1,id2=key2`。也可通过 Dashboard 动态添加 |
-| `OMNI_AGENT_DASHBOARD_ORIGINS` | 否 | 空 | 允许 Dashboard 跨域访问的 Origin 列表，逗号分隔，例如 `https://static.example.com` |
-| `OMNI_AGENT_GATEWAY_AI_PROVIDER` | 否 | 空 | Gateway 侧 AI 供应商标识；若数据库已有覆盖配置，则数据库优先 |
-| `OMNI_AGENT_GATEWAY_AI_MODEL` | 否 | 空 | Gateway 侧 AI 模型名 |
-| `OMNI_AGENT_GATEWAY_AI_API_KEY` | 否 | 空 | Gateway 侧 AI Key |
-| `OMNI_AGENT_GATEWAY_AI_BASE_URL` | 否 | 空 | 自定义或 OpenAI-compatible 网关地址 |
-| `OMNI_AGENT_GATEWAY_ALLOWED_ROOTS` | 否 | 当前工作目录 | Gateway 本机执行时允许访问的文件根目录，使用 `:` 分隔 |
+### Compose / Gateway 侧
+
+| 变量名 | 默认值 | 说明 |
+|--------|--------|------|
+| `POSTGRES_DB` | `jarvis` | Compose 内置 PostgreSQL 数据库名 |
+| `POSTGRES_USER` | `jarvis` | Compose 内置 PostgreSQL 用户名 |
+| `POSTGRES_PASSWORD` | `jarvis` | Compose 内置 PostgreSQL 密码，生产环境务必修改 |
+| `DATABASE_URL` | 空 | 留空时自动回退到 Compose 内置 PostgreSQL；也可显式改为外部 PostgreSQL 连接串 |
+| `GATEWAY_PORT` | `8000` | Gateway 宿主机映射端口 |
+| `DASHBOARD_PORT` | `8080` | Dashboard 宿主机映射端口 |
+| `VITE_GATEWAY_BASE_URL` | `/jarvis/api` | Dashboard 构建时写入的 API 基地址 |
+| `OMNI_AGENT_JWT_SECRET` | `change-me-change-me-change-me-1234` | JWT 签名密钥，生产环境务必修改 |
+| `OMNI_AGENT_ADMIN_USERNAME` | `operator` | 管理员账号，用于登录 Dashboard 和 App |
+| `OMNI_AGENT_ADMIN_PASSWORD` | `passw0rd` | 管理员密码，生产环境务必修改 |
+| `OMNI_AGENT_DEVICE_KEYS` | `device-alpha=device-secret` | 预注册设备，格式 `id1=key1,id2=key2` |
+| `OMNI_AGENT_DASHBOARD_ORIGINS` | 空 | Dashboard 跨域白名单；同域反代部署时通常无需设置 |
+| `OMNI_AGENT_GATEWAY_ALLOWED_ROOTS` | `/workspace` | Gateway 本机执行端可访问的文件根目录，使用 `:` 分隔 |
+| `OMNI_AGENT_GATEWAY_LOCAL_CHECKPOINT_DB` | `/data/gateway/local-client.db` | Gateway 本机执行端 checkpoint 路径 |
+| `OMNI_AGENT_GATEWAY_LOCAL_LANGGRAPH_DB` | `/data/gateway/local-langgraph.db` | Gateway 本机执行端 LangGraph 状态路径 |
+| `OMNI_AGENT_SKILL_ARCHIVES_DIR` | `/data/gateway/skill-archives` | Gateway 侧 archive skill 归档目录 |
+| `OMNI_AGENT_GATEWAY_IOT_BASE_URL` | 空 | Gateway 侧 IoT 平台接口地址 |
+| `OMNI_AGENT_GATEWAY_IOT_TOKEN` | 空 | Gateway 侧 IoT Token |
+| `OMNI_AGENT_GATEWAY_AI_PROVIDER` | 空 | Gateway 侧 AI 供应商标识 |
+| `OMNI_AGENT_GATEWAY_AI_MODEL` | 空 | Gateway 侧 AI 模型名 |
+| `OMNI_AGENT_GATEWAY_AI_API_KEY` | 空 | Gateway 侧 AI Key |
+| `OMNI_AGENT_GATEWAY_AI_BASE_URL` | 空 | Gateway 侧自定义或 OpenAI-compatible 基地址 |
 
 ### Client 端环境变量
 
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
-| `OMNI_AGENT_GATEWAY_URL` | `http://gateway:8000` | Gateway 地址 |
+| `OMNI_AGENT_GATEWAY_URL` | `http://gateway:8000` | Client 连接 Gateway 的内部地址 |
 | `OMNI_AGENT_DEVICE_ID` | `device-alpha` | 当前设备标识 |
 | `OMNI_AGENT_DEVICE_KEY` | `device-secret` | 当前设备签名密钥，需与 Gateway 侧一致 |
 | `OMNI_AGENT_CHECKPOINT_DB` | `/data/client/client.db` | Client checkpoint 存储路径 |
-| `OMNI_AGENT_LANGGRAPH_DB` | `/data/client/langgraph.db` | LangGraph workflow 状态存储路径 |
+| `OMNI_AGENT_LANGGRAPH_DB` | `/data/client/langgraph.db` | Client LangGraph workflow 状态路径 |
+| `OMNI_AGENT_SKILLS_WORKSPACE` | `/data/client/skills-runtime` | archive skill 下载/解压目录 |
 | `OMNI_AGENT_ALLOWED_ROOTS` | `/workspace` | 文件系统技能允许访问的根目录 |
-| `OMNI_AGENT_IOT_BASE_URL` | (空) | IoT 平台接口地址 |
-| `OMNI_AGENT_IOT_TOKEN` | (空) | IoT 平台认证 Token |
-| `OMNI_AGENT_CLIENT_AI_PROVIDER` | (空) | Client 侧 AI 供应商标识；若本地数据库已有覆盖配置，则本地数据库优先 |
-| `OMNI_AGENT_CLIENT_AI_MODEL` | (空) | Client 侧 AI 模型名 |
-| `OMNI_AGENT_CLIENT_AI_API_KEY` | (空) | Client 侧 AI Key |
-| `OMNI_AGENT_CLIENT_AI_BASE_URL` | (空) | 自定义或 OpenAI-compatible 网关地址 |
+| `OMNI_AGENT_IOT_BASE_URL` | 空 | Client 侧 IoT 平台接口地址 |
+| `OMNI_AGENT_IOT_TOKEN` | 空 | Client 侧 IoT Token |
+| `OMNI_AGENT_CLIENT_AI_PROVIDER` | 空 | Client 侧 AI 供应商标识 |
+| `OMNI_AGENT_CLIENT_AI_MODEL` | 空 | Client 侧 AI 模型名 |
+| `OMNI_AGENT_CLIENT_AI_API_KEY` | 空 | Client 侧 AI Key |
+| `OMNI_AGENT_CLIENT_AI_BASE_URL` | 空 | Client 侧自定义或 OpenAI-compatible 基地址 |
 
 ---
 
@@ -139,6 +168,14 @@ npm run dev
 ```bash
 cd dashboard
 VITE_GATEWAY_BASE_URL=/jarvis/api npm run build
+```
+
+容器镜像构建：
+
+```bash
+docker build -f dashboard/Dockerfile \
+  --build-arg VITE_GATEWAY_BASE_URL=/jarvis/api \
+  -t open-jarvis-dashboard .
 ```
 
 部署参考见：
@@ -248,16 +285,19 @@ cd app && flutter test
 
 ## Docker 说明
 
-- Gateway 容器只负责 API 和 WebSocket，不再承载 Dashboard 页面
-- Dashboard 推荐构建为静态资源后交给 Nginx 部署
-- `client` 容器只读挂载整个仓库到 `/workspace`，供文件系统技能访问
-- `client` 容器挂载 `/var/run/docker.sock`，以便 Docker 技能执行容器查询与重启
-- PostgreSQL 需自行部署或使用外部实例，通过 `DATABASE_URL` 连接
+- 仓库内置的 `docker-compose.yml` 已包含 `postgres`、`gateway`、`client`、`dashboard` 四个服务
+- `dashboard/Dockerfile` 使用多阶段构建：Node 负责编译前端，Nginx 负责静态分发与 `/jarvis/api` 反代
+- Gateway 容器负责 API、WebSocket 与 `gateway-local` 本机执行端
+- Gateway 与 Client 都会只读挂载整个仓库到 `/workspace`，供文件系统技能访问
+- Gateway 与 Client 都挂载 `/var/run/docker.sock`，以便 Docker 技能执行容器查询与重启
+- `gateway_data`、`client_data`、`postgres_data` 三个 volume 会持久化审批状态、技能归档、checkpoint 与数据库
+- 若需接入外部 PostgreSQL，只需在 `.env` 中显式设置 `DATABASE_URL`
 
 ### 健康检查
 
 - Gateway: `GET /health` → `{"status": "ok"}`
-- Dockerfile 内置 healthcheck（30s 间隔）
+- Dashboard: `GET /health` → `ok`
+- Gateway / Client / Dashboard Dockerfile 均内置 healthcheck（30s 间隔）
 
 ---
 
