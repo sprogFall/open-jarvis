@@ -14,7 +14,13 @@ export function SkillsTab({
   onEdit,
   onDelete,
 }: SkillsTabProps) {
-  const readyCount = skills.filter((skill) => skill.archive_ready).length;
+  const builtinCount = skills.filter((skill) => skill.source === "builtin").length;
+  const archiveReadyCount = skills.filter(
+    (skill) => skill.source === "archive" && skill.archive_ready,
+  ).length;
+  const archivePendingCount = skills.filter(
+    (skill) => skill.source === "archive" && !skill.archive_ready,
+  ).length;
 
   return (
     <section className="panel">
@@ -22,7 +28,7 @@ export function SkillsTab({
         <div>
           <p className="eyebrow">Catalog</p>
           <h3>Skill 目录</h3>
-          <p className="muted">Skills 以 zip 归档上传，分配给设备后会被同步并解压为本地文件夹。</p>
+          <p className="muted">内建 Skills 可直接分配给设备，自定义 Skills 通过 zip 归档上传后同步。</p>
         </div>
         <button className="primary-button" onClick={onCreate} type="button">
           添加 Skill
@@ -34,12 +40,16 @@ export function SkillsTab({
           <strong>{skills.length}</strong>
         </article>
         <article>
+          <span>内建</span>
+          <strong>{builtinCount}</strong>
+        </article>
+        <article>
           <span>归档就绪</span>
-          <strong>{readyCount}</strong>
+          <strong>{archiveReadyCount}</strong>
         </article>
         <article>
           <span>待补归档</span>
-          <strong>{skills.length - readyCount}</strong>
+          <strong>{archivePendingCount}</strong>
         </article>
       </div>
       <div className="table-shell">
@@ -61,17 +71,31 @@ export function SkillsTab({
                   <span className="cell-subtle">{skill.skill_id}</span>
                 </td>
                 <td>
-                  <span className={`package-pill${skill.archive_ready ? " ready" : " pending"}`}>
-                    {skill.archive_ready ? "归档已就绪" : "待上传归档"}
-                  </span>
-                  <span className="cell-subtle">
-                    {skill.archive_filename || "未上传 zip"}
-                  </span>
-                  <span className="cell-subtle">
-                    {skill.archive_ready
-                      ? `${formatBytes(skill.archive_size)} · ${skill.archive_sha256?.slice(0, 10)}...`
-                      : "上传后才可分配给设备"}
-                  </span>
+                  {skill.source === "builtin" ? (
+                    <>
+                      <span className="package-pill ready">内建 Skill</span>
+                      <span className="cell-subtle">
+                        {skill.action_names.length
+                          ? skill.action_names.join(" · ")
+                          : "系统预置能力"}
+                      </span>
+                      <span className="cell-subtle">分配后可直接被 AI 调用</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className={`package-pill${skill.archive_ready ? " ready" : " pending"}`}>
+                        {skill.archive_ready ? "归档已就绪" : "待上传归档"}
+                      </span>
+                      <span className="cell-subtle">
+                        {skill.archive_filename || "未上传 zip"}
+                      </span>
+                      <span className="cell-subtle">
+                        {skill.archive_ready
+                          ? `${formatBytes(skill.archive_size)} · ${skill.archive_sha256?.slice(0, 10)}...`
+                          : "上传后才可分配给设备"}
+                      </span>
+                    </>
+                  )}
                 </td>
                 <td>{skill.description || "无描述"}</td>
                 <td>{formatDate(skill.created_at)}</td>
@@ -84,13 +108,15 @@ export function SkillsTab({
                     >
                       编辑
                     </button>
-                    <button
-                      className="danger-button"
-                      onClick={() => void onDelete(skill)}
-                      type="button"
-                    >
-                      删除
-                    </button>
+                    {skill.source === "archive" ? (
+                      <button
+                        className="danger-button"
+                        onClick={() => void onDelete(skill)}
+                        type="button"
+                      >
+                        删除
+                      </button>
+                    ) : null}
                   </div>
                 </td>
               </tr>

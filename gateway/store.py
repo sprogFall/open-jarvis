@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from skill_catalog import builtin_skill
+
 
 TASK_FIELDS = (
     "task_id",
@@ -317,8 +319,16 @@ class GatewayStore:
         for key in list(d):
             if key.endswith("_json"):
                 d[key.removesuffix("_json")] = json.loads(d.pop(key))
-        if "archive_sha256" in d:
-            d["archive_ready"] = bool(d.get("archive_sha256"))
+        builtin = builtin_skill(str(d.get("skill_id", "")))
+        if builtin is not None:
+            d["source"] = "builtin"
+            d["archive_ready"] = True
+            d["action_names"] = builtin.action_names
+        else:
+            d["source"] = "archive"
+            d["action_names"] = []
+            if "archive_sha256" in d:
+                d["archive_ready"] = bool(d.get("archive_sha256"))
         return d
 
     def sync_device(self, device_id: str, device_key: str) -> dict:

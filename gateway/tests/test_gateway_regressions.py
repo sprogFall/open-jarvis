@@ -107,6 +107,9 @@ def test_dashboard_created_device_survives_restart(tmp_path):
             json={"device_id": "device-bravo", "instruction": "执行一次重启后的任务"},
         )
         assert task_response.status_code == 201
+        skill_sync = device_ws.receive_json()
+        assert skill_sync["type"] == "DEVICE_SKILLS_SYNC"
+        assert skill_sync["skills"] == []
         assignment = device_ws.receive_json()
         assert assignment["type"] == "TASK_ASSIGNED"
         assert assignment["task"]["device_id"] == "device-bravo"

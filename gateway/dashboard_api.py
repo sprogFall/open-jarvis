@@ -81,7 +81,8 @@ def build_device_skill_sync_payload(store: GatewayStore, device_id: str) -> dict
     skills = []
     for skill in store.list_device_skills(device_id):
         payload = dict(skill)
-        payload["download_path"] = f"/client/skills/{skill['skill_id']}/archive"
+        if payload.get("source") == "archive":
+            payload["download_path"] = f"/client/skills/{skill['skill_id']}/archive"
         skills.append(payload)
     return {
         "type": "DEVICE_SKILLS_SYNC",
@@ -256,8 +257,11 @@ async def upload_skill_archive(
     request: Request,
     store: GatewayStore = Depends(_get_store),
 ) -> dict:
-    if not store.get_skill(skill_id):
+    skill = store.get_skill(skill_id)
+    if not skill:
         raise HTTPException(404, "Skill 不存在")
+    if skill.get("source") == "builtin":
+        raise HTTPException(400, "内建 Skill 不支持上传压缩包")
     content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
     if content_type not in {"application/zip", "application/octet-stream"}:
         raise HTTPException(415, "Skill 压缩包必须使用 application/zip 上传")
@@ -286,6 +290,9 @@ async def delete_skill(
     request: Request,
     store: GatewayStore = Depends(_get_store),
 ) -> None:
+    skill = store.get_skill(skill_id)
+    if skill and skill.get("source") == "builtin":
+        raise HTTPException(400, "内建 Skill 不支持删除")
     device_ids = store.list_devices_for_skill(skill_id)
     if not store.delete_skill(skill_id):
         raise HTTPException(404, "Skill 不存在")

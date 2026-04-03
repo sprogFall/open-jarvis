@@ -63,6 +63,22 @@ def receive_until_task_status(websocket, status: str) -> dict:
     raise AssertionError(f"Did not receive task status {status!r}")
 
 
+def receive_until_message_type(websocket, message_type: str) -> dict:
+    for _ in range(6):
+        payload = websocket.receive_json()
+        if payload.get("type") == message_type:
+            return payload
+    raise AssertionError(f"Did not receive message type {message_type!r}")
+
+
+def receive_until_non_empty_skill_sync(websocket) -> dict:
+    for _ in range(6):
+        payload = websocket.receive_json()
+        if payload.get("type") == "DEVICE_SKILLS_SYNC" and payload.get("skills"):
+            return payload
+    raise AssertionError("Did not receive a non-empty skill sync")
+
+
 def wait_for_task_status(client: TestClient, token: str, task_id: str, status: str) -> dict:
     for _ in range(20):
         response = client.get(f"/tasks/{task_id}", headers=auth_headers(token))
@@ -103,7 +119,9 @@ def test_task_lifecycle_routes_interrupts_and_approval(tmp_path):
             assert create_snapshot["type"] == "TASK_SNAPSHOT"
             assert create_snapshot["task"]["status"] == "PENDING_DISPATCH"
 
-            task_assignment = device_ws.receive_json()
+            skill_sync = receive_until_message_type(device_ws, "DEVICE_SKILLS_SYNC")
+            assert skill_sync["skills"] == []
+            task_assignment = receive_until_message_type(device_ws, "TASK_ASSIGNED")
             assert task_assignment["type"] == "TASK_ASSIGNED"
             task_id = task_assignment["task"]["task_id"]
 
@@ -189,7 +207,9 @@ def test_pending_approval_is_restored_after_app_reconnect(tmp_path):
             },
         )
         task_id = create_response.json()["task_id"]
-        device_ws.receive_json()
+        skill_sync = receive_until_message_type(device_ws, "DEVICE_SKILLS_SYNC")
+        assert skill_sync["skills"] == []
+        receive_until_message_type(device_ws, "TASK_ASSIGNED")
         device_ws.send_json(
             {
                 "type": "INTERRUPT_REQUEST",
@@ -264,7 +284,9 @@ def test_connected_device_receives_skill_sync_and_can_download_archive(tmp_path)
         )
         assert assign_response.status_code == 201
 
-        sync_payload = device_ws.receive_json()
+        empty_sync = receive_until_message_type(device_ws, "DEVICE_SKILLS_SYNC")
+        assert empty_sync["skills"] == []
+        sync_payload = receive_until_non_empty_skill_sync(device_ws)
         assert sync_payload["type"] == "DEVICE_SKILLS_SYNC"
         assert sync_payload["device_id"] == "device-alpha"
         assert sync_payload["skills"] == [
@@ -272,6 +294,8 @@ def test_connected_device_receives_skill_sync_and_can_download_archive(tmp_path)
                 "skill_id": "incident-kit",
                 "name": "Incident Kit",
                 "description": "",
+                "source": "archive",
+                "action_names": [],
                 "assigned_at": assign_response.json()["assigned_at"],
                 "config": {"workspace": ".codex/skills"},
                 "skill_config": {},
@@ -384,8 +408,14 @@ def test_device_connect_receives_ai_config_sync_before_pending_tasks(tmp_path):
     ) as device_ws:
         first_payload = device_ws.receive_json()
         second_payload = device_ws.receive_json()
+        third_payload = device_ws.receive_json()
 
     assert first_payload == {
+        "type": "DEVICE_SKILLS_SYNC",
+        "device_id": "device-alpha",
+        "skills": [],
+    }
+    assert second_payload == {
         "type": "DEVICE_AI_CONFIG_SYNC",
         "device_id": "device-alpha",
         "config": {
@@ -395,4 +425,4 @@ def test_device_connect_receives_ai_config_sync_before_pending_tasks(tmp_path):
             "base_url": "https://llm.example/v1/chat/completions",
         },
     }
-    assert second_payload["type"] == "TASK_ASSIGNED"
+    assert third_payload["type"] == "TASK_ASSIGNED"

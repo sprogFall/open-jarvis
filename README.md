@@ -152,7 +152,7 @@ VITE_GATEWAY_BASE_URL=/jarvis/api npm run build
 |------|------|
 | 概览 | 在线设备数、App 连接数、Skill 数量、任务状态分布 |
 | 设备管理 | 添加/删除设备，查看连接状态和最后活跃时间，管理设备 Skill |
-| Skill 管理 | 创建/编辑/删除 Skill，支持 JSON 配置 |
+| Skill 管理 | 系统预置 `shell/docker/process/filesystem` builtin skills，自定义 Skill 支持 zip 归档上传与分配 |
 | 任务监控 | 按状态/设备筛选任务，查看任务详情和日志 |
 | 系统设置 | 查看数据库连接、JWT 配置、已注册设备列表 |
 
@@ -210,6 +210,21 @@ VITE_GATEWAY_BASE_URL=/jarvis/api npm run build
 | GET | `/dashboard/api/system` | 系统信息 |
 | PUT/DELETE | `/dashboard/api/ai/gateway` | 写入 / 清除 Gateway AI 覆盖配置（不提供读接口） |
 | PUT/DELETE | `/dashboard/api/ai/devices/{id}` | 写入 / 清除指定 CLI 的 AI 覆盖配置（不提供读接口） |
+
+---
+
+## Builtin Skills
+
+Gateway 启动后会自动注册以下可直接分配的 builtin skills：
+
+- `builtin-shell`: Linux Shell 命令执行，始终要求审批
+- `builtin-docker`: Docker 容器查询与重启，重启动作要求审批
+- `builtin-process`: 系统负载与高占用进程查看
+- `builtin-filesystem`: 允许目录下的文件读取与后缀搜索
+
+这些 builtin skills 不需要上传 zip。分配到设备后，Gateway 会通过 `DEVICE_SKILLS_SYNC` 下发 action 元数据，Client 只向 AI 暴露当前已启用的 builtin actions。
+
+自定义 archive skills 仍沿用 zip 归档流程，用于同步运行手册、脚本或后续扩展能力目录。
 
 ---
 

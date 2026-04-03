@@ -14,7 +14,10 @@
   - `/jarvis/api/dashboard/api/overview`
   - `/jarvis/api/dashboard/api/devices`
 
-另外，Skills 管理现在依赖 Gateway 的归档目录与 Client 的本地技能工作目录：
+另外，Skills 管理分为 builtin 与 archive 两类：
+
+- builtin skills 由 Gateway 自动注册，不需要额外归档目录
+- archive skills 依赖 Gateway 的归档目录与 Client 的本地技能工作目录
 
 - Gateway 需要可写的 `OMNI_AGENT_SKILL_ARCHIVES_DIR`，用于保存上传的 zip 归档
 - Client 可通过 `OMNI_AGENT_SKILLS_WORKSPACE` 指定技能解压目录

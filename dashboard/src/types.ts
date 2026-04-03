@@ -23,6 +23,8 @@ export type Skill = {
   name: string;
   description: string;
   config: Record<string, unknown>;
+  source: "builtin" | "archive";
+  action_names: string[];
   archive_ready: boolean;
   archive_filename: string | null;
   archive_sha256: string | null;
@@ -39,6 +41,8 @@ export type DeviceSkill = {
   assigned_at: string;
   config: Record<string, unknown>;
   skill_config?: Record<string, unknown>;
+  source?: "builtin" | "archive";
+  action_names?: string[];
   archive_ready?: boolean;
   archive_filename?: string | null;
   archive_sha256?: string | null;

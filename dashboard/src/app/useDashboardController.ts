@@ -302,6 +302,7 @@ export function useDashboardController({
       name: skill.name,
       description: skill.description,
       config: JSON.stringify(skill.config ?? {}, null, 2),
+      source: skill.source,
       archive_file: null,
       existing_archive_filename: skill.archive_filename ?? "",
       existing_archive_sha256: skill.archive_sha256 ?? "",
@@ -323,7 +324,15 @@ export function useDashboardController({
     setSkillFormError(null);
     let createdSkillId: string | null = null;
     try {
-      if (skillEditorMode === "create" && !skillForm.archive_file) {
+      if (skillForm.source === "builtin" && skillForm.archive_file) {
+        setSkillFormError("内建 Skill 不支持上传 zip")
+        return;
+      }
+      if (
+        skillEditorMode === "create"
+        && skillForm.source === "archive"
+        && !skillForm.archive_file
+      ) {
         setSkillFormError("请上传包含 SKILL.md 的 zip 压缩包");
         return;
       }
@@ -379,7 +388,9 @@ export function useDashboardController({
         dashboardApi.getDevice(token, deviceId),
         dashboardApi.listSkills(token),
       ]);
-      const readySkills = nextSkills.filter((skill) => skill.archive_ready);
+      const readySkills = nextSkills.filter(
+        (skill) => skill.source === "builtin" || skill.archive_ready,
+      );
       setAssignmentDevice(device);
       setSkills(nextSkills);
       setAssignmentForm({
@@ -403,7 +414,7 @@ export function useDashboardController({
       return;
     }
     if (!assignmentForm.skill_id) {
-      setAssignmentError("当前没有可分配的 Skill 压缩包，请先在 Skills 页面上传 zip");
+      setAssignmentError("当前没有可分配的 Skill，请先启用内建 Skill 或上传 zip 归档");
       return;
     }
     setAssignmentError(null);

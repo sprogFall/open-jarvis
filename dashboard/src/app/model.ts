@@ -14,6 +14,7 @@ export type SkillForm = {
   name: string;
   description: string;
   config: string;
+  source: "builtin" | "archive";
   archive_file: File | null;
   existing_archive_filename: string;
   existing_archive_sha256: string;
@@ -68,6 +69,7 @@ export function createEmptySkillForm(): SkillForm {
     name: "",
     description: "",
     config: "{}",
+    source: "archive",
     archive_file: null,
     existing_archive_filename: "",
     existing_archive_sha256: "",

@@ -26,12 +26,14 @@ export function AssignmentSheet({
   onChange,
   onRemove,
 }: AssignmentSheetProps) {
-  const readySkills = skills.filter((skill) => skill.archive_ready);
+  const readySkills = skills.filter(
+    (skill) => skill.source === "builtin" || skill.archive_ready,
+  );
 
   return (
     <SideSheet
       title={`分配 Skill · ${device.device_id}`}
-      subtitle="已分配的 Skill 会通过 Gateway 同步到设备，并在设备工作目录中解压为技能文件夹。"
+      subtitle="已分配的内建 Skill 会直接暴露给 AI；归档 Skill 会通过 Gateway 同步并在设备侧解压。"
       onClose={onClose}
     >
       <div className="stack">
@@ -61,7 +63,7 @@ export function AssignmentSheet({
             </select>
           </label>
           {!readySkills.length ? (
-            <p className="error-text">当前没有可分配的 Skill。请先在 Skills 页面上传 zip 归档。</p>
+            <p className="error-text">当前没有可分配的 Skill。请先启用内建 Skill 或上传 zip 归档。</p>
           ) : null}
           <label className="field">
             <span>分配配置 JSON</span>
@@ -92,9 +94,11 @@ export function AssignmentSheet({
                     <strong>{skill.name || skill.skill_id}</strong>
                     <span>{skill.description || skill.skill_id}</span>
                     <span>
-                      {skill.archive_filename
-                        ? `${skill.archive_filename} · ${formatBytes(skill.archive_size)}`
-                        : "等待同步归档"}
+                      {skill.source === "builtin"
+                        ? skill.action_names?.join(" · ") || "内建能力"
+                        : skill.archive_filename
+                          ? `${skill.archive_filename} · ${formatBytes(skill.archive_size)}`
+                          : "等待同步归档"}
                     </span>
                   </div>
                   <button

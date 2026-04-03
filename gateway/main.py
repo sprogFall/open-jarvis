@@ -22,6 +22,7 @@ from gateway.security import (
 )
 from gateway.settings import GatewaySettings
 from gateway.store import GatewayStore
+from skill_catalog import BUILTIN_SKILLS
 
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -121,12 +122,15 @@ class ConnectionManager:
 def _build_task_router_candidates(store: GatewayStore) -> list[dict]:
     candidates: list[dict] = []
     for device in store.list_devices():
+        skills: list[str] = []
+        for skill in store.list_device_skills(device["device_id"]):
+            skills.extend(skill.get("action_names") or [])
         candidates.append(
             {
                 "device_id": device["device_id"],
                 "name": device.get("name"),
                 "type": device.get("type"),
-                "skills": [skill["skill_id"] for skill in store.list_device_skills(device["device_id"])],
+                "skills": skills,
             }
         )
     candidates.append(
@@ -161,6 +165,18 @@ def _resolve_skill_archives_path(settings: GatewaySettings) -> Path:
     return (Path(database_url).expanduser().resolve().parent / "skill_archives")
 
 
+def _bootstrap_builtin_skills(store: GatewayStore) -> None:
+    for skill in BUILTIN_SKILLS:
+        if store.get_skill(skill.skill_id) is not None:
+            continue
+        store.create_skill(
+            skill.skill_id,
+            skill.name,
+            skill.description,
+            {},
+        )
+
+
 def create_app(settings: GatewaySettings | None = None) -> FastAPI:
     settings = settings or GatewaySettings.from_env()
     store = GatewayStore(settings.database_url)
@@ -168,6 +184,7 @@ def create_app(settings: GatewaySettings | None = None) -> FastAPI:
     skill_archives = SkillArchiveStore(settings.skill_archives_path)
     manager = ConnectionManager()
     settings.device_keys = store.initialize_device_registry(settings.device_keys)
+    _bootstrap_builtin_skills(store)
 
     app = FastAPI(title="Omni-Agent Gateway")
     app.state.settings = settings
@@ -291,12 +308,12 @@ def create_app(settings: GatewaySettings | None = None) -> FastAPI:
         assigned = {
             skill["skill_id"]
             for skill in store.list_device_skills(device_id)
-            if skill.get("archive_ready")
+            if skill.get("source") == "archive" and skill.get("archive_ready")
         }
         if skill_id not in assigned:
             raise HTTPException(status_code=404, detail="Skill archive not assigned")
         skill = store.get_skill(skill_id)
-        if not skill or not skill.get("archive_ready"):
+        if not skill or skill.get("source") != "archive" or not skill.get("archive_ready"):
             raise HTTPException(status_code=404, detail="Skill archive not found")
         try:
             archive = skill_archives.read_archive(skill_id)
@@ -363,8 +380,7 @@ def create_app(settings: GatewaySettings | None = None) -> FastAPI:
         await manager.connect_client(device_id, websocket)
         store.touch_device(device_id)
         skill_sync = build_device_skill_sync_payload(store, device_id)
-        if skill_sync["skills"]:
-            await manager.send_device_skills_sync(device_id, skill_sync)
+        await manager.send_device_skills_sync(device_id, skill_sync)
         ai_sync = build_device_ai_config_sync_payload(store, device_id)
         if ai_sync["config"] is not None:
             await manager.send_device_ai_config_sync(device_id, ai_sync)

@@ -2,7 +2,12 @@
 
 独立前端控制台，使用 `npm` 构建为静态资源，产物输出到 `dist/`。
 
-当前 Skills 流程已经改为“上传 zip 归档 -> Gateway 保存归档 -> 设备分配后自动下载并解压到本地工作目录”：
+当前 Skills 流程分为两类：
+
+- builtin skills：Gateway 启动后自动提供，可直接分配给设备，分配后会直接暴露给 AI 规划器
+- archive skills：上传 zip 归档 -> Gateway 保存归档 -> 设备分配后自动下载并解压到本地工作目录
+
+archive skills 仍需满足以下约束：
 
 - zip 内必须包含 `SKILL.md`
 - 可以直接压缩单个 skill 文件夹，也可以上传包含 skill 子目录的开源仓库片段

@@ -8,20 +8,53 @@ from client.langgraph_workflow import LangGraphTaskWorkflow
 from client.models import TaskAction
 from client.redaction import LogRedactor
 from client.safety import CommandSafetyFilter
+from skill_catalog import SkillActionSpec
 
 
 class ActionRegistry:
-    def __init__(self) -> None:
+    def __init__(self, *, enabled_skill_ids: set[str] | None = None) -> None:
         self._handlers: dict[str, Callable[[TaskAction], str]] = {}
+        self._action_specs: dict[str, SkillActionSpec] = {}
+        self._enabled_skill_ids = enabled_skill_ids
 
-    def register(self, name: str, handler: Callable[[TaskAction], str]) -> None:
+    def register(
+        self,
+        name: str,
+        handler: Callable[[TaskAction], str],
+        *,
+        action_spec: SkillActionSpec | None = None,
+    ) -> None:
         self._handlers[name] = handler
+        if action_spec is not None:
+            self._action_specs[name] = action_spec
+
+    def sync_skills(self, skills: list[dict]) -> None:
+        self._enabled_skill_ids = {
+            str(skill["skill_id"])
+            for skill in skills
+            if skill.get("source") == "builtin"
+        }
+
+    def available_actions(self) -> list[SkillActionSpec]:
+        return [
+            spec
+            for spec in self._action_specs.values()
+            if self._is_action_enabled(spec)
+        ]
 
     def execute(self, action: TaskAction) -> str:
         handler = self._handlers.get(action.name)
         if handler is None:
             raise KeyError(f"Unknown action handler: {action.name}")
+        action_spec = self._action_specs.get(action.name)
+        if action_spec is not None and not self._is_action_enabled(action_spec):
+            raise PermissionError(f"Skill action is not enabled: {action.name}")
         return handler(action)
+
+    def _is_action_enabled(self, action_spec: SkillActionSpec) -> bool:
+        if self._enabled_skill_ids is None:
+            return True
+        return action_spec.skill_id in self._enabled_skill_ids
 
 
 class TaskRunner:

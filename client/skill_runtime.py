@@ -27,8 +27,13 @@ class SkillWorkspaceManager:
         self.workspace_root.mkdir(parents=True, exist_ok=True)
 
     def sync(self, skills: list[dict]) -> None:
-        desired_skill_ids = {skill["skill_id"] for skill in skills}
-        for skill in skills:
+        archive_skills = [
+            skill
+            for skill in skills
+            if (skill.get("source") or "archive") == "archive"
+        ]
+        desired_skill_ids = {skill["skill_id"] for skill in archive_skills}
+        for skill in archive_skills:
             self._ensure_skill(skill)
         for child in self.workspace_root.iterdir():
             if child.is_dir() and child.name not in desired_skill_ids:
