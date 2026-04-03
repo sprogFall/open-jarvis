@@ -22,5 +22,6 @@
 - 单个 feature 内部优先内聚：设备相关弹层、表格、表单与动作放在 `features/devices`，不要散落到全局目录。
 - 页面级副作用（初始化拉数、轮询、跨 feature 刷新、鉴权失效处理）统一收敛在 `src/app` 层的 controller/hook 中，不要分散到多个 tab 组件里各自重复实现。
 - 展示组件尽量纯函数化，通过 props 接收数据和动作；只有在明确属于页面编排职责时，才允许直接访问全局 controller。
+- Dashboard 页面文案必须聚焦当前业务操作与结果反馈，不要展示实现细节、数据来源限制、环境变量回显策略、写入路径等业务无关说明；这类约束通过交互、协议与测试保证，不要堆在页面提示里。
 - 新增前端能力时，优先补结构或行为测试，再改实现；至少保证 `pytest gateway/tests -q` 中与 dashboard 相关测试和 `cd dashboard && npm run build` 通过。
 - 更新 Dashboard 部署方式、环境变量或 API 基地址规则时，必须同步更新本地中文文档，至少包括 `dashboard/README.md` 或 `dashboard/DEPLOYMENT.md`。

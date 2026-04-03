@@ -83,6 +83,8 @@ def test_agents_document_dashboard_frontend_conventions():
     assert "Dashboard 前端开发规范" in content
     assert "src/features" in content
     assert "App.tsx 保持薄" in content
+    assert "Dashboard 页面文案必须聚焦当前业务操作与结果反馈" in content
+    assert "不要展示实现细节、数据来源限制、环境变量回显策略" in content
 
 
 def test_dashboard_css_is_split_into_style_modules():
@@ -143,6 +145,11 @@ def test_dashboard_visible_copy_stays_focused_on_business_workflows():
         "Deployment",
         "部署信息",
         "静态前端",
+        "AI 覆盖配置",
+        "Dashboard 只负责覆盖写入或清除覆盖",
+        "不展示已有数据库配置",
+        "不会回显环境变量里的供应商",
+        "每次进入页面表单都保持为空",
     ]
 
     for snippet in forbidden_copy:
@@ -170,7 +177,8 @@ def test_dashboard_settings_exposes_write_only_ai_override_entrypoints():
     )
     api = (dashboard_root / "api.ts").read_text(encoding="utf-8")
 
-    assert "AI 覆盖配置" in settings_tab
+    assert "Gateway AI 覆盖" in settings_tab
+    assert "CLI AI 覆盖" in settings_tab
     assert "saveGatewayAiConfig" in controller
     assert "saveDeviceAiConfig" in controller
     assert "/dashboard/api/ai/gateway" in api

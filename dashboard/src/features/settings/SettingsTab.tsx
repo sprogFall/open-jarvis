@@ -71,14 +71,6 @@ export function SettingsTab({
             : " 当前还没有纳管设备。"}
         </p>
       </div>
-      <div className="callout">
-        <p className="eyebrow">AI</p>
-        <h4>AI 覆盖配置</h4>
-        <p>
-          Dashboard 只负责覆盖写入或清除覆盖，不展示已有数据库配置，也不会回显环境变量里的供应商。
-          每次进入页面表单都保持为空，请按需重新填写。
-        </p>
-      </div>
       <form className="panel panel-stack" onSubmit={onSaveGatewayAiConfig}>
         <div className="panel-head">
           <div>
