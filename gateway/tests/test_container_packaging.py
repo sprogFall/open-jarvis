@@ -30,6 +30,21 @@ def test_gateway_and_client_dockerfiles_bundle_runtime_dependencies():
     assert "procps" in client_dockerfile
 
 
+def test_client_china_dockerfile_uses_cn_mirrors():
+    client_dockerfile = _read("client/Dockerfile.cn")
+    root_readme = _read("README.md")
+    compose = _read("docker-compose.yml")
+    env_example = _read(".env.example")
+
+    assert "ARG APT_MIRROR_HOST=mirrors.tuna.tsinghua.edu.cn" in client_dockerfile
+    assert "ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple" in client_dockerfile
+    assert "ARG PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn" in client_dockerfile
+    assert "/etc/apt/sources.list.d/debian.sources" in client_dockerfile
+    assert "pip install -r /tmp/client-requirements.txt" in client_dockerfile
+    assert "client/Dockerfile.cn" in root_readme
+    assert "${CLIENT_DOCKERFILE:-client/Dockerfile}" in compose
+    assert "CLIENT_DOCKERFILE=client/Dockerfile" in env_example
+
 
 def test_dashboard_container_is_built_from_repo_sources():
     dockerfile = _read("dashboard/Dockerfile")

@@ -49,6 +49,7 @@ npm run dev
 # 1. 准备环境变量
 cp .env.example .env
 # 至少修改 JWT、管理员密码、设备密钥、数据库密码
+# 国内网络可把 CLIENT_DOCKERFILE 改成 client/Dockerfile.cn
 
 # 2. 构建并启动全部容器
 docker compose up --build -d
@@ -291,7 +292,14 @@ cd app && flutter test
 - Gateway 与 Client 都会只读挂载整个仓库到 `/workspace`，供文件系统技能访问
 - Gateway 与 Client 都挂载 `/var/run/docker.sock`，以便 Docker 技能执行容器查询与重启
 - `gateway_data`、`client_data`、`postgres_data` 三个 volume 会持久化审批状态、技能归档、checkpoint 与数据库
+- 国内网络可把 `.env` 里的 `CLIENT_DOCKERFILE` 改成 `client/Dockerfile.cn`，切到内置的 apt/pip 镜像加速版
 - 若需接入外部 PostgreSQL，只需在 `.env` 中显式设置 `DATABASE_URL`
+
+示例：
+
+```bash
+CLIENT_DOCKERFILE=client/Dockerfile.cn docker compose build client
+```
 
 ### 健康检查
 
