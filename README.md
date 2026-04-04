@@ -82,17 +82,20 @@ docker compose logs -f gateway client dashboard
 - 对缺失项或示例默认值进行命令行引导输入
 - 自动把填写结果回写到 `.env`
 - 自动同步 `OMNI_AGENT_DEVICE_KEYS` 与 Client 的 `OMNI_AGENT_DEVICE_ID / OMNI_AGENT_DEVICE_KEY`
-- 按需部署 `gateway`、`client`、`dashboard` 任意组合，或一键全量部署
+- 按需部署 `postgres`、`gateway`、`client`、`dashboard` 任意组合，或一键全量部署
+- 单独部署时自动校验外部依赖地址：`gateway` 走 `DATABASE_URL`，`client` 走 `OMNI_AGENT_GATEWAY_URL`，`dashboard` 走 `VITE_GATEWAY_BASE_URL`
 - 支持 `DEPLOY_NETWORK_PROFILE=cn`，自动切到国内网络加速版 Dockerfile 与 npm/pip/apt 镜像配置
 
 也可以直接执行单条命令：
 
 ```bash
 ./jarvisctl config gateway      # 只检查 gateway 所需配置
-./jarvisctl deploy              # 检查配置后，全量部署
-./jarvisctl deploy gateway      # 只部署 postgres + gateway
-./jarvisctl deploy dashboard    # 只部署 postgres + gateway + dashboard
-./jarvisctl deploy client       # 只部署 postgres + gateway + client
+./jarvisctl deploy              # 检查配置后，全量部署 postgres + gateway + client + dashboard
+./jarvisctl deploy postgres     # 只部署内置 PostgreSQL
+./jarvisctl deploy gateway      # 单独部署 gateway，要求 .env 中 DATABASE_URL 可用
+./jarvisctl deploy postgres gateway  # 部署内置 PostgreSQL + gateway
+./jarvisctl deploy dashboard    # 单独部署 dashboard，要求 VITE_GATEWAY_BASE_URL 为远端绝对地址
+./jarvisctl deploy client       # 单独部署 client，要求 OMNI_AGENT_GATEWAY_URL 为容器内可访问的远端地址
 ./jarvisctl status dashboard    # 查看 dashboard 对应服务状态
 ./jarvisctl logs client         # 跟踪 client 日志
 ./jarvisctl stop gateway        # 停止 gateway 相关服务
@@ -113,11 +116,11 @@ sed -i 's/^DEPLOY_NETWORK_PROFILE=.*/DEPLOY_NETWORK_PROFILE=cn/' .env
 | `POSTGRES_DB` | `jarvis` | Compose 内置 PostgreSQL 数据库名 |
 | `POSTGRES_USER` | `jarvis` | Compose 内置 PostgreSQL 用户名 |
 | `POSTGRES_PASSWORD` | `jarvis` | Compose 内置 PostgreSQL 密码，生产环境务必修改 |
-| `DATABASE_URL` | 空 | 留空时自动回退到 Compose 内置 PostgreSQL；也可显式改为外部 PostgreSQL 连接串 |
+| `DATABASE_URL` | 空 | 与 `postgres` 联合部署时留空会回退到 Compose 内置 PostgreSQL；单独部署 `gateway` 时必须显式填写外部 PostgreSQL 或 SQLite 连接 |
 | `DEPLOY_NETWORK_PROFILE` | `global` | 部署网络档位；设为 `cn` 时，脚本会自动切到国内镜像加速链路 |
 | `GATEWAY_PORT` | `8000` | Gateway 宿主机映射端口 |
 | `DASHBOARD_PORT` | `8080` | Dashboard 宿主机映射端口 |
-| `VITE_GATEWAY_BASE_URL` | `/jarvis/api` | Dashboard 构建时写入的 API 基地址 |
+| `VITE_GATEWAY_BASE_URL` | `/jarvis/api` | Dashboard 构建时写入的 API 基地址；与本地 `gateway` 联合部署时可保留相对路径，单独部署 Dashboard 时必须改为绝对地址 |
 | `GATEWAY_DOCKERFILE` | `gateway/Dockerfile` | Compose 构建 Gateway 时使用的 Dockerfile，国内网络可切换为 `gateway/Dockerfile.cn` |
 | `CLIENT_DOCKERFILE` | `client/Dockerfile` | Compose 构建 Client 时使用的 Dockerfile，国内网络可切换为 `client/Dockerfile.cn` |
 | `DASHBOARD_DOCKERFILE` | `dashboard/Dockerfile` | Compose 构建 Dashboard 时使用的 Dockerfile，国内网络可切换为 `dashboard/Dockerfile.cn` |
@@ -145,7 +148,7 @@ sed -i 's/^DEPLOY_NETWORK_PROFILE=.*/DEPLOY_NETWORK_PROFILE=cn/' .env
 
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
-| `OMNI_AGENT_GATEWAY_URL` | `http://gateway:8000` | Client 连接 Gateway 的内部地址 |
+| `OMNI_AGENT_GATEWAY_URL` | `http://gateway:8000` | Client 连接 Gateway 的地址；与本地 `gateway` 联合部署时可保留默认值，单独部署 Client 时必须改为容器内可访问的远端地址 |
 | `OMNI_AGENT_DEVICE_ID` | `device-alpha` | 当前设备标识 |
 | `OMNI_AGENT_DEVICE_KEY` | `device-secret` | 当前设备签名密钥，需与 Gateway 侧一致 |
 | `OMNI_AGENT_CHECKPOINT_DB` | `/data/client/client.db` | Client checkpoint 存储路径 |

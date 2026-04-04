@@ -12,12 +12,17 @@ if [[ $# -gt 0 ]]; then
 fi
 CLI_TARGET_ARGS=("$@")
 
-VALID_TARGETS=(gateway client dashboard)
+VALID_TARGETS=(postgres gateway client dashboard)
+FULL_STACK_TARGETS=(postgres gateway client dashboard)
+RUNTIME_TARGETS=(gateway client dashboard)
 ISSUE_ORDER=(
+  DATABASE_URL
   POSTGRES_PASSWORD
   OMNI_AGENT_JWT_SECRET
   OMNI_AGENT_ADMIN_USERNAME
   OMNI_AGENT_ADMIN_PASSWORD
+  VITE_GATEWAY_BASE_URL
+  OMNI_AGENT_GATEWAY_URL
   OMNI_AGENT_DEVICE_KEYS
   OMNI_AGENT_DEVICE_ID
   OMNI_AGENT_DEVICE_KEY
@@ -86,11 +91,24 @@ is_assignment_line() {
   [[ "$raw_line" == *"="* ]]
 }
 
+set_default_targets() {
+  case "${1:-full}" in
+    runtime)
+      TARGETS=("${RUNTIME_TARGETS[@]}")
+      ;;
+    *)
+      TARGETS=("${FULL_STACK_TARGETS[@]}")
+      ;;
+  esac
+}
+
 normalize_targets() {
+  local default_mode="${1:-full}"
+  shift || true
   local raw chunk candidate
   TARGETS=()
   if [[ $# -eq 0 ]]; then
-    TARGETS=("${VALID_TARGETS[@]}")
+    set_default_targets "$default_mode"
     return 0
   fi
 
@@ -100,7 +118,7 @@ normalize_targets() {
       candidate="$(trim "$candidate")"
       [[ -z "$candidate" ]] && continue
       if [[ "$candidate" == "all" ]]; then
-        TARGETS=("${VALID_TARGETS[@]}")
+        set_default_targets "$default_mode"
         return 0
       fi
       if ! array_contains "$candidate" "${VALID_TARGETS[@]}"; then
@@ -114,19 +132,58 @@ normalize_targets() {
   done
 
   if [[ ${#TARGETS[@]} -eq 0 ]]; then
-    TARGETS=("${VALID_TARGETS[@]}")
+    set_default_targets "$default_mode"
   fi
 }
 
 resolve_deploy_services() {
-  normalize_targets "$@"
-  RESOLVED_SERVICES=(postgres gateway)
-  if array_contains client "${TARGETS[@]}"; then
-    RESOLVED_SERVICES+=(client)
+  normalize_targets full "$@"
+  RESOLVED_SERVICES=("${TARGETS[@]}")
+}
+
+should_skip_compose_dependencies() {
+  [[ $# -eq 1 ]] || return 1
+  case "$1" in
+    gateway|client|dashboard) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_absolute_http_url() {
+  [[ "$1" =~ ^https?://[^[:space:]/]+(:[0-9]+)?(/.*)?$ ]]
+}
+
+extract_http_host() {
+  local url="$1"
+  local host=""
+  if [[ "$url" =~ ^https?://\[?([^]/:]+)\]?(:[0-9]+)?(/.*)?$ ]]; then
+    host="${BASH_REMATCH[1],,}"
   fi
-  if array_contains dashboard "${TARGETS[@]}"; then
-    RESOLVED_SERVICES+=(dashboard)
+  printf '%s' "$host"
+}
+
+has_compose_only_hostname() {
+  local url="$1"
+  shift
+  local host candidate
+  host="$(extract_http_host "$url")"
+  [[ -n "$host" ]] || return 1
+  for candidate in "$@"; do
+    if [[ "$host" == "$candidate" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+database_url_needs_external_dependency() {
+  local value
+  value="$(trim "${1-}")"
+  [[ -n "$value" ]] || return 0
+  if [[ "$value" =~ ^postgres[^:]*://([^@/]+@)?postgres([/:]|$) ]]; then
+    return 0
   fi
+  return 1
 }
 
 apply_network_profile_defaults() {
@@ -320,10 +377,13 @@ build_effective_values() {
 
 field_label() {
   case "$1" in
+    DATABASE_URL) printf 'Gateway 数据库连接' ;;
     POSTGRES_PASSWORD) printf 'PostgreSQL 密码' ;;
     OMNI_AGENT_JWT_SECRET) printf 'JWT 密钥' ;;
     OMNI_AGENT_ADMIN_USERNAME) printf '管理员账号' ;;
     OMNI_AGENT_ADMIN_PASSWORD) printf '管理员密码' ;;
+    VITE_GATEWAY_BASE_URL) printf 'Dashboard API 基地址' ;;
+    OMNI_AGENT_GATEWAY_URL) printf 'Client Gateway 地址' ;;
     OMNI_AGENT_DEVICE_KEYS) printf '设备注册表' ;;
     OMNI_AGENT_DEVICE_ID) printf '客户端设备 ID' ;;
     OMNI_AGENT_DEVICE_KEY) printf '客户端设备密钥' ;;
@@ -333,8 +393,11 @@ field_label() {
 
 field_service() {
   case "$1" in
+    DATABASE_URL) printf 'gateway' ;;
     POSTGRES_PASSWORD) printf 'postgres' ;;
     OMNI_AGENT_JWT_SECRET|OMNI_AGENT_ADMIN_USERNAME|OMNI_AGENT_ADMIN_PASSWORD) printf 'gateway' ;;
+    VITE_GATEWAY_BASE_URL) printf 'dashboard' ;;
+    OMNI_AGENT_GATEWAY_URL) printf 'client' ;;
     OMNI_AGENT_DEVICE_KEYS) printf 'gateway/client' ;;
     OMNI_AGENT_DEVICE_ID|OMNI_AGENT_DEVICE_KEY) printf 'client' ;;
     *) printf 'system' ;;
@@ -343,10 +406,13 @@ field_service() {
 
 field_help() {
   case "$1" in
+    DATABASE_URL) printf '单独部署 Gateway 时填写。支持 PostgreSQL 连接串或 sqlite:///data/gateway/gateway.db。' ;;
     POSTGRES_PASSWORD) printf '内置 PostgreSQL 使用的密码。' ;;
     OMNI_AGENT_JWT_SECRET) printf 'Gateway 与 Dashboard/App 登录签名密钥。' ;;
     OMNI_AGENT_ADMIN_USERNAME) printf 'Dashboard 与 App 登录账号。' ;;
     OMNI_AGENT_ADMIN_PASSWORD) printf 'Dashboard 与 App 登录密码。' ;;
+    VITE_GATEWAY_BASE_URL) printf '单独部署 Dashboard 时填写浏览器可访问的 Gateway 地址，例如 https://gw.example.com/jarvis/api。' ;;
+    OMNI_AGENT_GATEWAY_URL) printf '单独部署 Client 时填写容器内可访问的 Gateway 地址，例如 http://192.168.1.10:8000。' ;;
     OMNI_AGENT_DEVICE_KEYS) printf '格式：device-a=secret-a,device-b=secret-b' ;;
     OMNI_AGENT_DEVICE_ID) printf 'Client 容器启动时使用的设备标识。' ;;
     OMNI_AGENT_DEVICE_KEY) printf '必须与 Gateway 注册表中的同名设备密钥一致。' ;;
@@ -356,7 +422,7 @@ field_help() {
 
 field_is_secret() {
   case "$1" in
-    POSTGRES_PASSWORD|OMNI_AGENT_JWT_SECRET|OMNI_AGENT_ADMIN_PASSWORD|OMNI_AGENT_DEVICE_KEY) return 0 ;;
+    DATABASE_URL|POSTGRES_PASSWORD|OMNI_AGENT_JWT_SECRET|OMNI_AGENT_ADMIN_PASSWORD|OMNI_AGENT_DEVICE_KEY) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -367,6 +433,7 @@ reason_text() {
     example_default) printf '仍是示例默认值' ;;
     invalid) printf '格式无效' ;;
     contract_mismatch) printf '与 Client/Gateway 协议不一致' ;;
+    standalone_dependency) printf '当前为独立部署，请填写外部依赖地址' ;;
     *) printf '%s' "$1" ;;
   esac
 }
@@ -394,25 +461,37 @@ add_issue() {
 
 collect_config_issues() {
   local database_url postgres_password jwt_secret admin_username admin_password
-  local registry_raw device_id device_key registry_secret
-  local requires_gateway=0 requires_client=0 requires_postgres=0
+  local dashboard_gateway_url client_gateway_url registry_raw device_id device_key registry_secret
+  local deploys_postgres=0 deploys_gateway=0 deploys_client=0 deploys_dashboard=0
+  local uses_external_database=0 uses_remote_gateway_for_client=0 uses_remote_gateway_for_dashboard=0
 
-  resolve_deploy_services "$@"
-  if array_contains gateway "${RESOLVED_SERVICES[@]}"; then
-    requires_gateway=1
+  normalize_targets full "$@"
+  if array_contains postgres "${TARGETS[@]}"; then
+    deploys_postgres=1
+  fi
+  if array_contains gateway "${TARGETS[@]}"; then
+    deploys_gateway=1
   fi
   if array_contains client "${TARGETS[@]}"; then
-    requires_client=1
+    deploys_client=1
   fi
-  if array_contains postgres "${RESOLVED_SERVICES[@]}"; then
-    requires_postgres=1
+  if array_contains dashboard "${TARGETS[@]}"; then
+    deploys_dashboard=1
+  fi
+  if [[ $deploys_gateway -eq 1 && $deploys_postgres -eq 0 ]]; then
+    uses_external_database=1
+  fi
+  if [[ $deploys_client -eq 1 && $deploys_gateway -eq 0 ]]; then
+    uses_remote_gateway_for_client=1
+  fi
+  if [[ $deploys_dashboard -eq 1 && $deploys_gateway -eq 0 ]]; then
+    uses_remote_gateway_for_dashboard=1
   fi
 
   ISSUE_KEYS=()
   ISSUE_REASONS=()
 
-  database_url="$(trim "${EFFECTIVE_VALUES[DATABASE_URL]-}")"
-  if [[ $requires_postgres -eq 1 && -z "$database_url" ]]; then
+  if [[ $deploys_postgres -eq 1 ]]; then
     postgres_password="$(trim "${EFFECTIVE_VALUES[POSTGRES_PASSWORD]-}")"
     if [[ -z "$postgres_password" ]]; then
       add_issue POSTGRES_PASSWORD missing
@@ -421,7 +500,12 @@ collect_config_issues() {
     fi
   fi
 
-  if [[ $requires_gateway -eq 1 ]]; then
+  database_url="$(trim "${EFFECTIVE_VALUES[DATABASE_URL]-}")"
+  if [[ $uses_external_database -eq 1 ]] && database_url_needs_external_dependency "$database_url"; then
+    add_issue DATABASE_URL standalone_dependency
+  fi
+
+  if [[ $deploys_gateway -eq 1 ]]; then
     jwt_secret="$(trim "${EFFECTIVE_VALUES[OMNI_AGENT_JWT_SECRET]-}")"
     if [[ -z "$jwt_secret" ]]; then
       add_issue OMNI_AGENT_JWT_SECRET missing
@@ -440,12 +524,28 @@ collect_config_issues() {
     fi
   fi
 
-  if [[ $requires_client -eq 1 ]]; then
+  if [[ $uses_remote_gateway_for_dashboard -eq 1 ]]; then
+    dashboard_gateway_url="$(trim "${EFFECTIVE_VALUES[VITE_GATEWAY_BASE_URL]-}")"
+    if ! is_absolute_http_url "$dashboard_gateway_url" || has_compose_only_hostname "$dashboard_gateway_url" gateway; then
+      add_issue VITE_GATEWAY_BASE_URL standalone_dependency
+    fi
+  fi
+
+  if [[ $uses_remote_gateway_for_client -eq 1 ]]; then
+    client_gateway_url="$(trim "${EFFECTIVE_VALUES[OMNI_AGENT_GATEWAY_URL]-}")"
+    if ! is_absolute_http_url "$client_gateway_url" || has_compose_only_hostname "$client_gateway_url" gateway localhost; then
+      add_issue OMNI_AGENT_GATEWAY_URL standalone_dependency
+    fi
+  fi
+
+  if [[ $deploys_client -eq 1 ]]; then
     registry_raw="$(trim "${EFFECTIVE_VALUES[OMNI_AGENT_DEVICE_KEYS]-}")"
-    if [[ -z "$registry_raw" ]]; then
-      add_issue OMNI_AGENT_DEVICE_KEYS missing
-    elif ! parse_device_registry "$registry_raw"; then
-      add_issue OMNI_AGENT_DEVICE_KEYS invalid
+    if [[ $uses_remote_gateway_for_client -eq 0 ]]; then
+      if [[ -z "$registry_raw" ]]; then
+        add_issue OMNI_AGENT_DEVICE_KEYS missing
+      elif ! parse_device_registry "$registry_raw"; then
+        add_issue OMNI_AGENT_DEVICE_KEYS invalid
+      fi
     fi
 
     device_id="$(trim "${EFFECTIVE_VALUES[OMNI_AGENT_DEVICE_ID]-}")"
@@ -458,7 +558,7 @@ collect_config_issues() {
       add_issue OMNI_AGENT_DEVICE_KEY example_default
     fi
 
-    if [[ -n "$registry_raw" ]] && parse_device_registry "$registry_raw"; then
+    if [[ $uses_remote_gateway_for_client -eq 0 && -n "$registry_raw" ]] && parse_device_registry "$registry_raw"; then
       registry_secret="$(registry_get_secret "$device_id" || true)"
       if [[ -n "$device_id" && -n "$device_key" && -n "$registry_secret" && "$registry_secret" != "$device_key" ]]; then
         add_issue OMNI_AGENT_DEVICE_KEYS contract_mismatch
@@ -542,6 +642,8 @@ prompt_for_issue() {
     echo "说明：当前值还是示例值，建议现在改掉；直接回车可暂时保留。"
   elif [[ "$reason" == "contract_mismatch" ]]; then
     echo "说明：脚本会把 Gateway 设备注册表与 Client 设备身份自动对齐。"
+  elif [[ "$reason" == "standalone_dependency" ]]; then
+    echo "说明：当前目标未部署本地依赖，必须填写一个可直接连接的外部地址。"
   fi
 
   while true; do
@@ -559,16 +661,12 @@ prompt_for_issue() {
       PROMPT_SKIPPED="0"
       return 0
     fi
-    if [[ -n "$current_value" ]]; then
+    if [[ "$reason" == "example_default" && -n "$current_value" ]]; then
       PROMPT_RESULT="$current_value"
-      if [[ "$reason" == "example_default" ]]; then
-        PROMPT_SKIPPED="1"
-      else
-        PROMPT_SKIPPED="0"
-      fi
+      PROMPT_SKIPPED="1"
       return 0
     fi
-    echo "该项不能为空，请重新输入。"
+    echo "当前值仍不满足部署要求，请重新输入。"
   done
 }
 
@@ -638,20 +736,27 @@ run_config_wizard() {
 build_compose_command() {
   local action="$1"
   shift || true
-  resolve_deploy_services "$@"
 
   case "$action" in
     deploy)
-      COMPOSE_CMD=(docker compose up -d --build "${RESOLVED_SERVICES[@]}")
+      resolve_deploy_services "$@"
+      COMPOSE_CMD=(docker compose up -d --build)
+      if should_skip_compose_dependencies "${RESOLVED_SERVICES[@]}"; then
+        COMPOSE_CMD+=(--no-deps)
+      fi
+      COMPOSE_CMD+=("${RESOLVED_SERVICES[@]}")
       ;;
     status)
-      COMPOSE_CMD=(docker compose ps "${RESOLVED_SERVICES[@]}")
+      normalize_targets full "$@"
+      COMPOSE_CMD=(docker compose ps "${TARGETS[@]}")
       ;;
     logs)
+      normalize_targets runtime "$@"
       COMPOSE_CMD=(docker compose logs -f "${TARGETS[@]}")
       ;;
     stop)
-      COMPOSE_CMD=(docker compose stop "${RESOLVED_SERVICES[@]}")
+      normalize_targets full "$@"
+      COMPOSE_CMD=(docker compose stop "${TARGETS[@]}")
       ;;
     *)
       echo "不支持的动作: $action" >&2
@@ -692,23 +797,26 @@ run_compose_action() {
 
 print_access_summary() {
   local dashboard_port gateway_port
-  resolve_deploy_services "$@"
+  normalize_targets full "$@"
   dashboard_port="${EFFECTIVE_VALUES[DASHBOARD_PORT]-8080}"
   gateway_port="${EFFECTIVE_VALUES[GATEWAY_PORT]-8000}"
   echo
   echo "访问入口："
-  if array_contains dashboard "${RESOLVED_SERVICES[@]}"; then
+  if array_contains dashboard "${TARGETS[@]}"; then
     echo "- Dashboard: http://localhost:${dashboard_port}/jarvis/dashboard/"
   fi
-  if array_contains gateway "${RESOLVED_SERVICES[@]}"; then
+  if array_contains gateway "${TARGETS[@]}"; then
     echo "- Gateway 健康检查: http://localhost:${gateway_port}/health"
+  fi
+  if [[ ${#TARGETS[@]} -eq 1 && "${TARGETS[0]}" == "client" ]]; then
+    echo "- Client 远端 Gateway: ${EFFECTIVE_VALUES[OMNI_AGENT_GATEWAY_URL]-<未配置>}"
   fi
 }
 
 prompt_for_targets() {
   local selection
   while true; do
-    printf '请输入目标（all/gateway/client/dashboard，空=all，可空格或逗号分隔）: '
+    printf '请输入目标（all/postgres/gateway/client/dashboard，空=all，可空格或逗号分隔）: '
     read -r selection || return 130
     selection="$(trim "$selection")"
     if [[ -z "$selection" ]]; then
@@ -717,7 +825,7 @@ prompt_for_targets() {
     fi
     selection="${selection//,/ }"
     read -r -a REQUESTED_TARGET_ARGS <<< "$selection"
-    if normalize_targets "${REQUESTED_TARGET_ARGS[@]}"; then
+    if normalize_targets full "${REQUESTED_TARGET_ARGS[@]}"; then
       return 0
     fi
     echo "目标无效，请重新输入。"
@@ -845,13 +953,15 @@ case "$ACTION" in
 usage: ./jarvisctl [menu|config|deploy|status|logs|stop] [targets...]
 
 targets:
-  all        部署 gateway + client + dashboard
-  gateway    部署 postgres + gateway
-  client     部署 postgres + gateway + client
-  dashboard  部署 postgres + gateway + dashboard
+  all        部署 postgres + gateway + client + dashboard
+  postgres   单独部署内置 PostgreSQL
+  gateway    单独部署 gateway，需在 .env 配置 DATABASE_URL
+  client     单独部署 client，需在 .env 配置远端 OMNI_AGENT_GATEWAY_URL
+  dashboard  单独部署 dashboard，需在 .env 配置远端 VITE_GATEWAY_BASE_URL
 
 examples:
   ./jarvisctl
+  ./jarvisctl deploy postgres
   ./jarvisctl deploy gateway
   ./jarvisctl deploy dashboard
   ./jarvisctl logs client

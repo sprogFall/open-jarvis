@@ -53,22 +53,38 @@ docker compose up --build -d
 - 对缺失项或示例默认值做命令行引导输入
 - 自动把结果写回 `.env`
 - 自动同步 Gateway 设备注册表与 Client 设备身份
-- 支持按需部署单个端或多个端
+- 支持按需部署 `postgres`、`gateway`、`client`、`dashboard` 任意单端或组合
+- 单独部署时会强制校验外部依赖地址，避免误用 Compose 内部默认地址
 
 例如：
 
 ```bash
+./jarvisctl deploy postgres
 ./jarvisctl deploy gateway
+./jarvisctl deploy postgres gateway
 ./jarvisctl deploy dashboard
 ./jarvisctl deploy client
 ./jarvisctl deploy
 DEPLOY_NETWORK_PROFILE=cn ./jarvisctl deploy dashboard
 ```
 
-其中 `./jarvisctl deploy dashboard` 会执行：
+其中：
 
 ```bash
-docker compose up -d --build postgres gateway dashboard
+./jarvisctl deploy gateway
+# docker compose up -d --build --no-deps gateway
+# 需要在 .env 中填写 DATABASE_URL
+
+./jarvisctl deploy dashboard
+# docker compose up -d --build --no-deps dashboard
+# 需要在 .env 中填写绝对地址 VITE_GATEWAY_BASE_URL
+
+./jarvisctl deploy client
+# docker compose up -d --build --no-deps client
+# 需要在 .env 中填写可从容器访问的远端 OMNI_AGENT_GATEWAY_URL
+
+./jarvisctl deploy postgres gateway
+# docker compose up -d --build postgres gateway
 ```
 
 如果是国内网络，推荐把 `.env` 里的 `DEPLOY_NETWORK_PROFILE=cn`。脚本会自动切换：
@@ -92,7 +108,7 @@ docker compose up -d --build postgres gateway dashboard
 
 ```bash
 docker compose build dashboard
-docker compose up -d dashboard
+docker compose up -d --no-deps dashboard
 ```
 
 ## 2. 单独构建 Dashboard 镜像

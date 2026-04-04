@@ -8,6 +8,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
+from urllib.parse import urlparse
 
 
 ROOT = Path(__file__).resolve().parent
@@ -15,7 +16,7 @@ ENV_FILE = ROOT / ".env"
 ENV_TEMPLATE_FILE = ROOT / ".env.example"
 FULL_STACK_SERVICES = ("postgres", "gateway", "client", "dashboard")
 RUNTIME_SERVICES = ("gateway", "client", "dashboard")
-VALID_TARGETS = ("gateway", "client", "dashboard")
+VALID_TARGETS = FULL_STACK_SERVICES
 CN_PROFILE_DEFAULTS = {
     "GATEWAY_DOCKERFILE": "gateway/Dockerfile.cn",
     "CLIENT_DOCKERFILE": "client/Dockerfile.cn",
@@ -43,16 +44,25 @@ PLACEHOLDER_DEFAULTS = {
 }
 
 ISSUE_ORDER = [
+    "DATABASE_URL",
     "POSTGRES_PASSWORD",
     "OMNI_AGENT_JWT_SECRET",
     "OMNI_AGENT_ADMIN_USERNAME",
     "OMNI_AGENT_ADMIN_PASSWORD",
+    "VITE_GATEWAY_BASE_URL",
+    "OMNI_AGENT_GATEWAY_URL",
     "OMNI_AGENT_DEVICE_KEYS",
     "OMNI_AGENT_DEVICE_ID",
     "OMNI_AGENT_DEVICE_KEY",
 ]
 
 FIELD_META = {
+    "DATABASE_URL": {
+        "label": "Gateway 数据库连接",
+        "service": "gateway",
+        "secret": True,
+        "help": "单独部署 Gateway 时填写。支持 PostgreSQL 连接串或 sqlite:///data/gateway/gateway.db。",
+    },
     "POSTGRES_PASSWORD": {
         "label": "PostgreSQL 密码",
         "service": "postgres",
@@ -76,6 +86,18 @@ FIELD_META = {
         "service": "gateway",
         "secret": True,
         "help": "Dashboard 与 App 登录密码。",
+    },
+    "VITE_GATEWAY_BASE_URL": {
+        "label": "Dashboard API 基地址",
+        "service": "dashboard",
+        "secret": False,
+        "help": "单独部署 Dashboard 时填写浏览器可访问的 Gateway 地址，例如 https://gw.example.com/jarvis/api。",
+    },
+    "OMNI_AGENT_GATEWAY_URL": {
+        "label": "Client Gateway 地址",
+        "service": "client",
+        "secret": False,
+        "help": "单独部署 Client 时填写容器内可访问的 Gateway 地址，例如 http://192.168.1.10:8000。",
     },
     "OMNI_AGENT_DEVICE_KEYS": {
         "label": "设备注册表",
@@ -123,9 +145,12 @@ class UserAbort(Exception):
     pass
 
 
-def normalize_targets(targets: tuple[str, ...] | list[str] | None = None) -> tuple[str, ...]:
+def normalize_targets(
+    targets: tuple[str, ...] | list[str] | None = None,
+    default_targets: tuple[str, ...] = FULL_STACK_SERVICES,
+) -> tuple[str, ...]:
     if not targets:
-        return VALID_TARGETS
+        return default_targets
 
     normalized: list[str] = []
     for target in targets:
@@ -134,24 +159,41 @@ def normalize_targets(targets: tuple[str, ...] | list[str] | None = None) -> tup
             if not candidate:
                 continue
             if candidate == "all":
-                return VALID_TARGETS
+                return default_targets
             if candidate not in VALID_TARGETS:
                 raise ValueError(f"Unsupported target: {candidate}")
             if candidate not in normalized:
                 normalized.append(candidate)
-    return tuple(normalized) or VALID_TARGETS
+    return tuple(normalized) or default_targets
 
 
 def resolve_deploy_services(targets: tuple[str, ...] | list[str] | None = None) -> tuple[str, ...]:
-    normalized = normalize_targets(targets)
-    services: list[str] = ["postgres"]
-    if "gateway" in normalized or "client" in normalized or "dashboard" in normalized:
-        services.append("gateway")
-    if "client" in normalized:
-        services.append("client")
-    if "dashboard" in normalized:
-        services.append("dashboard")
-    return tuple(services)
+    return normalize_targets(targets, default_targets=FULL_STACK_SERVICES)
+
+
+def should_skip_compose_dependencies(targets: tuple[str, ...]) -> bool:
+    return len(targets) == 1 and targets[0] in {"gateway", "client", "dashboard"}
+
+
+def is_absolute_http_url(raw_value: str) -> bool:
+    parsed = urlparse(raw_value)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def has_compose_only_hostname(raw_value: str, hostnames: set[str]) -> bool:
+    parsed = urlparse(raw_value)
+    hostname = (parsed.hostname or "").lower()
+    return hostname in hostnames
+
+
+def database_url_needs_external_dependency(raw_value: str) -> bool:
+    value = raw_value.strip()
+    if not value:
+        return True
+    parsed = urlparse(value)
+    if parsed.scheme.startswith("postgres") and (parsed.hostname or "").lower() == "postgres":
+        return True
+    return False
 
 
 def apply_network_profile_defaults(
@@ -254,12 +296,14 @@ def collect_config_issues(
     values: Mapping[str, str], targets: tuple[str, ...] | list[str] | None = None
 ) -> list[ConfigIssue]:
     issues: list[ConfigIssue] = []
-    normalized_targets = normalize_targets(targets)
-    requires_gateway = bool(
-        {"gateway", "client", "dashboard"}.intersection(normalized_targets)
-    )
-    requires_client = "client" in normalized_targets
-    requires_postgres = "postgres" in resolve_deploy_services(normalized_targets)
+    normalized_targets = normalize_targets(targets, default_targets=FULL_STACK_SERVICES)
+    deploys_postgres = "postgres" in normalized_targets
+    deploys_gateway = "gateway" in normalized_targets
+    deploys_client = "client" in normalized_targets
+    deploys_dashboard = "dashboard" in normalized_targets
+    uses_external_database = deploys_gateway and "postgres" not in normalized_targets
+    uses_remote_gateway_for_client = deploys_client and "gateway" not in normalized_targets
+    uses_remote_gateway_for_dashboard = deploys_dashboard and "gateway" not in normalized_targets
 
     def add_issue(key: str, reason: str) -> None:
         meta = FIELD_META[key]
@@ -274,15 +318,19 @@ def collect_config_issues(
             )
         )
 
-    using_internal_postgres = not values.get("DATABASE_URL", "").strip()
-    if requires_postgres and using_internal_postgres:
+    if deploys_postgres:
         password = values.get("POSTGRES_PASSWORD", "").strip()
         if not password:
             add_issue("POSTGRES_PASSWORD", "missing")
         elif password == PLACEHOLDER_DEFAULTS["POSTGRES_PASSWORD"]:
             add_issue("POSTGRES_PASSWORD", "example_default")
 
-    if requires_gateway:
+    if uses_external_database and database_url_needs_external_dependency(
+        values.get("DATABASE_URL", "")
+    ):
+        add_issue("DATABASE_URL", "standalone_dependency")
+
+    if deploys_gateway:
         jwt_secret = values.get("OMNI_AGENT_JWT_SECRET", "").strip()
         if not jwt_secret:
             add_issue("OMNI_AGENT_JWT_SECRET", "missing")
@@ -298,16 +346,31 @@ def collect_config_issues(
         elif admin_password == PLACEHOLDER_DEFAULTS["OMNI_AGENT_ADMIN_PASSWORD"]:
             add_issue("OMNI_AGENT_ADMIN_PASSWORD", "example_default")
 
-    if requires_client:
+    if uses_remote_gateway_for_dashboard:
+        dashboard_gateway_url = values.get("VITE_GATEWAY_BASE_URL", "").strip()
+        if not dashboard_gateway_url or not is_absolute_http_url(dashboard_gateway_url):
+            add_issue("VITE_GATEWAY_BASE_URL", "standalone_dependency")
+        elif has_compose_only_hostname(dashboard_gateway_url, {"gateway"}):
+            add_issue("VITE_GATEWAY_BASE_URL", "standalone_dependency")
+
+    if uses_remote_gateway_for_client:
+        client_gateway_url = values.get("OMNI_AGENT_GATEWAY_URL", "").strip()
+        if not client_gateway_url or not is_absolute_http_url(client_gateway_url):
+            add_issue("OMNI_AGENT_GATEWAY_URL", "standalone_dependency")
+        elif has_compose_only_hostname(client_gateway_url, {"gateway", "localhost"}):
+            add_issue("OMNI_AGENT_GATEWAY_URL", "standalone_dependency")
+
+    if deploys_client:
         registry_raw = values.get("OMNI_AGENT_DEVICE_KEYS", "").strip()
         registry: list[tuple[str, str]] = []
-        if not registry_raw:
-            add_issue("OMNI_AGENT_DEVICE_KEYS", "missing")
-        else:
-            try:
-                registry = parse_device_keys(registry_raw)
-            except ValueError:
-                add_issue("OMNI_AGENT_DEVICE_KEYS", "invalid")
+        if not uses_remote_gateway_for_client:
+            if not registry_raw:
+                add_issue("OMNI_AGENT_DEVICE_KEYS", "missing")
+            else:
+                try:
+                    registry = parse_device_keys(registry_raw)
+                except ValueError:
+                    add_issue("OMNI_AGENT_DEVICE_KEYS", "invalid")
 
         device_id = values.get("OMNI_AGENT_DEVICE_ID", "").strip()
         if not device_id:
@@ -319,7 +382,7 @@ def collect_config_issues(
         elif device_key == PLACEHOLDER_DEFAULTS["OMNI_AGENT_DEVICE_KEY"]:
             add_issue("OMNI_AGENT_DEVICE_KEY", "example_default")
 
-        if device_id and device_key and registry:
+        if not uses_remote_gateway_for_client and device_id and device_key and registry:
             registry_map = dict(registry)
             if registry_map.get(device_id) != device_key:
                 add_issue("OMNI_AGENT_DEVICE_KEYS", "contract_mismatch")
@@ -362,22 +425,21 @@ def render_env_file(values: Mapping[str, str], template_text: str) -> str:
 def build_compose_command(
     action: str, targets: tuple[str, ...] | list[str] | None = None
 ) -> list[str]:
-    normalized_targets = normalize_targets(targets)
     if action == "deploy":
-        return [
-            "docker",
-            "compose",
-            "up",
-            "-d",
-            "--build",
-            *resolve_deploy_services(normalized_targets),
-        ]
+        selected_targets = resolve_deploy_services(targets)
+        command = ["docker", "compose", "up", "-d", "--build"]
+        if should_skip_compose_dependencies(selected_targets):
+            command.append("--no-deps")
+        return [*command, *selected_targets]
     if action == "status":
-        return ["docker", "compose", "ps", *resolve_deploy_services(normalized_targets)]
+        selected_targets = normalize_targets(targets, default_targets=FULL_STACK_SERVICES)
+        return ["docker", "compose", "ps", *selected_targets]
     if action == "logs":
-        return ["docker", "compose", "logs", "-f", *normalized_targets]
+        selected_targets = normalize_targets(targets, default_targets=RUNTIME_SERVICES)
+        return ["docker", "compose", "logs", "-f", *selected_targets]
     if action == "stop":
-        return ["docker", "compose", "stop", *resolve_deploy_services(normalized_targets)]
+        selected_targets = normalize_targets(targets, default_targets=FULL_STACK_SERVICES)
+        return ["docker", "compose", "stop", *selected_targets]
     raise ValueError(f"Unsupported action: {action}")
 
 
@@ -399,6 +461,7 @@ def reason_text(reason: str) -> str:
         "example_default": "仍是示例默认值",
         "invalid": "格式无效",
         "contract_mismatch": "与 Client/Gateway 协议不一致",
+        "standalone_dependency": "当前为独立部署，请填写外部依赖地址",
     }.get(reason, reason)
 
 
@@ -413,6 +476,8 @@ def prompt_for_value(issue: ConfigIssue, current_value: str) -> tuple[str, bool]
         print("说明：当前值还是示例值，建议现在改掉；直接回车可暂时保留。")
     if issue.reason == "contract_mismatch":
         print("说明：脚本会把 Gateway 设备注册表与 Client 设备身份自动对齐。")
+    if issue.reason == "standalone_dependency":
+        print("说明：当前目标未部署本地依赖，必须填写一个可直接连接的外部地址。")
 
     prompt = f"请输入（当前 {default_hint}）: "
     while True:
@@ -422,9 +487,9 @@ def prompt_for_value(issue: ConfigIssue, current_value: str) -> tuple[str, bool]
             raise UserAbort from exc
         if raw_value.strip():
             return raw_value.strip(), False
-        if current_value:
+        if issue.reason == "example_default" and current_value:
             return current_value, issue.reason == "example_default"
-        print("该项不能为空，请重新输入。")
+        print("当前值仍不满足部署要求，请重新输入。")
 
 
 def write_env(values: Mapping[str, str], template_text: str) -> None:
@@ -474,12 +539,19 @@ def print_header() -> None:
     print("╚══════════════════════════════╝")
 
 
-def print_access_summary(values: Mapping[str, str]) -> None:
+def print_access_summary(
+    values: Mapping[str, str], targets: tuple[str, ...] | list[str] | None = None
+) -> None:
+    selected_targets = normalize_targets(targets, default_targets=FULL_STACK_SERVICES)
     dashboard_port = values.get("DASHBOARD_PORT", "8080") or "8080"
     gateway_port = values.get("GATEWAY_PORT", "8000") or "8000"
     print("\n访问入口：")
-    print(f"- Dashboard: http://localhost:{dashboard_port}/jarvis/dashboard/")
-    print(f"- Gateway 健康检查: http://localhost:{gateway_port}/health")
+    if "dashboard" in selected_targets:
+        print(f"- Dashboard: http://localhost:{dashboard_port}/jarvis/dashboard/")
+    if "gateway" in selected_targets:
+        print(f"- Gateway 健康检查: http://localhost:{gateway_port}/health")
+    if selected_targets == ("client",):
+        print(f"- Client 远端 Gateway: {values.get('OMNI_AGENT_GATEWAY_URL', '<未配置>')}")
 
 
 def require_docker() -> None:
@@ -523,10 +595,10 @@ def interactive_menu() -> int:
         print(status_line)
         print()
         print("1) 检查并补全 .env")
-        print("2) 更新并启动 gateway / client / dashboard")
+        print("2) 更新并启动 postgres / gateway / client / dashboard")
         print("3) 查看服务状态")
         print("4) 跟踪实时日志")
-        print("5) 停止全部容器")
+        print("5) 停止目标容器")
         print("q) 退出")
         try:
             choice = input("\n请选择操作: ").strip().lower()
@@ -576,14 +648,14 @@ def run_non_interactive(
             return 130
         return_code = run_compose_action("deploy", targets=targets)
         if return_code == 0:
-            print_access_summary(values)
+            print_access_summary(values, targets=targets)
         return return_code
     return run_compose_action(action, targets=targets)
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="OpenJarvis 一站式部署助手：检查 .env、补全配置并更新 gateway/client/dashboard。"
+        description="OpenJarvis 一站式部署助手：检查 .env、补全配置并按需更新 postgres/gateway/client/dashboard。"
     )
     parser.add_argument(
         "action",
@@ -595,7 +667,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "targets",
         nargs="*",
-        help="可选目标：gateway / client / dashboard / all",
+        help="可选目标：postgres / gateway / client / dashboard / all",
     )
     return parser
 
