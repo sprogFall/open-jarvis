@@ -77,6 +77,67 @@ def _get_connection_info(request: Request) -> dict:
     }
 
 
+def _mask_api_key(api_key: str) -> str:
+    if len(api_key) <= 8:
+        return "*" * len(api_key)
+    return f"{api_key[:4]}...{api_key[-4:]}"
+
+
+def _build_ai_summary(
+    payload: dict,
+    *,
+    source: str,
+    device_id: str | None = None,
+) -> dict:
+    summary = {
+        "provider": payload["provider"],
+        "model": payload["model"],
+        "base_url": payload.get("base_url"),
+        "api_key_masked": _mask_api_key(str(payload["api_key"])),
+        "source": source,
+    }
+    if device_id:
+        summary["device_id"] = device_id
+    return summary
+
+
+def _resolve_gateway_ai_summary(store: GatewayStore, request: Request) -> dict | None:
+    stored = store.get_ai_config("gateway")
+    if stored is not None:
+        return _build_ai_summary(stored, source="gateway_default")
+    fallback = request.app.state.settings.ai_config()
+    if fallback is None:
+        return None
+    return _build_ai_summary(fallback.to_dict(), source="environment_fallback")
+
+
+def _resolve_client_ai_summaries(store: GatewayStore, request: Request) -> list[dict]:
+    gateway_summary = _resolve_gateway_ai_summary(store, request)
+    gateway_source = gateway_summary["source"] if gateway_summary else None
+    gateway_payload = store.get_ai_config("gateway")
+    if gateway_payload is None:
+        gateway_fallback = request.app.state.settings.ai_config()
+        gateway_payload = gateway_fallback.to_dict() if gateway_fallback is not None else None
+
+    summaries: list[dict] = []
+    for device in store.list_devices():
+        if device.get("type") != "cli":
+            continue
+        device_id = str(device["device_id"])
+        override = store.get_ai_config("client", device_id=device_id)
+        if override is not None:
+            summaries.append(
+                _build_ai_summary(override, source="device_override", device_id=device_id)
+            )
+            continue
+        if gateway_payload is not None and gateway_source is not None:
+            summaries.append(
+                _build_ai_summary(gateway_payload, source=gateway_source, device_id=device_id)
+            )
+    summaries.sort(key=lambda summary: str(summary.get("device_id") or ""))
+    return summaries
+
+
 def build_device_skill_sync_payload(store: GatewayStore, device_id: str) -> dict:
     skills = []
     for skill in store.list_device_skills(device_id):
@@ -409,6 +470,7 @@ def list_tasks(
 @dashboard_api.get("/system")
 def system_info(request: Request) -> dict:
     settings = request.app.state.settings
+    store: GatewayStore = request.app.state.store
     return {
         "database_url": (
             settings.database_url.split("@")[-1]
@@ -420,4 +482,6 @@ def system_info(request: Request) -> dict:
         "configured_devices": list(settings.device_keys.keys()),
         "dashboard_origins": settings.dashboard_origins,
         "skill_archives_path": str(settings.skill_archives_path),
+        "gateway_ai": _resolve_gateway_ai_summary(store, request),
+        "client_ai": _resolve_client_ai_summaries(store, request),
     }

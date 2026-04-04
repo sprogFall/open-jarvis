@@ -333,8 +333,23 @@ def test_dashboard_ai_override_is_write_only_for_gateway(tmp_path):
     assert stored["api_key"] == "gateway-secret"
 
     system_info = client.get("/dashboard/api/system", headers=headers).json()
-    assert "gateway_ai" not in system_info
-    assert "client_ai" not in system_info
+    assert system_info["gateway_ai"] == {
+        "provider": "openai",
+        "model": "gpt-4o-mini",
+        "base_url": None,
+        "api_key_masked": "gate...cret",
+        "source": "gateway_default",
+    }
+    assert system_info["client_ai"] == [
+        {
+            "device_id": "device-alpha",
+            "provider": "openai",
+            "model": "gpt-4o-mini",
+            "base_url": None,
+            "api_key_masked": "gate...cret",
+            "source": "gateway_default",
+        }
+    ]
 
 
 def test_dashboard_ai_override_can_target_device_without_readback(tmp_path):
@@ -357,6 +372,18 @@ def test_dashboard_ai_override_can_target_device_without_readback(tmp_path):
     assert stored["provider"] == "custom"
     assert stored["model"] == "qwen-max"
     assert stored["base_url"] == "https://llm.example/v1/chat/completions"
+
+    system_info = client.get("/dashboard/api/system", headers=headers).json()
+    assert system_info["client_ai"] == [
+        {
+            "device_id": "device-alpha",
+            "provider": "custom",
+            "model": "qwen-max",
+            "base_url": "https://llm.example/v1/chat/completions",
+            "api_key_masked": "clie...cret",
+            "source": "device_override",
+        }
+    ]
 
 
 def test_existing_gateway_health(tmp_path):

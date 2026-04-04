@@ -189,6 +189,20 @@ def test_dashboard_settings_exposes_write_only_ai_override_entrypoints():
     assert "/dashboard/api/ai/devices/" in api
 
 
+def test_dashboard_settings_guards_missing_ai_summary_fields():
+    settings_tab = (
+        Path(__file__).resolve().parents[2]
+        / "dashboard"
+        / "src"
+        / "features"
+        / "settings"
+        / "SettingsTab.tsx"
+    ).read_text(encoding="utf-8")
+
+    assert "systemInfo?.client_ai.length" not in settings_tab
+    assert "?? []" in settings_tab
+
+
 def test_dashboard_sheet_styles_keep_long_content_fully_visible():
     dashboard_root = Path(__file__).resolve().parents[2] / "dashboard" / "src"
     layout_css = (dashboard_root / "styles" / "layout.css").read_text(encoding="utf-8")

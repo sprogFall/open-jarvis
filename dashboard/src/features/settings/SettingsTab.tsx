@@ -38,6 +38,7 @@ export function SettingsTab({
   onClearDeviceAiConfig,
 }: SettingsTabProps) {
   const configuredDevices = systemInfo?.configured_devices ?? [];
+  const clientAiSummaries = systemInfo?.client_ai ?? [];
   const clientDevices = devices.filter((device) => device.type === "cli");
 
   return (
@@ -128,9 +129,9 @@ export function SettingsTab({
               </article>
             </div>
           ) : null}
-          {systemInfo?.client_ai.length ? (
+          {clientAiSummaries.length ? (
             <div className="assignment-list">
-              {systemInfo.client_ai.map((summary) => (
+              {clientAiSummaries.map((summary) => (
                 <article key={summary.device_id ?? summary.model} className="assignment-row">
                   <div>
                     <strong>{summary.device_id ?? "CLI 设备"}</strong>

@@ -91,3 +91,65 @@ def test_llm_planner_falls_back_to_rule_based_when_no_ai_config():
         "process.inspect_load",
         "docker.restart",
     ]
+
+
+def test_llm_planner_normalizes_shell_intent_into_real_command():
+    model_client = FakeModelClient(
+        {
+            "actions": [
+                {
+                    "name": "shell.exec",
+                    "command": "查看本机工作目录",
+                    "args": {"command": "查看本机工作目录"},
+                    "requires_approval": True,
+                    "reason": "需要在终端查看当前目录",
+                }
+            ]
+        }
+    )
+    planner = LLMPlanner(
+        config_resolver=lambda: {
+            "provider": "custom",
+            "model": "qwen-max",
+            "api_key": "client-secret",
+            "base_url": "https://llm.example/v1/chat/completions",
+        },
+        model_client_factory=lambda _config: model_client,
+    )
+
+    actions = planner.plan("查看本机工作目录")
+
+    assert [action.name for action in actions] == ["shell.exec"]
+    assert actions[0].command == "pwd"
+    assert actions[0].args == {"command": "pwd"}
+
+
+def test_llm_planner_normalizes_docker_command_instead_of_preserving_chinese():
+    model_client = FakeModelClient(
+        {
+            "actions": [
+                {
+                    "name": "docker.restart",
+                    "command": "重启容器 api-service",
+                    "args": {"container": "api-service"},
+                    "requires_approval": True,
+                    "reason": "重启容器会影响服务可用性",
+                }
+            ]
+        }
+    )
+    planner = LLMPlanner(
+        config_resolver=lambda: {
+            "provider": "custom",
+            "model": "qwen-max",
+            "api_key": "client-secret",
+            "base_url": "https://llm.example/v1/chat/completions",
+        },
+        model_client_factory=lambda _config: model_client,
+    )
+
+    actions = planner.plan("重启容器 api-service")
+
+    assert [action.name for action in actions] == ["docker.restart"]
+    assert actions[0].command == "docker restart api-service"
+    assert actions[0].args == {"container": "api-service"}
