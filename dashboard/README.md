@@ -66,6 +66,12 @@ docker build -f dashboard/Dockerfile \
 docker compose up --build -d dashboard gateway
 ```
 
+如果需要在启动前交互式补全根目录 `.env`，也可以回到仓库根目录执行：
+
+```bash
+./jarvisctl
+```
+
 默认访问：
 
 - `http://localhost:8080/jarvis/dashboard/`

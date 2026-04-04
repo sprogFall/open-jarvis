@@ -39,6 +39,22 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
+如果希望用交互式方式补全 `.env` 并直接启动，推荐在仓库根目录执行 Bash 脚本：
+
+```bash
+./jarvisctl
+# 或直接一键部署
+./jarvisctl deploy
+```
+
+部署助手会：
+
+- 检查 `.env` 是否存在
+- 对缺失项或示例默认值做命令行引导输入
+- 自动把结果写回 `.env`
+- 自动同步 Gateway 设备注册表与 Client 设备身份
+- 最后执行 `docker compose up -d --build postgres gateway client dashboard`
+
 其中：
 
 - `dashboard` 服务由 `dashboard/Dockerfile` 构建

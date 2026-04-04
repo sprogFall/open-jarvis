@@ -68,6 +68,32 @@ docker compose logs -f gateway client dashboard
 
 > Flutter App 仍需单独运行或打包安装；它不是常驻服务容器的一部分。
 
+### 一站式部署助手（推荐）
+
+仓库根目录提供了可直接在 Linux 服务器执行的 Bash 部署脚本 `./jarvisctl`：
+
+```bash
+./jarvisctl
+```
+
+它会提供一个简单 TUI 菜单，并支持：
+
+- 检查本地 `.env`
+- 对缺失项或示例默认值进行命令行引导输入
+- 自动把填写结果回写到 `.env`
+- 自动同步 `OMNI_AGENT_DEVICE_KEYS` 与 Client 的 `OMNI_AGENT_DEVICE_ID / OMNI_AGENT_DEVICE_KEY`
+- 一键重建并启动 `gateway / client / dashboard`
+
+也可以直接执行单条命令：
+
+```bash
+./jarvisctl config   # 只检查/补全 .env
+./jarvisctl deploy   # 检查配置后，一键 docker compose up --build -d
+./jarvisctl status   # 查看容器状态
+./jarvisctl logs     # 跟踪 gateway/client/dashboard 日志
+./jarvisctl stop     # 停止整套容器
+```
+
 ---
 
 ## 环境变量
