@@ -15,6 +15,7 @@ ENV_FILE = ROOT / ".env"
 ENV_TEMPLATE_FILE = ROOT / ".env.example"
 FULL_STACK_SERVICES = ("postgres", "gateway", "client", "dashboard")
 RUNTIME_SERVICES = ("gateway", "client", "dashboard")
+VALID_TARGETS = ("gateway", "client", "dashboard")
 
 PLACEHOLDER_DEFAULTS = {
     "POSTGRES_PASSWORD": "jarvis",
@@ -104,6 +105,37 @@ class UserAbort(Exception):
     pass
 
 
+def normalize_targets(targets: tuple[str, ...] | list[str] | None = None) -> tuple[str, ...]:
+    if not targets:
+        return VALID_TARGETS
+
+    normalized: list[str] = []
+    for target in targets:
+        for item in str(target).split(","):
+            candidate = item.strip()
+            if not candidate:
+                continue
+            if candidate == "all":
+                return VALID_TARGETS
+            if candidate not in VALID_TARGETS:
+                raise ValueError(f"Unsupported target: {candidate}")
+            if candidate not in normalized:
+                normalized.append(candidate)
+    return tuple(normalized) or VALID_TARGETS
+
+
+def resolve_deploy_services(targets: tuple[str, ...] | list[str] | None = None) -> tuple[str, ...]:
+    normalized = normalize_targets(targets)
+    services: list[str] = ["postgres"]
+    if "gateway" in normalized or "client" in normalized or "dashboard" in normalized:
+        services.append("gateway")
+    if "client" in normalized:
+        services.append("client")
+    if "dashboard" in normalized:
+        services.append("dashboard")
+    return tuple(services)
+
+
 def parse_env_text(text: str) -> dict[str, str]:
     values: dict[str, str] = {}
     for raw_line in text.splitlines():
@@ -179,8 +211,16 @@ def build_effective_env(
     return effective
 
 
-def collect_config_issues(values: Mapping[str, str]) -> list[ConfigIssue]:
+def collect_config_issues(
+    values: Mapping[str, str], targets: tuple[str, ...] | list[str] | None = None
+) -> list[ConfigIssue]:
     issues: list[ConfigIssue] = []
+    normalized_targets = normalize_targets(targets)
+    requires_gateway = bool(
+        {"gateway", "client", "dashboard"}.intersection(normalized_targets)
+    )
+    requires_client = "client" in normalized_targets
+    requires_postgres = "postgres" in resolve_deploy_services(normalized_targets)
 
     def add_issue(key: str, reason: str) -> None:
         meta = FIELD_META[key]
@@ -196,52 +236,54 @@ def collect_config_issues(values: Mapping[str, str]) -> list[ConfigIssue]:
         )
 
     using_internal_postgres = not values.get("DATABASE_URL", "").strip()
-    if using_internal_postgres:
+    if requires_postgres and using_internal_postgres:
         password = values.get("POSTGRES_PASSWORD", "").strip()
         if not password:
             add_issue("POSTGRES_PASSWORD", "missing")
         elif password == PLACEHOLDER_DEFAULTS["POSTGRES_PASSWORD"]:
             add_issue("POSTGRES_PASSWORD", "example_default")
 
-    jwt_secret = values.get("OMNI_AGENT_JWT_SECRET", "").strip()
-    if not jwt_secret:
-        add_issue("OMNI_AGENT_JWT_SECRET", "missing")
-    elif jwt_secret == PLACEHOLDER_DEFAULTS["OMNI_AGENT_JWT_SECRET"]:
-        add_issue("OMNI_AGENT_JWT_SECRET", "example_default")
+    if requires_gateway:
+        jwt_secret = values.get("OMNI_AGENT_JWT_SECRET", "").strip()
+        if not jwt_secret:
+            add_issue("OMNI_AGENT_JWT_SECRET", "missing")
+        elif jwt_secret == PLACEHOLDER_DEFAULTS["OMNI_AGENT_JWT_SECRET"]:
+            add_issue("OMNI_AGENT_JWT_SECRET", "example_default")
 
-    if not values.get("OMNI_AGENT_ADMIN_USERNAME", "").strip():
-        add_issue("OMNI_AGENT_ADMIN_USERNAME", "missing")
+        if not values.get("OMNI_AGENT_ADMIN_USERNAME", "").strip():
+            add_issue("OMNI_AGENT_ADMIN_USERNAME", "missing")
 
-    admin_password = values.get("OMNI_AGENT_ADMIN_PASSWORD", "").strip()
-    if not admin_password:
-        add_issue("OMNI_AGENT_ADMIN_PASSWORD", "missing")
-    elif admin_password == PLACEHOLDER_DEFAULTS["OMNI_AGENT_ADMIN_PASSWORD"]:
-        add_issue("OMNI_AGENT_ADMIN_PASSWORD", "example_default")
+        admin_password = values.get("OMNI_AGENT_ADMIN_PASSWORD", "").strip()
+        if not admin_password:
+            add_issue("OMNI_AGENT_ADMIN_PASSWORD", "missing")
+        elif admin_password == PLACEHOLDER_DEFAULTS["OMNI_AGENT_ADMIN_PASSWORD"]:
+            add_issue("OMNI_AGENT_ADMIN_PASSWORD", "example_default")
 
-    registry_raw = values.get("OMNI_AGENT_DEVICE_KEYS", "").strip()
-    registry: list[tuple[str, str]] = []
-    if not registry_raw:
-        add_issue("OMNI_AGENT_DEVICE_KEYS", "missing")
-    else:
-        try:
-            registry = parse_device_keys(registry_raw)
-        except ValueError:
-            add_issue("OMNI_AGENT_DEVICE_KEYS", "invalid")
+    if requires_client:
+        registry_raw = values.get("OMNI_AGENT_DEVICE_KEYS", "").strip()
+        registry: list[tuple[str, str]] = []
+        if not registry_raw:
+            add_issue("OMNI_AGENT_DEVICE_KEYS", "missing")
+        else:
+            try:
+                registry = parse_device_keys(registry_raw)
+            except ValueError:
+                add_issue("OMNI_AGENT_DEVICE_KEYS", "invalid")
 
-    device_id = values.get("OMNI_AGENT_DEVICE_ID", "").strip()
-    if not device_id:
-        add_issue("OMNI_AGENT_DEVICE_ID", "missing")
+        device_id = values.get("OMNI_AGENT_DEVICE_ID", "").strip()
+        if not device_id:
+            add_issue("OMNI_AGENT_DEVICE_ID", "missing")
 
-    device_key = values.get("OMNI_AGENT_DEVICE_KEY", "").strip()
-    if not device_key:
-        add_issue("OMNI_AGENT_DEVICE_KEY", "missing")
-    elif device_key == PLACEHOLDER_DEFAULTS["OMNI_AGENT_DEVICE_KEY"]:
-        add_issue("OMNI_AGENT_DEVICE_KEY", "example_default")
+        device_key = values.get("OMNI_AGENT_DEVICE_KEY", "").strip()
+        if not device_key:
+            add_issue("OMNI_AGENT_DEVICE_KEY", "missing")
+        elif device_key == PLACEHOLDER_DEFAULTS["OMNI_AGENT_DEVICE_KEY"]:
+            add_issue("OMNI_AGENT_DEVICE_KEY", "example_default")
 
-    if device_id and device_key and registry:
-        registry_map = dict(registry)
-        if registry_map.get(device_id) != device_key:
-            add_issue("OMNI_AGENT_DEVICE_KEYS", "contract_mismatch")
+        if device_id and device_key and registry:
+            registry_map = dict(registry)
+            if registry_map.get(device_id) != device_key:
+                add_issue("OMNI_AGENT_DEVICE_KEYS", "contract_mismatch")
 
     ordered = sorted(issues, key=lambda issue: ISSUE_ORDER.index(issue.key))
     deduped: list[ConfigIssue] = []
@@ -278,7 +320,10 @@ def render_env_file(values: Mapping[str, str], template_text: str) -> str:
     return "\n".join(lines).rstrip("\n") + "\n"
 
 
-def build_compose_command(action: str) -> list[str]:
+def build_compose_command(
+    action: str, targets: tuple[str, ...] | list[str] | None = None
+) -> list[str]:
+    normalized_targets = normalize_targets(targets)
     if action == "deploy":
         return [
             "docker",
@@ -286,14 +331,14 @@ def build_compose_command(action: str) -> list[str]:
             "up",
             "-d",
             "--build",
-            *FULL_STACK_SERVICES,
+            *resolve_deploy_services(normalized_targets),
         ]
     if action == "status":
-        return ["docker", "compose", "ps"]
+        return ["docker", "compose", "ps", *resolve_deploy_services(normalized_targets)]
     if action == "logs":
-        return ["docker", "compose", "logs", "-f", *RUNTIME_SERVICES]
+        return ["docker", "compose", "logs", "-f", *normalized_targets]
     if action == "stop":
-        return ["docker", "compose", "stop", *FULL_STACK_SERVICES]
+        return ["docker", "compose", "stop", *resolve_deploy_services(normalized_targets)]
     raise ValueError(f"Unsupported action: {action}")
 
 
@@ -347,7 +392,7 @@ def write_env(values: Mapping[str, str], template_text: str) -> None:
     ENV_FILE.write_text(render_env_file(values, template_text), encoding="utf-8")
 
 
-def run_config_wizard() -> dict[str, str]:
+def run_config_wizard(targets: tuple[str, ...] | list[str] | None = None) -> dict[str, str]:
     values, template_values, template_text = load_env_state()
     skipped_example_defaults: set[str] = set()
     print_header()
@@ -359,7 +404,7 @@ def run_config_wizard() -> dict[str, str]:
         values = build_effective_env(values, template_values)
         issues = [
             issue
-            for issue in collect_config_issues(values)
+            for issue in collect_config_issues(values, targets=targets)
             if not (issue.reason == "example_default" and issue.key in skipped_example_defaults)
         ]
         if not issues:
@@ -412,9 +457,11 @@ def require_docker() -> None:
         raise SystemExit("检测不到 `docker compose`，请确认 Docker Compose 已可用。")
 
 
-def run_compose_action(action: str) -> int:
+def run_compose_action(
+    action: str, targets: tuple[str, ...] | list[str] | None = None
+) -> int:
     require_docker()
-    command = build_compose_command(action)
+    command = build_compose_command(action, targets=targets)
     print(f"\n$ {' '.join(command)}")
     result = subprocess.run(command, cwd=ROOT, check=False)
     return result.returncode
@@ -474,23 +521,25 @@ def interactive_menu() -> int:
         return run_compose_action(action)
 
 
-def run_non_interactive(action: str) -> int:
+def run_non_interactive(
+    action: str, targets: tuple[str, ...] | list[str] | None = None
+) -> int:
     if action == "config":
         try:
-            run_config_wizard()
+            run_config_wizard(targets=targets)
             return 0
         except UserAbort:
             return 130
     if action == "deploy":
         try:
-            values = run_config_wizard()
+            values = run_config_wizard(targets=targets)
         except UserAbort:
             return 130
-        return_code = run_compose_action("deploy")
+        return_code = run_compose_action("deploy", targets=targets)
         if return_code == 0:
             print_access_summary(values)
         return return_code
-    return run_compose_action(action)
+    return run_compose_action(action, targets=targets)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -504,6 +553,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="menu",
         help="默认进入交互式 TUI 菜单。",
     )
+    parser.add_argument(
+        "targets",
+        nargs="*",
+        help="可选目标：gateway / client / dashboard / all",
+    )
     return parser
 
 
@@ -512,7 +566,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.action == "menu":
             return interactive_menu()
-        return run_non_interactive(args.action)
+        return run_non_interactive(args.action, targets=tuple(args.targets))
     except UserAbort:
         print("\n已取消。")
         return 130

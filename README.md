@@ -82,16 +82,19 @@ docker compose logs -f gateway client dashboard
 - 对缺失项或示例默认值进行命令行引导输入
 - 自动把填写结果回写到 `.env`
 - 自动同步 `OMNI_AGENT_DEVICE_KEYS` 与 Client 的 `OMNI_AGENT_DEVICE_ID / OMNI_AGENT_DEVICE_KEY`
-- 一键重建并启动 `gateway / client / dashboard`
+- 按需部署 `gateway`、`client`、`dashboard` 任意组合，或一键全量部署
 
 也可以直接执行单条命令：
 
 ```bash
-./jarvisctl config   # 只检查/补全 .env
-./jarvisctl deploy   # 检查配置后，一键 docker compose up --build -d
-./jarvisctl status   # 查看容器状态
-./jarvisctl logs     # 跟踪 gateway/client/dashboard 日志
-./jarvisctl stop     # 停止整套容器
+./jarvisctl config gateway      # 只检查 gateway 所需配置
+./jarvisctl deploy              # 检查配置后，全量部署
+./jarvisctl deploy gateway      # 只部署 postgres + gateway
+./jarvisctl deploy dashboard    # 只部署 postgres + gateway + dashboard
+./jarvisctl deploy client       # 只部署 postgres + gateway + client
+./jarvisctl status dashboard    # 查看 dashboard 对应服务状态
+./jarvisctl logs client         # 跟踪 client 日志
+./jarvisctl stop gateway        # 停止 gateway 相关服务
 ```
 
 ---

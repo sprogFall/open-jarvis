@@ -4,11 +4,15 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${JARVISCTL_ENV_FILE:-$ROOT_DIR/.env}"
 ENV_TEMPLATE_FILE="${JARVISCTL_ENV_TEMPLATE:-$ROOT_DIR/.env.example}"
-ACTION="${1:-menu}"
 DRY_RUN="${JARVISCTL_DRY_RUN:-0}"
 
-FULL_STACK_SERVICES=(postgres gateway client dashboard)
-RUNTIME_SERVICES=(gateway client dashboard)
+ACTION="${1:-menu}"
+if [[ $# -gt 0 ]]; then
+  shift
+fi
+CLI_TARGET_ARGS=("$@")
+
+VALID_TARGETS=(gateway client dashboard)
 ISSUE_ORDER=(
   POSTGRES_PASSWORD
   OMNI_AGENT_JWT_SECRET
@@ -25,7 +29,6 @@ ADMIN_PASSWORD_DEFAULT="passw0rd"
 DEVICE_KEY_DEFAULT="device-secret"
 
 TEMPLATE_LINES=()
-TEMPLATE_KEYS=()
 declare -A TEMPLATE_VALUES=()
 declare -A ENV_VALUES=()
 declare -A EFFECTIVE_VALUES=()
@@ -36,15 +39,30 @@ FILTERED_ISSUE_KEYS=()
 FILTERED_ISSUE_REASONS=()
 DEVICE_IDS=()
 DEVICE_SECRETS=()
+TARGETS=()
+RESOLVED_SERVICES=()
 COMPOSE_CMD=()
 PROMPT_RESULT=""
 PROMPT_SKIPPED="0"
+REQUESTED_TARGET_ARGS=()
 
 trim() {
   local value="${1-}"
   value="${value#"${value%%[![:space:]]*}"}"
   value="${value%"${value##*[![:space:]]}"}"
   printf '%s' "$value"
+}
+
+array_contains() {
+  local needle="$1"
+  shift
+  local item
+  for item in "$@"; do
+    if [[ "$item" == "$needle" ]]; then
+      return 0
+    fi
+  done
+  return 1
 }
 
 assignment_key() {
@@ -63,6 +81,49 @@ is_assignment_line() {
   [[ "$raw_line" == *"="* ]]
 }
 
+normalize_targets() {
+  local raw chunk candidate
+  TARGETS=()
+  if [[ $# -eq 0 ]]; then
+    TARGETS=("${VALID_TARGETS[@]}")
+    return 0
+  fi
+
+  for raw in "$@"; do
+    IFS=',' read -r -a chunk <<< "$raw"
+    for candidate in "${chunk[@]}"; do
+      candidate="$(trim "$candidate")"
+      [[ -z "$candidate" ]] && continue
+      if [[ "$candidate" == "all" ]]; then
+        TARGETS=("${VALID_TARGETS[@]}")
+        return 0
+      fi
+      if ! array_contains "$candidate" "${VALID_TARGETS[@]}"; then
+        echo "不支持的目标: $candidate" >&2
+        return 1
+      fi
+      if ! array_contains "$candidate" "${TARGETS[@]}"; then
+        TARGETS+=("$candidate")
+      fi
+    done
+  done
+
+  if [[ ${#TARGETS[@]} -eq 0 ]]; then
+    TARGETS=("${VALID_TARGETS[@]}")
+  fi
+}
+
+resolve_deploy_services() {
+  normalize_targets "$@"
+  RESOLVED_SERVICES=(postgres gateway)
+  if array_contains client "${TARGETS[@]}"; then
+    RESOLVED_SERVICES+=(client)
+  fi
+  if array_contains dashboard "${TARGETS[@]}"; then
+    RESOLVED_SERVICES+=(dashboard)
+  fi
+}
+
 load_template() {
   local raw_line key value
   [[ -f "$ENV_TEMPLATE_FILE" ]] || {
@@ -71,7 +132,6 @@ load_template() {
   }
 
   TEMPLATE_LINES=()
-  TEMPLATE_KEYS=()
   TEMPLATE_VALUES=()
 
   while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
@@ -79,7 +139,6 @@ load_template() {
     if is_assignment_line "$raw_line"; then
       key="$(assignment_key "$raw_line")"
       value="$(assignment_value "$raw_line")"
-      TEMPLATE_KEYS+=("$key")
       TEMPLATE_VALUES["$key"]="$value"
     fi
   done < "$ENV_TEMPLATE_FILE"
@@ -117,19 +176,20 @@ upsert_device_pair() {
 }
 
 parse_device_registry() {
-  local raw_value part pair device_id device_secret
+  local raw_value pair device_id device_secret
   DEVICE_IDS=()
   DEVICE_SECRETS=()
   raw_value="$(trim "${1-}")"
   [[ -z "$raw_value" ]] && return 0
 
-  IFS=',' read -r -a part <<< "$raw_value"
-  for pair in "${part[@]}"; do
-    pair="$(trim "$pair")"
-    [[ -z "$pair" ]] && continue
-    [[ "$pair" == *"="* ]] || return 1
-    device_id="$(trim "${pair%%=*}")"
-    device_secret="$(trim "${pair#*=}")"
+  IFS=',' read -r -a pair <<< "$raw_value"
+  local item
+  for item in "${pair[@]}"; do
+    item="$(trim "$item")"
+    [[ -z "$item" ]] && continue
+    [[ "$item" == *"="* ]] || return 1
+    device_id="$(trim "${item%%=*}")"
+    device_secret="$(trim "${item#*=}")"
     [[ -n "$device_id" && -n "$device_secret" ]] || return 1
     upsert_device_pair "$device_id" "$device_secret"
   done
@@ -184,14 +244,13 @@ build_effective_values() {
     matched_secret="$(registry_get_secret "$device_id" || true)"
     if [[ -n "$matched_secret" ]]; then
       EFFECTIVE_VALUES[OMNI_AGENT_DEVICE_KEY]="$matched_secret"
-      device_key="$matched_secret"
     fi
-  elif [[ -z "$device_id" && "${#DEVICE_IDS[@]}" -gt 0 ]]; then
+  elif [[ -z "$device_id" && ${#DEVICE_IDS[@]} -gt 0 ]]; then
     EFFECTIVE_VALUES[OMNI_AGENT_DEVICE_ID]="${DEVICE_IDS[0]}"
     EFFECTIVE_VALUES[OMNI_AGENT_DEVICE_KEY]="${DEVICE_SECRETS[0]}"
   fi
 
-  if [[ "${#DEVICE_IDS[@]}" -gt 0 ]]; then
+  if [[ ${#DEVICE_IDS[@]} -gt 0 ]]; then
     EFFECTIVE_VALUES[OMNI_AGENT_DEVICE_KEYS]="$(serialize_device_registry)"
   fi
 }
@@ -273,12 +332,24 @@ add_issue() {
 collect_config_issues() {
   local database_url postgres_password jwt_secret admin_username admin_password
   local registry_raw device_id device_key registry_secret
+  local requires_gateway=0 requires_client=0 requires_postgres=0
+
+  resolve_deploy_services "$@"
+  if array_contains gateway "${RESOLVED_SERVICES[@]}"; then
+    requires_gateway=1
+  fi
+  if array_contains client "${TARGETS[@]}"; then
+    requires_client=1
+  fi
+  if array_contains postgres "${RESOLVED_SERVICES[@]}"; then
+    requires_postgres=1
+  fi
 
   ISSUE_KEYS=()
   ISSUE_REASONS=()
 
   database_url="$(trim "${EFFECTIVE_VALUES[DATABASE_URL]-}")"
-  if [[ -z "$database_url" ]]; then
+  if [[ $requires_postgres -eq 1 && -z "$database_url" ]]; then
     postgres_password="$(trim "${EFFECTIVE_VALUES[POSTGRES_PASSWORD]-}")"
     if [[ -z "$postgres_password" ]]; then
       add_issue POSTGRES_PASSWORD missing
@@ -287,44 +358,46 @@ collect_config_issues() {
     fi
   fi
 
-  jwt_secret="$(trim "${EFFECTIVE_VALUES[OMNI_AGENT_JWT_SECRET]-}")"
-  if [[ -z "$jwt_secret" ]]; then
-    add_issue OMNI_AGENT_JWT_SECRET missing
-  elif [[ "$jwt_secret" == "$JWT_SECRET_DEFAULT" ]]; then
-    add_issue OMNI_AGENT_JWT_SECRET example_default
+  if [[ $requires_gateway -eq 1 ]]; then
+    jwt_secret="$(trim "${EFFECTIVE_VALUES[OMNI_AGENT_JWT_SECRET]-}")"
+    if [[ -z "$jwt_secret" ]]; then
+      add_issue OMNI_AGENT_JWT_SECRET missing
+    elif [[ "$jwt_secret" == "$JWT_SECRET_DEFAULT" ]]; then
+      add_issue OMNI_AGENT_JWT_SECRET example_default
+    fi
+
+    admin_username="$(trim "${EFFECTIVE_VALUES[OMNI_AGENT_ADMIN_USERNAME]-}")"
+    [[ -n "$admin_username" ]] || add_issue OMNI_AGENT_ADMIN_USERNAME missing
+
+    admin_password="$(trim "${EFFECTIVE_VALUES[OMNI_AGENT_ADMIN_PASSWORD]-}")"
+    if [[ -z "$admin_password" ]]; then
+      add_issue OMNI_AGENT_ADMIN_PASSWORD missing
+    elif [[ "$admin_password" == "$ADMIN_PASSWORD_DEFAULT" ]]; then
+      add_issue OMNI_AGENT_ADMIN_PASSWORD example_default
+    fi
   fi
 
-  admin_username="$(trim "${EFFECTIVE_VALUES[OMNI_AGENT_ADMIN_USERNAME]-}")"
-  [[ -n "$admin_username" ]] || add_issue OMNI_AGENT_ADMIN_USERNAME missing
+  if [[ $requires_client -eq 1 ]]; then
+    registry_raw="$(trim "${EFFECTIVE_VALUES[OMNI_AGENT_DEVICE_KEYS]-}")"
+    if [[ -z "$registry_raw" ]]; then
+      add_issue OMNI_AGENT_DEVICE_KEYS missing
+    elif ! parse_device_registry "$registry_raw"; then
+      add_issue OMNI_AGENT_DEVICE_KEYS invalid
+    fi
 
-  admin_password="$(trim "${EFFECTIVE_VALUES[OMNI_AGENT_ADMIN_PASSWORD]-}")"
-  if [[ -z "$admin_password" ]]; then
-    add_issue OMNI_AGENT_ADMIN_PASSWORD missing
-  elif [[ "$admin_password" == "$ADMIN_PASSWORD_DEFAULT" ]]; then
-    add_issue OMNI_AGENT_ADMIN_PASSWORD example_default
-  fi
+    device_id="$(trim "${EFFECTIVE_VALUES[OMNI_AGENT_DEVICE_ID]-}")"
+    [[ -n "$device_id" ]] || add_issue OMNI_AGENT_DEVICE_ID missing
 
-  registry_raw="$(trim "${EFFECTIVE_VALUES[OMNI_AGENT_DEVICE_KEYS]-}")"
-  if [[ -z "$registry_raw" ]]; then
-    add_issue OMNI_AGENT_DEVICE_KEYS missing
-  elif ! parse_device_registry "$registry_raw"; then
-    add_issue OMNI_AGENT_DEVICE_KEYS invalid
-  fi
+    device_key="$(trim "${EFFECTIVE_VALUES[OMNI_AGENT_DEVICE_KEY]-}")"
+    if [[ -z "$device_key" ]]; then
+      add_issue OMNI_AGENT_DEVICE_KEY missing
+    elif [[ "$device_key" == "$DEVICE_KEY_DEFAULT" ]]; then
+      add_issue OMNI_AGENT_DEVICE_KEY example_default
+    fi
 
-  device_id="$(trim "${EFFECTIVE_VALUES[OMNI_AGENT_DEVICE_ID]-}")"
-  [[ -n "$device_id" ]] || add_issue OMNI_AGENT_DEVICE_ID missing
-
-  device_key="$(trim "${EFFECTIVE_VALUES[OMNI_AGENT_DEVICE_KEY]-}")"
-  if [[ -z "$device_key" ]]; then
-    add_issue OMNI_AGENT_DEVICE_KEY missing
-  elif [[ "$device_key" == "$DEVICE_KEY_DEFAULT" ]]; then
-    add_issue OMNI_AGENT_DEVICE_KEY example_default
-  fi
-
-  if [[ -n "$registry_raw" ]] && parse_device_registry "$registry_raw"; then
-    if [[ -n "$device_id" && -n "$device_key" ]]; then
+    if [[ -n "$registry_raw" ]] && parse_device_registry "$registry_raw"; then
       registry_secret="$(registry_get_secret "$device_id" || true)"
-      if [[ -n "$registry_secret" && "$registry_secret" != "$device_key" ]]; then
+      if [[ -n "$device_id" && -n "$device_key" && -n "$registry_secret" && "$registry_secret" != "$device_key" ]]; then
         add_issue OMNI_AGENT_DEVICE_KEYS contract_mismatch
       fi
     fi
@@ -332,20 +405,19 @@ collect_config_issues() {
 }
 
 filter_issues() {
-  local idx key reason
+  local ordered_key idx
   FILTERED_ISSUE_KEYS=()
   FILTERED_ISSUE_REASONS=()
-  for idx in "${!ISSUE_ORDER[@]}"; do
-    key="${ISSUE_ORDER[$idx]}"
-    for reason in "${!ISSUE_KEYS[@]}"; do
-      if [[ "${ISSUE_KEYS[$reason]}" != "$key" ]]; then
+  for ordered_key in "${ISSUE_ORDER[@]}"; do
+    for idx in "${!ISSUE_KEYS[@]}"; do
+      if [[ "${ISSUE_KEYS[$idx]}" != "$ordered_key" ]]; then
         continue
       fi
-      if [[ "${ISSUE_REASONS[$reason]}" == "example_default" && -n "${SKIPPED_DEFAULT_KEYS[$key]-}" ]]; then
+      if [[ "${ISSUE_REASONS[$idx]}" == "example_default" && -n "${SKIPPED_DEFAULT_KEYS[$ordered_key]-}" ]]; then
         continue
       fi
-      FILTERED_ISSUE_KEYS+=("$key")
-      FILTERED_ISSUE_REASONS+=("${ISSUE_REASONS[$reason]}")
+      FILTERED_ISSUE_KEYS+=("$ordered_key")
+      FILTERED_ISSUE_REASONS+=("${ISSUE_REASONS[$idx]}")
     done
   done
 }
@@ -374,9 +446,8 @@ write_env_file() {
     fi
   done
 
-  if [[ "${#extra_keys[@]}" -gt 0 ]]; then
-    IFS=$'\n' extra_keys=($(printf '%s\n' "${extra_keys[@]}" | sort))
-    unset IFS
+  if [[ ${#extra_keys[@]} -gt 0 ]]; then
+    mapfile -t extra_keys < <(printf '%s\n' "${extra_keys[@]}" | sort)
     printf '\n' >> "$tmp_file"
     for key in "${extra_keys[@]}"; do
       printf '%s=%s\n' "$key" "${EFFECTIVE_VALUES[$key]}" >> "$tmp_file"
@@ -434,14 +505,14 @@ prompt_for_issue() {
       fi
       return 0
     fi
-    echo '该项不能为空，请重新输入。'
+    echo "该项不能为空，请重新输入。"
   done
 }
 
 print_header() {
-  echo '╔══════════════════════════════╗'
-  echo '║ OpenJarvis Bash 部署助手 v1 ║'
-  echo '╚══════════════════════════════╝'
+  echo "╔══════════════════════════════╗"
+  echo "║ OpenJarvis Bash 部署助手 v1 ║"
+  echo "╚══════════════════════════════╝"
 }
 
 load_state() {
@@ -452,28 +523,29 @@ load_state() {
 
 run_config_wizard() {
   local idx key reason current_value
+  local target_args=("$@")
   SKIPPED_DEFAULT_KEYS=()
   load_state
   print_header
   echo "配置文件：$ENV_FILE"
   if [[ ! -f "$ENV_FILE" ]]; then
-    echo '检测到 .env 不存在，将基于 .env.example 自动生成。'
+    echo "检测到 .env 不存在，将基于 .env.example 自动生成。"
   fi
 
   while true; do
     build_effective_values
-    collect_config_issues
+    collect_config_issues "${target_args[@]}"
     filter_issues
 
-    if [[ "${#FILTERED_ISSUE_KEYS[@]}" -eq 0 ]]; then
+    if [[ ${#FILTERED_ISSUE_KEYS[@]} -eq 0 ]]; then
       write_env_file
       echo
-      echo '✅ 配置检查通过，已写入 .env'
+      echo "✅ 配置检查通过，已写入 .env"
       return 0
     fi
 
     echo
-    echo '待处理配置项：'
+    echo "待处理配置项："
     for idx in "${!FILTERED_ISSUE_KEYS[@]}"; do
       echo "- ${FILTERED_ISSUE_KEYS[$idx]}: $(reason_text "${FILTERED_ISSUE_REASONS[$idx]}")"
     done
@@ -484,7 +556,7 @@ run_config_wizard() {
     prompt_for_issue "$key" "$reason" "$current_value"
 
     ENV_VALUES["$key"]="$PROMPT_RESULT"
-    if [[ "$PROMPT_SKIPPED" == '1' ]]; then
+    if [[ "$PROMPT_SKIPPED" == "1" ]]; then
       SKIPPED_DEFAULT_KEYS["$key"]=1
     else
       unset "SKIPPED_DEFAULT_KEYS[$key]" || true
@@ -492,51 +564,57 @@ run_config_wizard() {
 
     build_effective_values
     write_env_file
-    echo '已更新 .env，继续检查剩余配置…'
+    echo "已更新 .env，继续检查剩余配置…"
   done
 }
 
 build_compose_command() {
-  case "$1" in
+  local action="$1"
+  shift || true
+  resolve_deploy_services "$@"
+
+  case "$action" in
     deploy)
-      COMPOSE_CMD=(docker compose up -d --build postgres gateway client dashboard)
+      COMPOSE_CMD=(docker compose up -d --build "${RESOLVED_SERVICES[@]}")
       ;;
     status)
-      COMPOSE_CMD=(docker compose ps)
+      COMPOSE_CMD=(docker compose ps "${RESOLVED_SERVICES[@]}")
       ;;
     logs)
-      COMPOSE_CMD=(docker compose logs -f gateway client dashboard)
+      COMPOSE_CMD=(docker compose logs -f "${TARGETS[@]}")
       ;;
     stop)
-      COMPOSE_CMD=(docker compose stop postgres gateway client dashboard)
+      COMPOSE_CMD=(docker compose stop "${RESOLVED_SERVICES[@]}")
       ;;
     *)
-      echo "不支持的动作: $1" >&2
+      echo "不支持的动作: $action" >&2
       exit 1
       ;;
   esac
 }
 
 require_docker() {
-  if [[ "$DRY_RUN" == '1' ]]; then
+  if [[ "$DRY_RUN" == "1" ]]; then
     return 0
   fi
   command -v docker >/dev/null 2>&1 || {
-    echo '未检测到 docker，请先安装 Docker / Docker Compose。' >&2
+    echo "未检测到 docker，请先安装 Docker / Docker Compose。" >&2
     exit 1
   }
   docker compose version >/dev/null 2>&1 || {
-    echo '检测不到 docker compose，请确认 Docker Compose 已可用。' >&2
+    echo "检测不到 docker compose，请确认 Docker Compose 已可用。" >&2
     exit 1
   }
 }
 
 run_compose_action() {
-  build_compose_command "$1"
+  local action="$1"
+  shift || true
+  build_compose_command "$action" "$@"
   require_docker
   echo
   echo "\$ ${COMPOSE_CMD[*]}"
-  if [[ "$DRY_RUN" == '1' ]]; then
+  if [[ "$DRY_RUN" == "1" ]]; then
     return 0
   fi
   (
@@ -547,12 +625,36 @@ run_compose_action() {
 
 print_access_summary() {
   local dashboard_port gateway_port
+  resolve_deploy_services "$@"
   dashboard_port="${EFFECTIVE_VALUES[DASHBOARD_PORT]-8080}"
   gateway_port="${EFFECTIVE_VALUES[GATEWAY_PORT]-8000}"
   echo
-  echo '访问入口：'
-  echo "- Dashboard: http://localhost:${dashboard_port}/jarvis/dashboard/"
-  echo "- Gateway 健康检查: http://localhost:${gateway_port}/health"
+  echo "访问入口："
+  if array_contains dashboard "${RESOLVED_SERVICES[@]}"; then
+    echo "- Dashboard: http://localhost:${dashboard_port}/jarvis/dashboard/"
+  fi
+  if array_contains gateway "${RESOLVED_SERVICES[@]}"; then
+    echo "- Gateway 健康检查: http://localhost:${gateway_port}/health"
+  fi
+}
+
+prompt_for_targets() {
+  local selection
+  while true; do
+    printf '请输入目标（all/gateway/client/dashboard，空=all，可空格或逗号分隔）: '
+    read -r selection || return 130
+    selection="$(trim "$selection")"
+    if [[ -z "$selection" ]]; then
+      REQUESTED_TARGET_ARGS=()
+      return 0
+    fi
+    selection="${selection//,/ }"
+    read -r -a REQUESTED_TARGET_ARGS <<< "$selection"
+    if normalize_targets "${REQUESTED_TARGET_ARGS[@]}"; then
+      return 0
+    fi
+    echo "目标无效，请重新输入。"
+  done
 }
 
 show_menu() {
@@ -560,18 +662,18 @@ show_menu() {
   collect_config_issues
   filter_issues
   print_header
-  if [[ "${#FILTERED_ISSUE_KEYS[@]}" -eq 0 ]]; then
-    echo '当前配置状态：已就绪'
+  if [[ ${#FILTERED_ISSUE_KEYS[@]} -eq 0 ]]; then
+    echo "当前配置状态：已就绪"
   else
     echo "当前配置状态：待处理 ${#FILTERED_ISSUE_KEYS[@]} 项"
   fi
   echo
-  echo '1) 检查并补全 .env'
-  echo '2) 更新并启动 gateway / client / dashboard'
-  echo '3) 查看服务状态'
-  echo '4) 跟踪实时日志'
-  echo '5) 停止全部容器'
-  echo 'q) 退出'
+  echo "1) 检查并补全 .env"
+  echo "2) 选择并部署目标端"
+  echo "3) 查看服务状态"
+  echo "4) 跟踪实时日志"
+  echo "5) 停止服务"
+  echo "q) 退出"
 }
 
 run_menu() {
@@ -583,32 +685,37 @@ run_menu() {
     choice="$(trim "$choice")"
     case "$choice" in
       1)
-        run_config_wizard
+        prompt_for_targets || return 130
+        run_config_wizard "${REQUESTED_TARGET_ARGS[@]}"
         echo
         ;;
       2)
-        run_config_wizard
-        run_compose_action deploy
-        print_access_summary
+        prompt_for_targets || return 130
+        run_config_wizard "${REQUESTED_TARGET_ARGS[@]}"
+        run_compose_action deploy "${REQUESTED_TARGET_ARGS[@]}"
+        print_access_summary "${REQUESTED_TARGET_ARGS[@]}"
         return 0
         ;;
       3)
-        run_compose_action status
+        prompt_for_targets || return 130
+        run_compose_action status "${REQUESTED_TARGET_ARGS[@]}"
         return 0
         ;;
       4)
-        run_compose_action logs
+        prompt_for_targets || return 130
+        run_compose_action logs "${REQUESTED_TARGET_ARGS[@]}"
         return 0
         ;;
       5)
-        run_compose_action stop
+        prompt_for_targets || return 130
+        run_compose_action stop "${REQUESTED_TARGET_ARGS[@]}"
         return 0
         ;;
       q|quit|exit)
         return 0
         ;;
       *)
-        echo '无效选择，请输入 1/2/3/4/5/q。'
+        echo "无效选择，请输入 1/2/3/4/5/q。"
         echo
         ;;
     esac
@@ -620,27 +727,37 @@ case "$ACTION" in
     run_menu
     ;;
   config)
-    run_config_wizard
+    run_config_wizard "${CLI_TARGET_ARGS[@]}"
     ;;
   deploy)
-    run_config_wizard
-    run_compose_action deploy
-    print_access_summary
+    run_config_wizard "${CLI_TARGET_ARGS[@]}"
+    run_compose_action deploy "${CLI_TARGET_ARGS[@]}"
+    print_access_summary "${CLI_TARGET_ARGS[@]}"
     ;;
   status)
-    run_compose_action status
+    run_compose_action status "${CLI_TARGET_ARGS[@]}"
     ;;
   logs)
-    run_compose_action logs
+    run_compose_action logs "${CLI_TARGET_ARGS[@]}"
     ;;
   stop)
-    run_compose_action stop
+    run_compose_action stop "${CLI_TARGET_ARGS[@]}"
     ;;
   -h|--help|help)
     cat <<'EOF'
-usage: ./jarvisctl [menu|config|deploy|status|logs|stop]
+usage: ./jarvisctl [menu|config|deploy|status|logs|stop] [targets...]
 
-OpenJarvis Bash 一站式部署助手：检查 .env、补全配置并更新 gateway/client/dashboard。
+targets:
+  all        部署 gateway + client + dashboard
+  gateway    部署 postgres + gateway
+  client     部署 postgres + gateway + client
+  dashboard  部署 postgres + gateway + dashboard
+
+examples:
+  ./jarvisctl
+  ./jarvisctl deploy gateway
+  ./jarvisctl deploy dashboard
+  ./jarvisctl logs client
 EOF
     ;;
   *)

@@ -53,7 +53,22 @@ docker compose up --build -d
 - 对缺失项或示例默认值做命令行引导输入
 - 自动把结果写回 `.env`
 - 自动同步 Gateway 设备注册表与 Client 设备身份
-- 最后执行 `docker compose up -d --build postgres gateway client dashboard`
+- 支持按需部署单个端或多个端
+
+例如：
+
+```bash
+./jarvisctl deploy gateway
+./jarvisctl deploy dashboard
+./jarvisctl deploy client
+./jarvisctl deploy
+```
+
+其中 `./jarvisctl deploy dashboard` 会执行：
+
+```bash
+docker compose up -d --build postgres gateway dashboard
+```
 
 其中：
 
