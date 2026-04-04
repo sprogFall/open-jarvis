@@ -48,6 +48,26 @@ def test_build_effective_env_derives_client_device_pair_from_gateway_registry_wh
     assert effective["OMNI_AGENT_DEVICE_KEY"] == "beta-secret"
 
 
+def test_build_effective_env_applies_cn_profile_defaults_for_all_services():
+    template = parse_env_text(_read(".env.example"))
+
+    effective = build_effective_env(
+        {
+            "DEPLOY_NETWORK_PROFILE": "cn",
+        },
+        template,
+    )
+
+    assert effective["DEPLOY_NETWORK_PROFILE"] == "cn"
+    assert effective["GATEWAY_DOCKERFILE"] == "gateway/Dockerfile.cn"
+    assert effective["CLIENT_DOCKERFILE"] == "client/Dockerfile.cn"
+    assert effective["DASHBOARD_DOCKERFILE"] == "dashboard/Dockerfile.cn"
+    assert effective["APT_MIRROR_HOST"] == "mirrors.tuna.tsinghua.edu.cn"
+    assert effective["PIP_INDEX_URL"] == "https://pypi.tuna.tsinghua.edu.cn/simple"
+    assert effective["PIP_TRUSTED_HOST"] == "pypi.tuna.tsinghua.edu.cn"
+    assert effective["DASHBOARD_NPM_REGISTRY"] == "https://registry.npmmirror.com"
+
+
 def test_collect_config_issues_flags_example_defaults_for_sensitive_values():
     issues = {
         issue.key: issue.reason
@@ -172,6 +192,9 @@ def test_shell_script_is_linux_friendly_and_contains_compose_actions():
     assert script.startswith("#!/usr/bin/env bash")
     assert "COMPOSE_CMD=(docker compose up -d --build" in script
     assert "usage: ./jarvisctl [menu|config|deploy|status|logs|stop] [targets...]" in script
+    assert "DEPLOY_NETWORK_PROFILE" in script
+    assert "dashboard/Dockerfile.cn" in script
+    assert "registry.npmmirror.com" in script
     assert "检查并补全 .env" in script
     assert "python3 \"$SCRIPT_DIR/jarvisctl.py\"" not in script
 
@@ -252,6 +275,52 @@ def test_shell_script_can_resolve_selected_deploy_targets_in_dry_run(tmp_path: P
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "docker compose up -d --build postgres gateway dashboard" in result.stdout
+
+
+def test_shell_script_applies_cn_profile_defaults_to_rendered_env(tmp_path: Path):
+    template_path = tmp_path / ".env.example"
+    env_path = tmp_path / ".env"
+    template_path.write_text(_read(".env.example"), encoding="utf-8")
+    env_path.write_text(
+        "\n".join(
+            [
+                "DEPLOY_NETWORK_PROFILE=cn",
+                "POSTGRES_PASSWORD=pg-secret-001",
+                "OMNI_AGENT_JWT_SECRET=jwt-secret-001",
+                "OMNI_AGENT_ADMIN_USERNAME=operator",
+                "OMNI_AGENT_ADMIN_PASSWORD=admin-pass-001",
+                "OMNI_AGENT_DEVICE_KEYS=device-alpha=device-secret",
+                "OMNI_AGENT_DEVICE_ID=device-alpha",
+                "OMNI_AGENT_DEVICE_KEY=device-secret",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    env = os.environ | {
+        "JARVISCTL_ENV_FILE": str(env_path),
+        "JARVISCTL_ENV_TEMPLATE": str(template_path),
+        "TERM": "dumb",
+    }
+    result = subprocess.run(
+        [str(JARVISCTL_PATH), "config", "dashboard"],
+        text=True,
+        capture_output=True,
+        cwd=PROJECT_ROOT,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    rendered = env_path.read_text(encoding="utf-8")
+    assert "GATEWAY_DOCKERFILE=gateway/Dockerfile.cn" in rendered
+    assert "CLIENT_DOCKERFILE=client/Dockerfile.cn" in rendered
+    assert "DASHBOARD_DOCKERFILE=dashboard/Dockerfile.cn" in rendered
+    assert "APT_MIRROR_HOST=mirrors.tuna.tsinghua.edu.cn" in rendered
+    assert "PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple" in rendered
+    assert "PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn" in rendered
+    assert "DASHBOARD_NPM_REGISTRY=https://registry.npmmirror.com" in rendered
 
 
 def test_fastapi_requirement_uses_mirror_friendly_lower_bound():

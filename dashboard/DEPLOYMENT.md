@@ -62,6 +62,7 @@ docker compose up --build -d
 ./jarvisctl deploy dashboard
 ./jarvisctl deploy client
 ./jarvisctl deploy
+DEPLOY_NETWORK_PROFILE=cn ./jarvisctl deploy dashboard
 ```
 
 其中 `./jarvisctl deploy dashboard` 会执行：
@@ -69,6 +70,15 @@ docker compose up --build -d
 ```bash
 docker compose up -d --build postgres gateway dashboard
 ```
+
+如果是国内网络，推荐把 `.env` 里的 `DEPLOY_NETWORK_PROFILE=cn`。脚本会自动切换：
+
+- `gateway/Dockerfile.cn`
+- `client/Dockerfile.cn`
+- `dashboard/Dockerfile.cn`
+- Dashboard npm registry: `https://registry.npmmirror.com`
+
+但基础镜像下载仍依赖宿主机 Docker 自身的 registry mirror；如果服务器拉取 `node` / `nginx` / `python` / `postgres` 很慢，需要同时配置 Docker daemon 镜像加速。
 
 其中：
 

@@ -62,11 +62,29 @@ def test_gateway_china_dockerfile_uses_cn_mirrors():
     assert "GATEWAY_DOCKERFILE=gateway/Dockerfile" in env_example
 
 
+def test_dashboard_china_dockerfile_uses_cn_registry_and_compose_support():
+    dashboard_dockerfile = _read("dashboard/Dockerfile.cn")
+    root_readme = _read("README.md")
+    compose = _read("docker-compose.yml")
+    env_example = _read(".env.example")
+
+    assert "ARG NPM_REGISTRY=https://registry.npmmirror.com" in dashboard_dockerfile
+    assert 'npm config set registry "${NPM_REGISTRY}"' in dashboard_dockerfile
+    assert "npm ci" in dashboard_dockerfile
+    assert "dashboard/Dockerfile.cn" in root_readme
+    assert "${DASHBOARD_DOCKERFILE:-dashboard/Dockerfile}" in compose
+    assert 'NPM_REGISTRY: ${DASHBOARD_NPM_REGISTRY:-}' in compose
+    assert "DASHBOARD_DOCKERFILE=dashboard/Dockerfile" in env_example
+    assert "DASHBOARD_NPM_REGISTRY=" in env_example
+
+
 def test_dashboard_container_is_built_from_repo_sources():
     dockerfile = _read("dashboard/Dockerfile")
     nginx_conf = _read("dashboard/nginx.conf")
 
     assert "FROM node:" in dockerfile
+    assert "ARG NPM_REGISTRY=" in dockerfile
+    assert 'if [ -n "${NPM_REGISTRY}" ]; then npm config set registry "${NPM_REGISTRY}"; fi' in dockerfile
     assert "npm ci" in dockerfile
     assert "npm run build" in dockerfile
     assert "FROM nginx:" in dockerfile

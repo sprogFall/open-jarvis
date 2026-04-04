@@ -16,6 +16,24 @@ ENV_TEMPLATE_FILE = ROOT / ".env.example"
 FULL_STACK_SERVICES = ("postgres", "gateway", "client", "dashboard")
 RUNTIME_SERVICES = ("gateway", "client", "dashboard")
 VALID_TARGETS = ("gateway", "client", "dashboard")
+CN_PROFILE_DEFAULTS = {
+    "GATEWAY_DOCKERFILE": "gateway/Dockerfile.cn",
+    "CLIENT_DOCKERFILE": "client/Dockerfile.cn",
+    "DASHBOARD_DOCKERFILE": "dashboard/Dockerfile.cn",
+    "APT_MIRROR_HOST": "mirrors.tuna.tsinghua.edu.cn",
+    "PIP_INDEX_URL": "https://pypi.tuna.tsinghua.edu.cn/simple",
+    "PIP_TRUSTED_HOST": "pypi.tuna.tsinghua.edu.cn",
+    "DASHBOARD_NPM_REGISTRY": "https://registry.npmmirror.com",
+}
+GLOBAL_PROFILE_DEFAULTS = {
+    "GATEWAY_DOCKERFILE": "gateway/Dockerfile",
+    "CLIENT_DOCKERFILE": "client/Dockerfile",
+    "DASHBOARD_DOCKERFILE": "dashboard/Dockerfile",
+    "APT_MIRROR_HOST": "",
+    "PIP_INDEX_URL": "",
+    "PIP_TRUSTED_HOST": "",
+    "DASHBOARD_NPM_REGISTRY": "",
+}
 
 PLACEHOLDER_DEFAULTS = {
     "POSTGRES_PASSWORD": "jarvis",
@@ -136,6 +154,26 @@ def resolve_deploy_services(targets: tuple[str, ...] | list[str] | None = None) 
     return tuple(services)
 
 
+def apply_network_profile_defaults(
+    effective: dict[str, str], current: Mapping[str, str] | None = None
+) -> dict[str, str]:
+    profile = effective.get("DEPLOY_NETWORK_PROFILE", "").strip() or "global"
+    if profile not in {"global", "cn"}:
+        profile = "global"
+    effective["DEPLOY_NETWORK_PROFILE"] = profile
+
+    source = dict(current or {})
+    defaults = CN_PROFILE_DEFAULTS if profile == "cn" else GLOBAL_PROFILE_DEFAULTS
+    inverse_defaults = GLOBAL_PROFILE_DEFAULTS if profile == "cn" else CN_PROFILE_DEFAULTS
+
+    for key, default_value in defaults.items():
+        existing = effective.get(key, "")
+        current_value = source.get(key, "")
+        if not current_value or existing == inverse_defaults[key] or existing == default_value:
+            effective[key] = default_value
+    return effective
+
+
 def parse_env_text(text: str) -> dict[str, str]:
     values: dict[str, str] = {}
     for raw_line in text.splitlines():
@@ -177,6 +215,7 @@ def build_effective_env(
 ) -> dict[str, str]:
     effective: dict[str, str] = dict(template or {})
     effective.update(dict(current))
+    effective = apply_network_profile_defaults(effective, current=current)
 
     raw_registry = effective.get("OMNI_AGENT_DEVICE_KEYS", "")
     try:

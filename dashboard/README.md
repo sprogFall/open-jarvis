@@ -71,6 +71,7 @@ docker compose up --build -d dashboard gateway
 ```bash
 ./jarvisctl
 ./jarvisctl deploy dashboard
+DEPLOY_NETWORK_PROFILE=cn ./jarvisctl deploy dashboard
 ```
 
 默认访问：

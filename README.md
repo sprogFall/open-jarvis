@@ -49,8 +49,8 @@ npm run dev
 # 1. 准备环境变量
 cp .env.example .env
 # 至少修改 JWT、管理员密码、设备密钥、数据库密码
-# 国内网络可把 GATEWAY_DOCKERFILE / CLIENT_DOCKERFILE
-# 改成 gateway/Dockerfile.cn / client/Dockerfile.cn
+# 国内网络推荐把 DEPLOY_NETWORK_PROFILE 改成 cn
+# 脚本会自动切到 gateway/client/dashboard 的加速构建链路
 
 # 2. 构建并启动全部容器
 docker compose up --build -d
@@ -83,6 +83,7 @@ docker compose logs -f gateway client dashboard
 - 自动把填写结果回写到 `.env`
 - 自动同步 `OMNI_AGENT_DEVICE_KEYS` 与 Client 的 `OMNI_AGENT_DEVICE_ID / OMNI_AGENT_DEVICE_KEY`
 - 按需部署 `gateway`、`client`、`dashboard` 任意组合，或一键全量部署
+- 支持 `DEPLOY_NETWORK_PROFILE=cn`，自动切到国内网络加速版 Dockerfile 与 npm/pip/apt 镜像配置
 
 也可以直接执行单条命令：
 
@@ -95,6 +96,10 @@ docker compose logs -f gateway client dashboard
 ./jarvisctl status dashboard    # 查看 dashboard 对应服务状态
 ./jarvisctl logs client         # 跟踪 client 日志
 ./jarvisctl stop gateway        # 停止 gateway 相关服务
+
+# 国内网络
+sed -i 's/^DEPLOY_NETWORK_PROFILE=.*/DEPLOY_NETWORK_PROFILE=cn/' .env
+./jarvisctl deploy
 ```
 
 ---
@@ -109,11 +114,17 @@ docker compose logs -f gateway client dashboard
 | `POSTGRES_USER` | `jarvis` | Compose 内置 PostgreSQL 用户名 |
 | `POSTGRES_PASSWORD` | `jarvis` | Compose 内置 PostgreSQL 密码，生产环境务必修改 |
 | `DATABASE_URL` | 空 | 留空时自动回退到 Compose 内置 PostgreSQL；也可显式改为外部 PostgreSQL 连接串 |
+| `DEPLOY_NETWORK_PROFILE` | `global` | 部署网络档位；设为 `cn` 时，脚本会自动切到国内镜像加速链路 |
 | `GATEWAY_PORT` | `8000` | Gateway 宿主机映射端口 |
 | `DASHBOARD_PORT` | `8080` | Dashboard 宿主机映射端口 |
 | `VITE_GATEWAY_BASE_URL` | `/jarvis/api` | Dashboard 构建时写入的 API 基地址 |
 | `GATEWAY_DOCKERFILE` | `gateway/Dockerfile` | Compose 构建 Gateway 时使用的 Dockerfile，国内网络可切换为 `gateway/Dockerfile.cn` |
 | `CLIENT_DOCKERFILE` | `client/Dockerfile` | Compose 构建 Client 时使用的 Dockerfile，国内网络可切换为 `client/Dockerfile.cn` |
+| `DASHBOARD_DOCKERFILE` | `dashboard/Dockerfile` | Compose 构建 Dashboard 时使用的 Dockerfile，国内网络可切换为 `dashboard/Dockerfile.cn` |
+| `APT_MIRROR_HOST` | 空 | `.cn` Dockerfile 使用的 apt 镜像域名；`DEPLOY_NETWORK_PROFILE=cn` 时默认写入清华镜像 |
+| `PIP_INDEX_URL` | 空 | `.cn` Dockerfile 使用的 pip 镜像地址；`DEPLOY_NETWORK_PROFILE=cn` 时默认写入清华镜像 |
+| `PIP_TRUSTED_HOST` | 空 | `.cn` Dockerfile 使用的 pip trusted host；`DEPLOY_NETWORK_PROFILE=cn` 时自动补全 |
+| `DASHBOARD_NPM_REGISTRY` | 空 | Dashboard 构建使用的 npm registry；`DEPLOY_NETWORK_PROFILE=cn` 时默认写入 `https://registry.npmmirror.com` |
 | `OMNI_AGENT_JWT_SECRET` | `change-me-change-me-change-me-1234` | JWT 签名密钥，生产环境务必修改 |
 | `OMNI_AGENT_ADMIN_USERNAME` | `operator` | 管理员账号，用于登录 Dashboard 和 App |
 | `OMNI_AGENT_ADMIN_PASSWORD` | `passw0rd` | 管理员密码，生产环境务必修改 |
@@ -324,13 +335,15 @@ cd app && flutter test
 - Gateway 与 Client 都会只读挂载整个仓库到 `/workspace`，供文件系统技能访问
 - Gateway 与 Client 都挂载 `/var/run/docker.sock`，以便 Docker 技能执行容器查询与重启
 - `gateway_data`、`client_data`、`postgres_data` 三个 volume 会持久化审批状态、技能归档、checkpoint 与数据库
-- 国内网络可把 `.env` 里的 `CLIENT_DOCKERFILE` 改成 `client/Dockerfile.cn`，切到内置的 apt/pip 镜像加速版
+- 国内网络推荐把 `.env` 里的 `DEPLOY_NETWORK_PROFILE` 改成 `cn`；脚本会自动切到 `gateway/Dockerfile.cn`、`client/Dockerfile.cn`、`dashboard/Dockerfile.cn`
+- `gateway/client` 的 `.cn` Dockerfile` 使用清华 `apt/pip` 镜像，Dashboard 的 `.cn` Dockerfile 使用 `https://registry.npmmirror.com`
+- 基础镜像拉取仍由宿主机 Docker 负责；如果 `python:3.11-slim`、`node:20-alpine`、`nginx:1.27-alpine` 或 `postgres:16-alpine` 拉取缓慢，需在服务器 Docker daemon 上额外配置 registry mirror
 - 若需接入外部 PostgreSQL，只需在 `.env` 中显式设置 `DATABASE_URL`
 
 示例：
 
 ```bash
-CLIENT_DOCKERFILE=client/Dockerfile.cn docker compose build client
+DEPLOY_NETWORK_PROFILE=cn ./jarvisctl deploy
 ```
 
 ### 健康检查

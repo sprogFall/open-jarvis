@@ -27,6 +27,10 @@ POSTGRES_PASSWORD_DEFAULT="jarvis"
 JWT_SECRET_DEFAULT="change-me-change-me-change-me-1234"
 ADMIN_PASSWORD_DEFAULT="passw0rd"
 DEVICE_KEY_DEFAULT="device-secret"
+CN_APT_MIRROR_HOST="mirrors.tuna.tsinghua.edu.cn"
+CN_PIP_INDEX_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
+CN_PIP_TRUSTED_HOST="pypi.tuna.tsinghua.edu.cn"
+CN_NPM_REGISTRY="https://registry.npmmirror.com"
 
 TEMPLATE_LINES=()
 declare -A TEMPLATE_VALUES=()
@@ -45,6 +49,7 @@ COMPOSE_CMD=()
 PROMPT_RESULT=""
 PROMPT_SKIPPED="0"
 REQUESTED_TARGET_ARGS=()
+REQUESTED_NETWORK_PROFILE=""
 
 trim() {
   local value="${1-}"
@@ -121,6 +126,63 @@ resolve_deploy_services() {
   fi
   if array_contains dashboard "${TARGETS[@]}"; then
     RESOLVED_SERVICES+=(dashboard)
+  fi
+}
+
+apply_network_profile_defaults() {
+  local profile
+  profile="$(trim "${EFFECTIVE_VALUES[DEPLOY_NETWORK_PROFILE]-}")"
+  [[ -n "$profile" ]] || profile="global"
+  case "$profile" in
+    global|cn) ;;
+    *) profile="global" ;;
+  esac
+  EFFECTIVE_VALUES[DEPLOY_NETWORK_PROFILE]="$profile"
+
+  if [[ "$profile" == "cn" ]]; then
+    if [[ -z "${ENV_VALUES[GATEWAY_DOCKERFILE]-}" || "${EFFECTIVE_VALUES[GATEWAY_DOCKERFILE]-}" == "gateway/Dockerfile" || "${EFFECTIVE_VALUES[GATEWAY_DOCKERFILE]-}" == "gateway/Dockerfile.cn" ]]; then
+      EFFECTIVE_VALUES[GATEWAY_DOCKERFILE]="gateway/Dockerfile.cn"
+    fi
+    if [[ -z "${ENV_VALUES[CLIENT_DOCKERFILE]-}" || "${EFFECTIVE_VALUES[CLIENT_DOCKERFILE]-}" == "client/Dockerfile" || "${EFFECTIVE_VALUES[CLIENT_DOCKERFILE]-}" == "client/Dockerfile.cn" ]]; then
+      EFFECTIVE_VALUES[CLIENT_DOCKERFILE]="client/Dockerfile.cn"
+    fi
+    if [[ -z "${ENV_VALUES[DASHBOARD_DOCKERFILE]-}" || "${EFFECTIVE_VALUES[DASHBOARD_DOCKERFILE]-}" == "dashboard/Dockerfile" || "${EFFECTIVE_VALUES[DASHBOARD_DOCKERFILE]-}" == "dashboard/Dockerfile.cn" ]]; then
+      EFFECTIVE_VALUES[DASHBOARD_DOCKERFILE]="dashboard/Dockerfile.cn"
+    fi
+    if [[ -z "${ENV_VALUES[APT_MIRROR_HOST]-}" || "${EFFECTIVE_VALUES[APT_MIRROR_HOST]-}" == "$CN_APT_MIRROR_HOST" ]]; then
+      EFFECTIVE_VALUES[APT_MIRROR_HOST]="$CN_APT_MIRROR_HOST"
+    fi
+    if [[ -z "${ENV_VALUES[PIP_INDEX_URL]-}" || "${EFFECTIVE_VALUES[PIP_INDEX_URL]-}" == "$CN_PIP_INDEX_URL" ]]; then
+      EFFECTIVE_VALUES[PIP_INDEX_URL]="$CN_PIP_INDEX_URL"
+    fi
+    if [[ -z "${ENV_VALUES[PIP_TRUSTED_HOST]-}" || "${EFFECTIVE_VALUES[PIP_TRUSTED_HOST]-}" == "$CN_PIP_TRUSTED_HOST" ]]; then
+      EFFECTIVE_VALUES[PIP_TRUSTED_HOST]="$CN_PIP_TRUSTED_HOST"
+    fi
+    if [[ -z "${ENV_VALUES[DASHBOARD_NPM_REGISTRY]-}" || "${EFFECTIVE_VALUES[DASHBOARD_NPM_REGISTRY]-}" == "$CN_NPM_REGISTRY" ]]; then
+      EFFECTIVE_VALUES[DASHBOARD_NPM_REGISTRY]="$CN_NPM_REGISTRY"
+    fi
+  else
+    if [[ -z "${ENV_VALUES[GATEWAY_DOCKERFILE]-}" || "${EFFECTIVE_VALUES[GATEWAY_DOCKERFILE]-}" == "gateway/Dockerfile.cn" ]]; then
+      EFFECTIVE_VALUES[GATEWAY_DOCKERFILE]="gateway/Dockerfile"
+    fi
+    if [[ -z "${ENV_VALUES[CLIENT_DOCKERFILE]-}" || "${EFFECTIVE_VALUES[CLIENT_DOCKERFILE]-}" == "client/Dockerfile.cn" ]]; then
+      EFFECTIVE_VALUES[CLIENT_DOCKERFILE]="client/Dockerfile"
+    fi
+    if [[ -z "${ENV_VALUES[DASHBOARD_DOCKERFILE]-}" || "${EFFECTIVE_VALUES[DASHBOARD_DOCKERFILE]-}" == "dashboard/Dockerfile.cn" ]]; then
+      EFFECTIVE_VALUES[DASHBOARD_DOCKERFILE]="dashboard/Dockerfile"
+    fi
+    if [[ -z "${ENV_VALUES[APT_MIRROR_HOST]-}" || "${EFFECTIVE_VALUES[APT_MIRROR_HOST]-}" == "$CN_APT_MIRROR_HOST" ]]; then
+      EFFECTIVE_VALUES[APT_MIRROR_HOST]=""
+    fi
+    if [[ -z "${ENV_VALUES[PIP_INDEX_URL]-}" || "${EFFECTIVE_VALUES[PIP_INDEX_URL]-}" == "$CN_PIP_INDEX_URL" ]]; then
+      EFFECTIVE_VALUES[PIP_INDEX_URL]=""
+    fi
+    if [[ -z "${ENV_VALUES[PIP_TRUSTED_HOST]-}" || "${EFFECTIVE_VALUES[PIP_TRUSTED_HOST]-}" == "$CN_PIP_TRUSTED_HOST" ]]; then
+      EFFECTIVE_VALUES[PIP_TRUSTED_HOST]=""
+    fi
+    if [[ -z "${ENV_VALUES[DASHBOARD_NPM_REGISTRY]-}" || "${EFFECTIVE_VALUES[DASHBOARD_NPM_REGISTRY]-}" == "$CN_NPM_REGISTRY" ]]; then
+      EFFECTIVE_VALUES[DASHBOARD_NPM_REGISTRY]=""
+    fi
   fi
 }
 
@@ -226,6 +288,7 @@ build_effective_values() {
   for key in "${!ENV_VALUES[@]}"; do
     EFFECTIVE_VALUES["$key"]="${ENV_VALUES[$key]}"
   done
+  apply_network_profile_defaults
 
   raw_registry="${EFFECTIVE_VALUES[OMNI_AGENT_DEVICE_KEYS]-}"
   parse_device_registry "$raw_registry" || {
@@ -526,6 +589,10 @@ run_config_wizard() {
   local target_args=("$@")
   SKIPPED_DEFAULT_KEYS=()
   load_state
+  if [[ -n "$REQUESTED_NETWORK_PROFILE" ]]; then
+    ENV_VALUES[DEPLOY_NETWORK_PROFILE]="$REQUESTED_NETWORK_PROFILE"
+    build_effective_values
+  fi
   print_header
   echo "配置文件：$ENV_FILE"
   if [[ ! -f "$ENV_FILE" ]]; then
@@ -657,6 +724,30 @@ prompt_for_targets() {
   done
 }
 
+prompt_for_network_profile() {
+  local current_profile selection
+  current_profile="$(trim "${EFFECTIVE_VALUES[DEPLOY_NETWORK_PROFILE]-global}")"
+  [[ -n "$current_profile" ]] || current_profile="global"
+  while true; do
+    printf '请输入网络档位（global/cn，空=沿用 %s）: ' "$current_profile"
+    read -r selection || return 130
+    selection="$(trim "$selection")"
+    if [[ -z "$selection" ]]; then
+      REQUESTED_NETWORK_PROFILE="$current_profile"
+      return 0
+    fi
+    case "$selection" in
+      global|cn)
+        REQUESTED_NETWORK_PROFILE="$selection"
+        return 0
+        ;;
+      *)
+        echo "网络档位无效，请输入 global 或 cn。"
+        ;;
+    esac
+  done
+}
+
 show_menu() {
   load_state
   collect_config_issues
@@ -686,14 +777,20 @@ run_menu() {
     case "$choice" in
       1)
         prompt_for_targets || return 130
+        load_state
+        prompt_for_network_profile || return 130
         run_config_wizard "${REQUESTED_TARGET_ARGS[@]}"
+        REQUESTED_NETWORK_PROFILE=""
         echo
         ;;
       2)
         prompt_for_targets || return 130
+        load_state
+        prompt_for_network_profile || return 130
         run_config_wizard "${REQUESTED_TARGET_ARGS[@]}"
         run_compose_action deploy "${REQUESTED_TARGET_ARGS[@]}"
         print_access_summary "${REQUESTED_TARGET_ARGS[@]}"
+        REQUESTED_NETWORK_PROFILE=""
         return 0
         ;;
       3)
@@ -758,6 +855,10 @@ examples:
   ./jarvisctl deploy gateway
   ./jarvisctl deploy dashboard
   ./jarvisctl logs client
+
+network profile:
+  在 .env 中设置 DEPLOY_NETWORK_PROFILE=cn
+  脚本会自动切到 gateway/client/dashboard 的国内加速构建链路
 EOF
     ;;
   *)
