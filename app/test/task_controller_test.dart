@@ -134,6 +134,60 @@ class RestoreGatewayApi extends FakeGatewayApi {
   }
 }
 
+class ExpiringTokenGatewayApi extends FakeGatewayApi {
+  String? lastLoginBaseUrl;
+  String? lastLoginUsername;
+  String? lastLoginPassword;
+
+  @override
+  Future<String> login({
+    required String baseUrl,
+    required String username,
+    required String password,
+  }) async {
+    lastLoginBaseUrl = baseUrl;
+    lastLoginUsername = username;
+    lastLoginPassword = password;
+    return 'fresh-token';
+  }
+
+  @override
+  Future<List<DeviceRecord>> fetchDevices({
+    required String baseUrl,
+    required String token,
+  }) async {
+    if (token != 'fresh-token') {
+      throw StateError(
+        'Gateway request failed: 401 {"detail":"Invalid token"}',
+      );
+    }
+    return super.fetchDevices(baseUrl: baseUrl, token: token);
+  }
+
+  @override
+  Future<List<TaskRecord>> fetchPendingApprovals({
+    required String baseUrl,
+    required String token,
+  }) async {
+    if (token != 'fresh-token') {
+      throw StateError(
+        'Gateway request failed: 401 {"detail":"Invalid token"}',
+      );
+    }
+    return super.fetchPendingApprovals(baseUrl: baseUrl, token: token);
+  }
+}
+
+class OfflineGatewayApi extends FakeGatewayApi {
+  @override
+  Future<List<DeviceRecord>> fetchDevices({
+    required String baseUrl,
+    required String token,
+  }) {
+    throw StateError('Gateway request failed: network unreachable');
+  }
+}
+
 class MultiDeviceGatewayApi extends FakeGatewayApi {
   @override
   Future<List<DeviceRecord>> fetchDevices({
@@ -308,5 +362,59 @@ void main() {
     await restoredController.restoreSavedSession();
 
     expect(restoredController.preferredDeviceId, 'device-beta');
+  });
+
+  test(
+    'restore re-authenticates with saved password when persisted token expired',
+    () async {
+      final store = FakeConnectionSessionStore(
+        session: const ConnectionSession(
+          baseUrl: 'http://10.0.0.8:8000',
+          username: 'root',
+          password: 'secret',
+          token: 'expired-token',
+        ),
+      );
+      final api = ExpiringTokenGatewayApi();
+      final socket = FakeGatewaySocket();
+      final controller = TaskController(
+        api: api,
+        socket: socket,
+        sessionStore: store,
+      );
+
+      await controller.restoreSavedSession();
+
+      expect(controller.status, ConnectionStatus.connected);
+      expect(controller.token, 'fresh-token');
+      expect(socket.connectedBaseUrl, 'http://10.0.0.8:8000');
+      expect(socket.connectedToken, 'fresh-token');
+      expect(api.lastLoginBaseUrl, 'http://10.0.0.8:8000');
+      expect(api.lastLoginUsername, 'root');
+      expect(api.lastLoginPassword, 'secret');
+      expect(store.session?.token, 'fresh-token');
+    },
+  );
+
+  test('restore keeps saved token after transient reconnect failure', () async {
+    final store = FakeConnectionSessionStore(
+      session: const ConnectionSession(
+        baseUrl: 'http://10.0.0.8:8000',
+        username: 'root',
+        token: 'jwt-token',
+      ),
+    );
+    final controller = TaskController(
+      api: OfflineGatewayApi(),
+      socket: FakeGatewaySocket(),
+      sessionStore: store,
+    );
+
+    await controller.restoreSavedSession();
+
+    expect(controller.status, ConnectionStatus.failed);
+    expect(store.session?.token, 'jwt-token');
+    expect(store.session?.baseUrl, 'http://10.0.0.8:8000');
+    expect(store.session?.username, 'root');
   });
 }

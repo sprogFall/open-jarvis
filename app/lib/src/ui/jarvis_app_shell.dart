@@ -38,6 +38,7 @@ class _JarvisAppShellState extends State<JarvisAppShell> {
     super.initState();
     _baseUrlController.text = controller.savedBaseUrl ?? _defaultBaseUrl;
     _usernameController.text = controller.savedUsername ?? _defaultUsername;
+    _passwordController.text = controller.savedPassword ?? '';
     _selectedDeviceId = controller.preferredDeviceId;
   }
 
