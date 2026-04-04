@@ -32,7 +32,10 @@
   .metric-strip,
   .system-grid,
   .detail-grid,
-  .inline-metadata {
+  .inline-metadata,
+  .prompt-grid,
+  .chat-shell,
+  .chat-layout {
     grid-template-columns: 1fr 1fr;
   }
 }
@@ -42,22 +45,31 @@
   .poster-grid,
   .system-grid,
   .detail-grid,
-  .inline-metadata {
+  .inline-metadata,
+  .prompt-grid,
+  .chat-shell,
+  .chat-layout {
     grid-template-columns: 1fr;
   }
 
   .workspace-header,
   .panel-head,
   .tasks-head,
-  .sidebar-footer {
+  .sidebar-footer,
+  .chat-hero {
     align-items: flex-start;
     flex-direction: column;
   }
 
   .task-filters,
   .row-actions,
-  .header-actions {
+  .header-actions,
+  .chat-prompt-list {
     width: 100%;
+  }
+
+  .chat-composer-head {
+    grid-template-columns: 1fr;
   }
 
   .ghost-button,
@@ -75,8 +87,19 @@
     width: 100vw;
     border-radius: 1.25rem 1.25rem 0 0;
     min-height: auto;
-    max-height: 92vh;
+    max-height: calc(100vh - 1rem);
     margin-top: auto;
-    overflow-y: auto;
+    overflow: hidden;
+  }
+
+  .chat-rail {
+    position: static;
+    max-height: none;
+  }
+
+  .composer-actions,
+  .chat-actions,
+  .prompt-rail {
+    width: 100%;
   }
 }

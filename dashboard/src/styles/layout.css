@@ -157,16 +157,23 @@
   inset: 0;
   display: flex;
   justify-content: flex-end;
+  padding: 1rem;
+  overflow-y: auto;
   background: rgba(2, 7, 12, 0.62);
   backdrop-filter: blur(10px);
+  z-index: 40;
 }
 
 .sheet-panel {
   width: min(34rem, 100vw);
   min-height: 100vh;
+  max-height: 100vh;
   padding: 1.25rem;
   border-radius: 1.5rem 0 0 1.5rem;
   animation: slide-in 180ms ease;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .sheet-header {
@@ -180,4 +187,7 @@
 
 .sheet-body {
   padding-top: 1rem;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }

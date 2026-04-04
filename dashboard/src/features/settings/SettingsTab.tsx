@@ -1,11 +1,14 @@
 import type { FormEvent } from "react";
 
-import type { Device, SystemInfo } from "../../types";
+import type { AIConfigSummary, Device, SystemInfo } from "../../types";
 import type { DeviceAiForm, GatewayAiForm } from "../../app/model";
+import { formatAiSource } from "../../lib/format";
 
 type SettingsTabProps = {
   systemInfo: SystemInfo | null;
   devices: Device[];
+  gatewayAiSummary: AIConfigSummary | null;
+  deviceAiSummary: AIConfigSummary | null;
   gatewayAiForm: GatewayAiForm;
   gatewayAiError: string | null;
   deviceAiForm: DeviceAiForm;
@@ -21,6 +24,8 @@ type SettingsTabProps = {
 export function SettingsTab({
   systemInfo,
   devices,
+  gatewayAiSummary,
+  deviceAiSummary,
   gatewayAiForm,
   gatewayAiError,
   deviceAiForm,
@@ -65,17 +70,93 @@ export function SettingsTab({
         <p className="eyebrow">Operations</p>
         <h4>业务配置与账号范围</h4>
         <p>
-          当前控制台聚焦任务流转、设备接入和 Skill 管理。
-          {configuredDevices.length
-            ? ` 已纳管设备：${configuredDevices.join(", ")}。`
-            : " 当前还没有纳管设备。"}
+          Gateway 配置会作为 CLI 的默认模型来源，只有在设备存在特殊要求时，才需要单独覆盖。
         </p>
       </div>
+
+      <section className="panel panel-stack">
+        <div className="panel-head">
+          <div>
+            <p className="eyebrow">Effective</p>
+            <h4>当前生效配置</h4>
+          </div>
+        </div>
+
+        <div className="system-grid">
+          <article>
+            <span>Gateway 供应商</span>
+            <strong>{gatewayAiSummary?.provider ?? "-"}</strong>
+          </article>
+          <article>
+            <span>Gateway 模型</span>
+            <strong>{gatewayAiSummary?.model ?? "-"}</strong>
+          </article>
+          <article>
+            <span>Gateway Base URL</span>
+            <strong>{gatewayAiSummary?.base_url ?? "-"}</strong>
+          </article>
+          <article>
+            <span>Gateway API Key（掩码）</span>
+            <strong>{gatewayAiSummary?.api_key_masked ?? "-"}</strong>
+          </article>
+        </div>
+
+        <div className="panel panel-nested panel-stack">
+          <div className="panel-head compact">
+            <div>
+              <p className="eyebrow">CLI Effective</p>
+              <h4>CLI 生效摘要</h4>
+            </div>
+          </div>
+          {deviceAiSummary ? (
+            <div className="system-grid">
+              <article>
+                <span>当前设备</span>
+                <strong>{deviceAiSummary.device_id ?? deviceAiForm.device_id}</strong>
+              </article>
+              <article>
+                <span>当前供应商</span>
+                <strong>{deviceAiSummary.provider}</strong>
+              </article>
+              <article>
+                <span>当前模型</span>
+                <strong>{deviceAiSummary.model}</strong>
+              </article>
+              <article>
+                <span>API Key（掩码）</span>
+                <strong>{deviceAiSummary.api_key_masked}</strong>
+              </article>
+            </div>
+          ) : null}
+          {systemInfo?.client_ai.length ? (
+            <div className="assignment-list">
+              {systemInfo.client_ai.map((summary) => (
+                <article key={summary.device_id ?? summary.model} className="assignment-row">
+                  <div>
+                    <strong>{summary.device_id ?? "CLI 设备"}</strong>
+                    <span>{summary.provider} · {summary.model}</span>
+                    <span>
+                      {formatAiSource(summary.source)} · {summary.base_url ?? "默认 Base URL"}
+                    </span>
+                  </div>
+                  <div className="alignment-right">
+                    <span>API Key（掩码）</span>
+                    <strong>{summary.api_key_masked}</strong>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="empty-copy">当前还没有可展示的 CLI 生效配置。</p>
+          )}
+        </div>
+      </section>
+
       <form className="panel panel-stack" onSubmit={onSaveGatewayAiConfig}>
         <div className="panel-head">
           <div>
             <p className="eyebrow">Gateway</p>
-            <h4>Gateway AI 覆盖</h4>
+            <h4>Gateway AI 默认配置</h4>
           </div>
         </div>
         <label className="field">
@@ -114,18 +195,19 @@ export function SettingsTab({
         {gatewayAiError ? <div className="banner-error">{gatewayAiError}</div> : null}
         <div className="panel-head">
           <button className="primary-button" type="submit">
-            保存 Gateway 覆盖
+            保存 Gateway 默认
           </button>
           <button className="ghost-button" onClick={onClearGatewayAiConfig} type="button">
-            清除覆盖
+            清除默认
           </button>
         </div>
       </form>
+
       <form className="panel panel-stack" onSubmit={onSaveDeviceAiConfig}>
         <div className="panel-head">
           <div>
             <p className="eyebrow">CLI</p>
-            <h4>CLI AI 覆盖</h4>
+            <h4>CLI 特殊覆盖</h4>
           </div>
         </div>
         <label className="field">
@@ -142,6 +224,28 @@ export function SettingsTab({
             ))}
           </select>
         </label>
+
+        {deviceAiSummary ? (
+          <div className="system-grid">
+            <article>
+              <span>当前供应商</span>
+              <strong>{deviceAiSummary.provider}</strong>
+            </article>
+            <article>
+              <span>当前模型</span>
+              <strong>{deviceAiSummary.model}</strong>
+            </article>
+            <article>
+              <span>当前来源</span>
+              <strong>{formatAiSource(deviceAiSummary.source)}</strong>
+            </article>
+            <article>
+              <span>API Key（掩码）</span>
+              <strong>{deviceAiSummary.api_key_masked}</strong>
+            </article>
+          </div>
+        ) : null}
+
         <label className="field">
           <span>供应商</span>
           <input

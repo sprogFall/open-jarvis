@@ -22,6 +22,19 @@ function buildUrl(path: string): string {
   return `${gatewayBaseUrl}${path}`;
 }
 
+function buildAbsoluteGatewayUrl(path: string): URL {
+  return new URL(buildUrl(path), window.location.origin);
+}
+
+function toWebSocketUrl(url: URL): string {
+  if (url.protocol === "https:") {
+    url.protocol = "wss:";
+  } else if (url.protocol === "http:") {
+    url.protocol = "ws:";
+  }
+  return url.toString();
+}
+
 async function request<T>(
   path: string,
   init: RequestInit = {},
@@ -54,6 +67,13 @@ async function request<T>(
 
 export const dashboardApi = {
   gatewayBaseUrl,
+  buildWebSocketUrl(path: string, query: Record<string, string> = {}): string {
+    const url = buildAbsoluteGatewayUrl(path);
+    Object.entries(query).forEach(([key, value]) => {
+      url.searchParams.set(key, value);
+    });
+    return toWebSocketUrl(url);
+  },
   login(username: string, password: string): Promise<{ access_token: string }> {
     return request("/auth/login", {
       method: "POST",
@@ -139,6 +159,16 @@ export const dashboardApi = {
       token,
     );
   },
+  createTask(
+    token: string,
+    payload: { device_id?: string; instruction: string },
+  ): Promise<Task> {
+    return request(
+      "/tasks",
+      { method: "POST", body: JSON.stringify(payload) },
+      token,
+    );
+  },
   assignSkill(
     token: string,
     deviceId: string,
@@ -167,6 +197,20 @@ export const dashboardApi = {
     }
     const suffix = params.toString() ? `?${params.toString()}` : "";
     return request(`/dashboard/api/tasks${suffix}`, {}, token);
+  },
+  submitTaskDecision(
+    token: string,
+    taskId: string,
+    approved: boolean,
+  ): Promise<Task> {
+    return request(
+      `/tasks/${taskId}/decision`,
+      {
+        method: "POST",
+        body: JSON.stringify({ approved }),
+      },
+      token,
+    );
   },
   getSystemInfo(token: string): Promise<SystemInfo> {
     return request("/dashboard/api/system", {}, token);

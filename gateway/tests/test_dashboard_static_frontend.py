@@ -85,6 +85,8 @@ def test_agents_document_dashboard_frontend_conventions():
     assert "App.tsx 保持薄" in content
     assert "Dashboard 页面文案必须聚焦当前业务操作与结果反馈" in content
     assert "不要展示实现细节、数据来源限制、环境变量回显策略" in content
+    assert "弹层、抽屉、长表单与长列表必须保证内容完整可见" in content
+    assert "必要时提供内部滚动" in content
 
 
 def test_dashboard_css_is_split_into_style_modules():
@@ -177,9 +179,22 @@ def test_dashboard_settings_exposes_write_only_ai_override_entrypoints():
     )
     api = (dashboard_root / "api.ts").read_text(encoding="utf-8")
 
-    assert "Gateway AI 覆盖" in settings_tab
-    assert "CLI AI 覆盖" in settings_tab
+    assert "Gateway AI 默认配置" in settings_tab
+    assert "CLI 特殊覆盖" in settings_tab
+    assert "当前生效配置" in settings_tab
+    assert "API Key（掩码）" in settings_tab
     assert "saveGatewayAiConfig" in controller
     assert "saveDeviceAiConfig" in controller
     assert "/dashboard/api/ai/gateway" in api
     assert "/dashboard/api/ai/devices/" in api
+
+
+def test_dashboard_sheet_styles_keep_long_content_fully_visible():
+    dashboard_root = Path(__file__).resolve().parents[2] / "dashboard" / "src"
+    layout_css = (dashboard_root / "styles" / "layout.css").read_text(encoding="utf-8")
+
+    assert ".sheet-panel" in layout_css
+    assert "max-height: 100vh" in layout_css
+    assert "overflow: hidden" in layout_css
+    assert ".sheet-body" in layout_css
+    assert "overflow-y: auto" in layout_css

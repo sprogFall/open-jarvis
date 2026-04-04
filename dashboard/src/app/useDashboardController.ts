@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 
 import { dashboardApi } from "../api";
@@ -17,12 +17,80 @@ import {
 } from "./model";
 import { getErrorMessage } from "../lib/format";
 import { parseJsonInput } from "../lib/json";
-import type { Device, DeviceSkill, Overview, Skill, SystemInfo, Task } from "../types";
+import type { AIConfigSummary, Device, DeviceSkill, Overview, Skill, SystemInfo, Task } from "../types";
 
 type UseDashboardControllerArgs = {
   token: string;
   onSessionExpired: (message: string) => void;
 };
+
+type ChatTarget = {
+  device_id: string;
+  name: string;
+  type: string;
+  connected: boolean;
+  label: string;
+};
+
+const GATEWAY_LOCAL_DEVICE_ID = "gateway-local";
+
+function mergeTask(current: Task | undefined, incoming: Task): Task {
+  return {
+    ...current,
+    ...incoming,
+    logs: incoming.logs.length ? incoming.logs : current?.logs ?? [],
+  };
+}
+
+function upsertTask(tasks: Task[], incoming: Task): Task[] {
+  const existing = tasks.find((task) => task.task_id === incoming.task_id);
+  const merged = mergeTask(existing, incoming);
+  return [merged, ...tasks.filter((task) => task.task_id !== incoming.task_id)];
+}
+
+function appendTaskLog(tasks: Task[], taskId: string, message: string): Task[] {
+  return tasks.map((task) => (
+    task.task_id === taskId
+      ? { ...task, logs: [...task.logs, message] }
+      : task
+  ));
+}
+
+function buildChatTargets(devices: Device[]): ChatTarget[] {
+  return [
+    {
+      device_id: GATEWAY_LOCAL_DEVICE_ID,
+      name: "Gateway 本机",
+      type: "gateway",
+      connected: true,
+      label: "Gateway 本机",
+    },
+    ...devices
+      .filter((device) => device.type === "cli")
+      .map((device) => ({
+        device_id: device.device_id,
+        name: device.name,
+        type: device.type,
+        connected: device.connected,
+        label: `${device.name} (${device.device_id})`,
+      })),
+  ];
+}
+
+function pickChatTaskId(tasks: Task[], current: string | null): string | null {
+  if (current && tasks.some((task) => task.task_id === current)) {
+    return current;
+  }
+  const awaiting = tasks.find((task) => task.status === "AWAITING_APPROVAL");
+  return awaiting?.task_id ?? tasks[0]?.task_id ?? null;
+}
+
+function pickChatDeviceId(targets: ChatTarget[], current: string): string {
+  if (current && targets.some((target) => target.device_id === current)) {
+    return current;
+  }
+  return targets[0]?.device_id ?? "";
+}
 
 export function useDashboardController({
   token,
@@ -40,6 +108,11 @@ export function useDashboardController({
 
   const [taskStatusFilter, setTaskStatusFilter] = useState("");
   const [taskDeviceFilter, setTaskDeviceFilter] = useState("");
+  const [chatTaskId, setChatTaskId] = useState<string | null>(null);
+  const [chatDeviceId, setChatDeviceId] = useState<string>(GATEWAY_LOCAL_DEVICE_ID);
+  const [chatSocketState, setChatSocketState] = useState<"connecting" | "connected" | "offline">(
+    "offline",
+  );
 
   const [deviceEditorMode, setDeviceEditorMode] = useState<"create" | "edit" | null>(null);
   const [deviceForm, setDeviceForm] = useState<DeviceForm>(createEmptyDeviceForm());
@@ -61,6 +134,15 @@ export function useDashboardController({
 
   const [taskDetail, setTaskDetail] = useState<Task | null>(null);
 
+  const chatTargets = useMemo(() => buildChatTargets(devices), [devices]);
+  const chatTask = tasks.find((task) => task.task_id === chatTaskId) ?? null;
+  const gatewayAiSummary: AIConfigSummary | null = systemInfo?.gateway_ai ?? null;
+  const clientAiSummaries = useMemo(() => {
+    return Object.fromEntries(
+      (systemInfo?.client_ai ?? []).map((summary) => [summary.device_id ?? "", summary]),
+    ) as Record<string, AIConfigSummary>;
+  }, [systemInfo?.client_ai]);
+
   function handleApiError(error: unknown) {
     const message = getErrorMessage(error);
     if (
@@ -72,6 +154,25 @@ export function useDashboardController({
       return;
     }
     setBannerMessage(message);
+  }
+
+  async function refreshSystemInfo() {
+    const nextSystemInfo = await dashboardApi.getSystemInfo(token);
+    setSystemInfo(nextSystemInfo);
+  }
+
+  async function refreshChatData() {
+    const [nextDevices, nextTasks, nextSystemInfo] = await Promise.all([
+      dashboardApi.listDevices(token),
+      dashboardApi.listTasks(token, {}),
+      dashboardApi.getSystemInfo(token),
+    ]);
+    setDevices(nextDevices);
+    setTasks(nextTasks);
+    setSystemInfo(nextSystemInfo);
+    const nextTargets = buildChatTargets(nextDevices);
+    setChatDeviceId((current) => pickChatDeviceId(nextTargets, current));
+    setChatTaskId((current) => pickChatTaskId(nextTasks, current));
   }
 
   useEffect(() => {
@@ -97,6 +198,9 @@ export function useDashboardController({
         setSkills(nextSkills);
         setTasks(nextTasks);
         setSystemInfo(nextSystemInfo);
+        const nextTargets = buildChatTargets(nextDevices);
+        setChatTaskId((current) => pickChatTaskId(nextTasks, current));
+        setChatDeviceId((current) => pickChatDeviceId(nextTargets, current));
         setBannerMessage(null);
       } catch (error) {
         if (!cancelled) {
@@ -116,43 +220,46 @@ export function useDashboardController({
   }, [onSessionExpired, token]);
 
   useEffect(() => {
-    const activeToken = token;
     let cancelled = false;
 
     async function refreshCurrentTab() {
       try {
-        const nextOverview = await dashboardApi.getOverview(activeToken);
+        const nextOverview = await dashboardApi.getOverview(token);
         if (cancelled) {
           return;
         }
         setOverview(nextOverview);
 
+        if (activeTab === "chat") {
+          await refreshChatData();
+        }
+
         if (activeTab === "devices") {
-          const nextDevices = await dashboardApi.listDevices(activeToken);
+          const nextDevices = await dashboardApi.listDevices(token);
           if (!cancelled) {
             setDevices(nextDevices);
+            const nextTargets = buildChatTargets(nextDevices);
+            setChatDeviceId((current) => pickChatDeviceId(nextTargets, current));
           }
         }
 
         if (activeTab === "skills") {
-          const nextSkills = await dashboardApi.listSkills(activeToken);
+          const nextSkills = await dashboardApi.listSkills(token);
           if (!cancelled) {
             setSkills(nextSkills);
           }
         }
 
         if (activeTab === "tasks") {
-          const nextTasks = await dashboardApi.listTasks(activeToken, {
-            status: taskStatusFilter || undefined,
-            device_id: taskDeviceFilter || undefined,
-          });
+          const nextTasks = await dashboardApi.listTasks(token, {});
           if (!cancelled) {
             setTasks(nextTasks);
+            setChatTaskId((current) => pickChatTaskId(nextTasks, current));
           }
         }
 
         if (activeTab === "settings") {
-          const nextSystemInfo = await dashboardApi.getSystemInfo(activeToken);
+          const nextSystemInfo = await dashboardApi.getSystemInfo(token);
           if (!cancelled) {
             setSystemInfo(nextSystemInfo);
           }
@@ -172,7 +279,74 @@ export function useDashboardController({
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [activeTab, onSessionExpired, taskDeviceFilter, taskStatusFilter, token]);
+  }, [activeTab, taskDeviceFilter, taskStatusFilter, token]);
+
+  useEffect(() => {
+    let socket: WebSocket | null = null;
+    let reconnectTimer: number | null = null;
+    let disposed = false;
+
+    const connect = () => {
+      setChatSocketState("connecting");
+      socket = new WebSocket(dashboardApi.buildWebSocketUrl("/ws/app", { token }));
+
+      socket.onopen = () => {
+        if (!disposed) {
+          setChatSocketState("connected");
+        }
+      };
+
+      socket.onmessage = (event) => {
+        const payload = JSON.parse(String(event.data)) as {
+          type?: string;
+          task?: Task;
+          task_id?: string;
+          message?: string;
+        };
+
+        if (payload.type === "TASK_SNAPSHOT" && payload.task) {
+          const incoming = payload.task;
+          setTasks((current) => upsertTask(current, incoming));
+          setTaskDetail((current) => (
+            current?.task_id === incoming.task_id ? mergeTask(current, incoming) : current
+          ));
+          setChatTaskId((current) => current ?? incoming.task_id);
+        }
+
+        if (payload.type === "TASK_LOG" && payload.task_id && payload.message) {
+          setTasks((current) => appendTaskLog(current, payload.task_id!, payload.message!));
+          setTaskDetail((current) => {
+            if (!current || current.task_id !== payload.task_id) {
+              return current;
+            }
+            return { ...current, logs: [...current.logs, payload.message!] };
+          });
+        }
+      };
+
+      socket.onerror = () => {
+        socket?.close();
+      };
+
+      socket.onclose = () => {
+        if (disposed) {
+          return;
+        }
+        setChatSocketState("offline");
+        reconnectTimer = window.setTimeout(connect, 3000);
+      };
+    };
+
+    connect();
+
+    return () => {
+      disposed = true;
+      if (reconnectTimer) {
+        window.clearTimeout(reconnectTimer);
+      }
+      socket?.close();
+    };
+  }, [token]);
 
   async function refreshTab(tab: TabId = activeTab) {
     setRefreshing(true);
@@ -180,22 +354,25 @@ export function useDashboardController({
       if (tab === "overview") {
         setOverview(await dashboardApi.getOverview(token));
       }
+      if (tab === "chat") {
+        await refreshChatData();
+      }
       if (tab === "devices") {
-        setDevices(await dashboardApi.listDevices(token));
+        const nextDevices = await dashboardApi.listDevices(token);
+        setDevices(nextDevices);
+        const nextTargets = buildChatTargets(nextDevices);
+        setChatDeviceId((current) => pickChatDeviceId(nextTargets, current));
       }
       if (tab === "skills") {
         setSkills(await dashboardApi.listSkills(token));
       }
       if (tab === "tasks") {
-        setTasks(
-          await dashboardApi.listTasks(token, {
-            status: taskStatusFilter || undefined,
-            device_id: taskDeviceFilter || undefined,
-          }),
-        );
+        const nextTasks = await dashboardApi.listTasks(token, {});
+        setTasks(nextTasks);
+        setChatTaskId((current) => pickChatTaskId(nextTasks, current));
       }
       if (tab === "settings") {
-        setSystemInfo(await dashboardApi.getSystemInfo(token));
+        await refreshSystemInfo();
       }
       setOverview(await dashboardApi.getOverview(token));
       setBannerMessage(null);
@@ -325,7 +502,7 @@ export function useDashboardController({
     let createdSkillId: string | null = null;
     try {
       if (skillForm.source === "builtin" && skillForm.archive_file) {
-        setSkillFormError("内建 Skill 不支持上传 zip")
+        setSkillFormError("内建 Skill 不支持上传 zip");
         return;
       }
       if (
@@ -457,6 +634,45 @@ export function useDashboardController({
     setTaskDetail(null);
   }
 
+  function selectChatTask(taskId: string | null) {
+    setChatTaskId(taskId);
+  }
+
+  function selectChatDevice(deviceId: string) {
+    setChatDeviceId(deviceId);
+  }
+
+  async function createChatTask(instruction: string) {
+    try {
+      const nextTask = await dashboardApi.createTask(token, {
+        device_id: chatDeviceId || undefined,
+        instruction,
+      });
+      setTasks((current) => upsertTask(current, nextTask));
+      setChatTaskId(nextTask.task_id);
+      setBannerMessage(null);
+    } catch (error) {
+      handleApiError(error);
+      throw error;
+    }
+  }
+
+  async function submitChatDecision(approved: boolean) {
+    if (!chatTaskId) {
+      return;
+    }
+    try {
+      const updatedTask = await dashboardApi.submitTaskDecision(token, chatTaskId, approved);
+      setTasks((current) => upsertTask(current, updatedTask));
+      setTaskDetail((current) => (
+        current?.task_id === updatedTask.task_id ? mergeTask(current, updatedTask) : current
+      ));
+    } catch (error) {
+      handleApiError(error);
+      throw error;
+    }
+  }
+
   async function saveGatewayAiConfig(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setGatewayAiError(null);
@@ -468,7 +684,8 @@ export function useDashboardController({
         base_url: gatewayAiForm.base_url.trim() || undefined,
       });
       setGatewayAiForm(createEmptyGatewayAiForm());
-      setBannerMessage("Gateway AI 覆盖已保存");
+      await refreshSystemInfo();
+      setBannerMessage("Gateway AI 默认配置已保存，CLI 将自动继承");
     } catch (error) {
       setGatewayAiError(getErrorMessage(error));
     }
@@ -479,7 +696,8 @@ export function useDashboardController({
       await dashboardApi.clearGatewayAiConfig(token);
       setGatewayAiForm(createEmptyGatewayAiForm());
       setGatewayAiError(null);
-      setBannerMessage("Gateway AI 覆盖已清除，后续将回退到环境变量");
+      await refreshSystemInfo();
+      setBannerMessage("Gateway AI 默认配置已清除");
     } catch (error) {
       handleApiError(error);
     }
@@ -499,8 +717,10 @@ export function useDashboardController({
         api_key: deviceAiForm.api_key.trim(),
         base_url: deviceAiForm.base_url.trim() || undefined,
       });
-      setDeviceAiForm((current) => ({ ...createEmptyDeviceAiForm(), device_id: current.device_id }));
-      setBannerMessage(`CLI 设备 ${deviceAiForm.device_id} 的 AI 覆盖已保存`);
+      const selectedDeviceId = deviceAiForm.device_id;
+      setDeviceAiForm({ ...createEmptyDeviceAiForm(), device_id: selectedDeviceId });
+      await refreshSystemInfo();
+      setBannerMessage(`CLI 设备 ${selectedDeviceId} 的特殊覆盖已保存`);
     } catch (error) {
       setDeviceAiError(getErrorMessage(error));
     }
@@ -512,10 +732,12 @@ export function useDashboardController({
       return;
     }
     try {
-      await dashboardApi.clearDeviceAiConfig(token, deviceAiForm.device_id);
-      setDeviceAiForm((current) => ({ ...createEmptyDeviceAiForm(), device_id: current.device_id }));
+      const selectedDeviceId = deviceAiForm.device_id;
+      await dashboardApi.clearDeviceAiConfig(token, selectedDeviceId);
+      setDeviceAiForm({ ...createEmptyDeviceAiForm(), device_id: selectedDeviceId });
       setDeviceAiError(null);
-      setBannerMessage(`CLI 设备 ${deviceAiForm.device_id} 的 AI 覆盖已清除`);
+      await refreshSystemInfo();
+      setBannerMessage(`CLI 设备 ${selectedDeviceId} 的特殊覆盖已清除`);
     } catch (error) {
       handleApiError(error);
     }
@@ -530,6 +752,13 @@ export function useDashboardController({
     skills,
     tasks,
     systemInfo,
+    chatTargets,
+    chatTaskId,
+    chatTask,
+    chatDeviceId,
+    chatSocketState,
+    gatewayAiSummary,
+    clientAiSummaries,
     taskStatusFilter,
     taskDeviceFilter,
     deviceEditorMode,
@@ -575,5 +804,11 @@ export function useDashboardController({
     clearDeviceAiConfig,
     openTaskDetail,
     closeTaskDetail,
+    selectChatTask,
+    openChatThread: selectChatTask,
+    selectChatDevice,
+    createChatTask,
+    sendChatInstruction: createChatTask,
+    submitChatDecision,
   };
 }

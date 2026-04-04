@@ -1,6 +1,6 @@
 import type { TaskStatus } from "../types";
 
-export type TabId = "overview" | "devices" | "skills" | "tasks" | "settings";
+export type TabId = "overview" | "chat" | "devices" | "skills" | "tasks" | "settings";
 
 export type DeviceForm = {
   device_id: string;
@@ -43,6 +43,7 @@ export type DeviceAiForm = {
 
 export const tabs: Array<{ id: TabId; label: string; hint: string }> = [
   { id: "overview", label: "概览", hint: "任务与连接状态" },
+  { id: "chat", label: "聊天", hint: "下发任务、审批、日志" },
   { id: "devices", label: "设备", hint: "注册、轮换、分配 Skill" },
   { id: "skills", label: "Skills", hint: "能力目录与配置" },
   { id: "tasks", label: "任务", hint: "任务状态与日志" },
@@ -54,6 +55,7 @@ export const taskStatuses: TaskStatus[] = [
   "RUNNING",
   "AWAITING_APPROVAL",
   "APPROVED",
+  "RESUMING",
   "REJECTED",
   "COMPLETED",
   "FAILED",
@@ -99,3 +101,8 @@ export function createEmptyDeviceAiForm(): DeviceAiForm {
     base_url: "",
   };
 }
+
+export type ChatQuickPrompt = {
+  label: string;
+  prompt: string;
+};

@@ -3,6 +3,7 @@ import { startTransition } from "react";
 import { tabs, type TabId } from "./model";
 import { useDashboardController } from "./useDashboardController";
 import { AssignmentSheet } from "../features/devices/AssignmentSheet";
+import { ChatTab } from "../features/chat/ChatTab";
 import { DeviceEditorSheet } from "../features/devices/DeviceEditorSheet";
 import { DevicesTab } from "../features/devices/DevicesTab";
 import { OverviewTab } from "../features/overview/OverviewTab";
@@ -35,109 +36,131 @@ export function AppShell({
   return (
     <>
       <div className="app-layout">
-      <aside className="sidebar">
-        <div className="sidebar-brand">
-          <p className="eyebrow">OpenJarvis</p>
-          <h1>Dashboard</h1>
-          <p className="muted">任务编排、设备执行、审批闭环</p>
-        </div>
-
-        <nav className="tab-list">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              className={`tab-chip${controller.activeTab === tab.id ? " active" : ""}`}
-              onClick={() => handleTabChange(tab.id)}
-              type="button"
-            >
-              <span>{tab.label}</span>
-              <small>{tab.hint}</small>
-            </button>
-          ))}
-        </nav>
-
-        <div className="sidebar-footer">
-          <div>
-            <span className="live-dot" />
-            <strong>{controller.refreshing ? "同步中" : "在线"}</strong>
+        <aside className="sidebar">
+          <div className="sidebar-brand">
+            <p className="eyebrow">OpenJarvis</p>
+            <h1>Dashboard</h1>
+            <p className="muted">任务编排、设备执行、审批闭环</p>
           </div>
-          <button className="ghost-button" onClick={onLogout} type="button">
-            退出登录
-          </button>
-        </div>
-      </aside>
 
-      <main className="workspace">
-        <header className="workspace-header">
-          <h2>{activeTab?.label}</h2>
-          <div className="header-actions">
-            <button
-              className="ghost-button"
-              onClick={() => void controller.refreshTab()}
-              type="button"
-            >
-              刷新
+          <nav className="tab-list">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                className={`tab-chip${controller.activeTab === tab.id ? " active" : ""}`}
+                onClick={() => handleTabChange(tab.id)}
+                type="button"
+              >
+                <span>{tab.label}</span>
+                <small>{tab.hint}</small>
+              </button>
+            ))}
+          </nav>
+
+          <div className="sidebar-footer">
+            <div>
+              <span className="live-dot" />
+              <strong>{controller.refreshing ? "同步中" : "在线"}</strong>
+            </div>
+            <button className="ghost-button" onClick={onLogout} type="button">
+              退出登录
             </button>
           </div>
-        </header>
+        </aside>
 
-        {controller.bannerMessage ? (
-          <div className="banner-error">{controller.bannerMessage}</div>
-        ) : null}
+        <main className="workspace">
+          <header className="workspace-header">
+            <h2>{activeTab?.label}</h2>
+            <div className="header-actions">
+              <button
+                className="ghost-button"
+                onClick={() => void controller.refreshTab()}
+                type="button"
+              >
+                刷新
+              </button>
+            </div>
+          </header>
 
-        {controller.activeTab === "overview" ? (
-          <OverviewTab overview={controller.overview} />
-        ) : null}
+          {controller.bannerMessage ? (
+            <div className="banner-error">{controller.bannerMessage}</div>
+          ) : null}
 
-        {controller.activeTab === "devices" ? (
-          <DevicesTab
-            devices={controller.devices}
-            onCreate={controller.openDeviceCreate}
-            onEdit={controller.openDeviceEdit}
-            onAssign={controller.openAssignment}
-            onDelete={controller.removeDevice}
-          />
-        ) : null}
+          {controller.activeTab === "overview" ? (
+            <OverviewTab overview={controller.overview} />
+          ) : null}
 
-        {controller.activeTab === "skills" ? (
-          <SkillsTab
-            skills={controller.skills}
-            onCreate={controller.openSkillCreate}
-            onEdit={controller.openSkillEdit}
-            onDelete={controller.removeSkill}
-          />
-        ) : null}
+          {controller.activeTab === "chat" ? (
+            <ChatTab
+              tasks={controller.tasks}
+              selectedTask={controller.chatTask}
+              selectedTaskId={controller.chatTaskId}
+              targets={controller.chatTargets}
+              selectedDeviceId={controller.chatDeviceId}
+              socketState={controller.chatSocketState}
+              gatewayAi={controller.systemInfo?.gateway_ai ?? null}
+              clientAi={controller.systemInfo?.client_ai ?? []}
+              onSelectTask={controller.selectChatTask}
+              onSelectDevice={controller.selectChatDevice}
+              onSendTask={controller.createChatTask}
+              onSubmitDecision={controller.submitChatDecision}
+              onRefresh={() => controller.refreshTab("chat")}
+            />
+          ) : null}
 
-        {controller.activeTab === "tasks" ? (
-          <TasksTab
-            tasks={controller.tasks}
-            devices={controller.devices}
-            taskStatusFilter={controller.taskStatusFilter}
-            taskDeviceFilter={controller.taskDeviceFilter}
-            onStatusFilterChange={controller.setTaskStatusFilter}
-            onDeviceFilterChange={controller.setTaskDeviceFilter}
-            onRefresh={() => controller.refreshTab("tasks")}
-            onSelectTask={controller.openTaskDetail}
-          />
-        ) : null}
+          {controller.activeTab === "devices" ? (
+            <DevicesTab
+              devices={controller.devices}
+              onCreate={controller.openDeviceCreate}
+              onEdit={controller.openDeviceEdit}
+              onAssign={controller.openAssignment}
+              onDelete={controller.removeDevice}
+            />
+          ) : null}
 
-        {controller.activeTab === "settings" ? (
-          <SettingsTab
-            systemInfo={controller.systemInfo}
-            devices={controller.devices}
-            gatewayAiForm={controller.gatewayAiForm}
-            gatewayAiError={controller.gatewayAiError}
-            deviceAiForm={controller.deviceAiForm}
-            deviceAiError={controller.deviceAiError}
-            onGatewayAiChange={controller.patchGatewayAiForm}
-            onDeviceAiChange={controller.patchDeviceAiForm}
-            onSaveGatewayAiConfig={controller.saveGatewayAiConfig}
-            onSaveDeviceAiConfig={controller.saveDeviceAiConfig}
-            onClearGatewayAiConfig={controller.clearGatewayAiConfig}
-            onClearDeviceAiConfig={controller.clearDeviceAiConfig}
-          />
-        ) : null}
-      </main>
+          {controller.activeTab === "skills" ? (
+            <SkillsTab
+              skills={controller.skills}
+              onCreate={controller.openSkillCreate}
+              onEdit={controller.openSkillEdit}
+              onDelete={controller.removeSkill}
+            />
+          ) : null}
+
+          {controller.activeTab === "tasks" ? (
+            <TasksTab
+              tasks={controller.tasks}
+              devices={controller.devices}
+              taskStatusFilter={controller.taskStatusFilter}
+              taskDeviceFilter={controller.taskDeviceFilter}
+              onStatusFilterChange={controller.setTaskStatusFilter}
+              onDeviceFilterChange={controller.setTaskDeviceFilter}
+              onRefresh={() => controller.refreshTab("tasks")}
+              onSelectTask={controller.openTaskDetail}
+            />
+          ) : null}
+
+          {controller.activeTab === "settings" ? (
+            <SettingsTab
+              systemInfo={controller.systemInfo}
+              devices={controller.devices}
+              gatewayAiSummary={controller.gatewayAiSummary}
+              deviceAiSummary={
+                controller.clientAiSummaries[controller.deviceAiForm.device_id] ?? null
+              }
+              gatewayAiForm={controller.gatewayAiForm}
+              gatewayAiError={controller.gatewayAiError}
+              deviceAiForm={controller.deviceAiForm}
+              deviceAiError={controller.deviceAiError}
+              onGatewayAiChange={controller.patchGatewayAiForm}
+              onDeviceAiChange={controller.patchDeviceAiForm}
+              onSaveGatewayAiConfig={controller.saveGatewayAiConfig}
+              onSaveDeviceAiConfig={controller.saveDeviceAiConfig}
+              onClearGatewayAiConfig={controller.clearGatewayAiConfig}
+              onClearDeviceAiConfig={controller.clearDeviceAiConfig}
+            />
+          ) : null}
+        </main>
       </div>
 
       {controller.deviceEditorMode ? (

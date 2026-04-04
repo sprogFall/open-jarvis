@@ -3,6 +3,7 @@ export type TaskStatus =
   | "RUNNING"
   | "AWAITING_APPROVAL"
   | "APPROVED"
+  | "RESUMING"
   | "REJECTED"
   | "COMPLETED"
   | "FAILED";
@@ -72,6 +73,17 @@ export type Overview = {
   task_counts: Record<string, number>;
 };
 
+export type AIConfigSource = "gateway_default" | "device_override" | "environment_fallback";
+
+export type AIConfigSummary = {
+  provider: string;
+  model: string;
+  base_url: string | null;
+  api_key_masked: string;
+  source: AIConfigSource;
+  device_id?: string;
+};
+
 export type SystemInfo = {
   database_url: string;
   jwt_algorithm: string;
@@ -79,4 +91,6 @@ export type SystemInfo = {
   configured_devices: string[];
   dashboard_origins: string[];
   skill_archives_path: string;
+  gateway_ai: AIConfigSummary | null;
+  client_ai: AIConfigSummary[];
 };

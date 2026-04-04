@@ -24,6 +24,16 @@ export function TasksTab({
   onRefresh,
   onSelectTask,
 }: TasksTabProps) {
+  const visibleTasks = tasks.filter((task) => {
+    if (taskStatusFilter && task.status !== taskStatusFilter) {
+      return false;
+    }
+    if (taskDeviceFilter && task.device_id !== taskDeviceFilter) {
+      return false;
+    }
+    return true;
+  });
+
   return (
     <section className="panel">
       <div className="panel-head tasks-head">
@@ -71,7 +81,7 @@ export function TasksTab({
             </tr>
           </thead>
           <tbody>
-            {tasks.map((task) => (
+            {visibleTasks.map((task) => (
               <tr key={task.task_id}>
                 <td>
                   <strong>{task.task_id}</strong>
@@ -93,6 +103,13 @@ export function TasksTab({
                 </td>
               </tr>
             ))}
+            {!visibleTasks.length ? (
+              <tr>
+                <td colSpan={5}>
+                  <p className="empty-copy">当前筛选条件下没有任务。</p>
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>
