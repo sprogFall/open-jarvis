@@ -33,6 +33,7 @@ class TaskController extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   String? get savedBaseUrl => _session?.baseUrl;
   String? get savedUsername => _session?.username;
+  String? get savedPassword => _session?.password;
   String? get preferredDeviceId => _session?.preferredDeviceId;
   List<DeviceRecord> get devices => List<DeviceRecord>.unmodifiable(_devices);
   List<TaskRecord> get tasks => List<TaskRecord>.unmodifiable(_tasks);
@@ -57,9 +58,11 @@ class TaskController extends ChangeNotifier {
     required String username,
     required String password,
   }) async {
+    final resolvedPassword = password.isNotEmpty ? password : null;
     final sessionDraft = ConnectionSession(
       baseUrl: baseUrl,
       username: username,
+      password: resolvedPassword,
       preferredDeviceId: _session?.preferredDeviceId,
     );
     await _saveSession(sessionDraft);
@@ -94,11 +97,21 @@ class TaskController extends ChangeNotifier {
     }
     _session = session;
     final token = session.token;
-    if (token == null || token.isEmpty) {
+    if (token != null && token.isNotEmpty) {
+      final restoredError = await _connectWithToken(session);
+      if (restoredError == null) {
+        return;
+      }
+      if (!_shouldRetryWithPassword(restoredError, session)) {
+        return;
+      }
+    }
+    final password = session.password;
+    if (password == null || password.isEmpty) {
       notifyListeners();
       return;
     }
-    await _connectWithToken(session);
+    await _restoreWithPassword(session, password);
   }
 
   Future<void> refresh() async {
@@ -208,7 +221,7 @@ class TaskController extends ChangeNotifier {
     }
   }
 
-  Future<void> _connectWithToken(
+  Future<Object?> _connectWithToken(
     ConnectionSession session, {
     bool notifyOnStart = true,
   }) async {
@@ -251,15 +264,56 @@ class TaskController extends ChangeNotifier {
       await _clearConnectedState();
       _status = ConnectionStatus.failed;
       _errorMessage = _savedSessionError(error);
-      await _saveSession(session.copyWith(clearToken: true));
+      _session = session;
+      notifyListeners();
+      return error;
     }
 
     notifyListeners();
+    return null;
   }
 
   Future<void> _saveSession(ConnectionSession session) async {
     _session = session;
     await sessionStore.save(session);
+  }
+
+  Future<void> _restoreWithPassword(
+    ConnectionSession session,
+    String password,
+  ) async {
+    _status = ConnectionStatus.connecting;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final token = await api.login(
+        baseUrl: session.baseUrl,
+        username: session.username,
+        password: password,
+      );
+      await _connectWithToken(
+        session.copyWith(password: password, token: token),
+        notifyOnStart: false,
+      );
+    } catch (error) {
+      await _clearConnectedState();
+      _status = ConnectionStatus.failed;
+      _errorMessage = _savedSessionError(error);
+      _session = session.copyWith(password: password);
+      notifyListeners();
+    }
+  }
+
+  bool _shouldRetryWithPassword(Object error, ConnectionSession session) {
+    final password = session.password;
+    if (password == null || password.isEmpty) {
+      return false;
+    }
+    final message = error.toString();
+    return message.contains('401') ||
+        message.contains('403') ||
+        message.contains('missing token');
   }
 
   Future<void> _reconcilePreferredDevice() async {
@@ -286,6 +340,7 @@ class TaskController extends ChangeNotifier {
 
   Future<void> _clearConnectedState() async {
     await socket.disconnect();
+    _baseUrl = null;
     _token = null;
     _devices = const <DeviceRecord>[];
     _tasks = const <TaskRecord>[];
