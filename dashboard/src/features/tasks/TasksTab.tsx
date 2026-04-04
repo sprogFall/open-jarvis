@@ -65,7 +65,7 @@ export function TasksTab({
             ))}
           </select>
           <button className="ghost-button" onClick={() => void onRefresh()} type="button">
-            应用过滤
+            刷新数据
           </button>
         </div>
       </div>

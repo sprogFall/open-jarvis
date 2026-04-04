@@ -49,7 +49,8 @@ npm run dev
 # 1. 准备环境变量
 cp .env.example .env
 # 至少修改 JWT、管理员密码、设备密钥、数据库密码
-# 国内网络可把 CLIENT_DOCKERFILE 改成 client/Dockerfile.cn
+# 国内网络可把 GATEWAY_DOCKERFILE / CLIENT_DOCKERFILE
+# 改成 gateway/Dockerfile.cn / client/Dockerfile.cn
 
 # 2. 构建并启动全部容器
 docker compose up --build -d
@@ -82,6 +83,8 @@ docker compose logs -f gateway client dashboard
 | `GATEWAY_PORT` | `8000` | Gateway 宿主机映射端口 |
 | `DASHBOARD_PORT` | `8080` | Dashboard 宿主机映射端口 |
 | `VITE_GATEWAY_BASE_URL` | `/jarvis/api` | Dashboard 构建时写入的 API 基地址 |
+| `GATEWAY_DOCKERFILE` | `gateway/Dockerfile` | Compose 构建 Gateway 时使用的 Dockerfile，国内网络可切换为 `gateway/Dockerfile.cn` |
+| `CLIENT_DOCKERFILE` | `client/Dockerfile` | Compose 构建 Client 时使用的 Dockerfile，国内网络可切换为 `client/Dockerfile.cn` |
 | `OMNI_AGENT_JWT_SECRET` | `change-me-change-me-change-me-1234` | JWT 签名密钥，生产环境务必修改 |
 | `OMNI_AGENT_ADMIN_USERNAME` | `operator` | 管理员账号，用于登录 Dashboard 和 App |
 | `OMNI_AGENT_ADMIN_PASSWORD` | `passw0rd` | 管理员密码，生产环境务必修改 |

@@ -189,10 +189,13 @@ td strong {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 5.75rem;
-  padding: 0.45rem 0.8rem;
+  min-width: 5.15rem;
+  max-width: 100%;
+  padding: 0.4rem 0.72rem;
   border-radius: 999px;
   font-size: 0.8rem;
+  line-height: 1.2;
+  white-space: nowrap;
   border: 1px solid transparent;
 }
 

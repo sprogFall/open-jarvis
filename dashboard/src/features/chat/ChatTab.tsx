@@ -111,7 +111,7 @@ export function ChatTab({
       <aside className="panel chat-rail">
         <div className="panel-head compact">
           <div>
-            <p className="eyebrow">Threads</p>
+            <p className="eyebrow">线程</p>
             <h3>聊天任务</h3>
           </div>
           <button className="ghost-button" onClick={() => onSelectTask(null)} type="button">
@@ -150,7 +150,7 @@ export function ChatTab({
       <div className="panel chat-stage">
         <div className="panel-head chat-stage-head">
           <div>
-            <p className="eyebrow">Conversation</p>
+            <p className="eyebrow">会话</p>
             <h3>{selectedTask ? `任务 ${selectedTask.task_id}` : "给 Jarvis 一个目标"}</h3>
           </div>
           <div className="header-actions">
@@ -165,7 +165,7 @@ export function ChatTab({
             <>
               <section className="chat-hero">
                 <div>
-                  <p className="eyebrow">Status</p>
+                  <p className="eyebrow">状态</p>
                   <h4>{formatTaskStatus(selectedTask.status)}</h4>
                   <p className="muted">目标设备：{selectedTask.device_id}</p>
                 </div>
@@ -185,10 +185,10 @@ export function ChatTab({
               </article>
 
               {selectedTask.command || selectedTask.reason || selectedTask.status === "AWAITING_APPROVAL" ? (
-                <section className="chat-card approval-card-web">
+                <section className="chat-card chat-approval-card">
                   <div className="panel-head compact">
                     <div>
-                      <p className="eyebrow">Approval</p>
+                      <p className="eyebrow">审批</p>
                       <h4>待审批动作</h4>
                     </div>
                     <StatusPill status={selectedTask.status} />
@@ -222,7 +222,7 @@ export function ChatTab({
                 <section className="chat-card log-panel">
                   <div className="panel-head compact">
                     <div>
-                      <p className="eyebrow">Live Log</p>
+                      <p className="eyebrow">日志</p>
                       <h4>实时日志</h4>
                     </div>
                   </div>
@@ -232,7 +232,7 @@ export function ChatTab({
 
               {selectedTask.result ? (
                 <section className="chat-card chat-result success">
-                  <p className="eyebrow">Result</p>
+                  <p className="eyebrow">结果</p>
                   <h4>执行结果</h4>
                   <pre>{selectedTask.result}</pre>
                 </section>
@@ -240,7 +240,7 @@ export function ChatTab({
 
               {selectedTask.error ? (
                 <section className="chat-card chat-result failure">
-                  <p className="eyebrow">Result</p>
+                  <p className="eyebrow">结果</p>
                   <h4>执行错误</h4>
                   <pre>{selectedTask.error}</pre>
                 </section>
@@ -249,7 +249,7 @@ export function ChatTab({
           ) : (
             <section className="chat-welcome">
               <div className="chat-welcome-hero">
-                <p className="eyebrow">Welcome</p>
+                <p className="eyebrow">快速开始</p>
                 <h4>像聊天一样下发任务</h4>
                 <p>
                   在同一条线程里查看审批、恢复状态和执行日志；需要特殊模型时再为 CLI 单独覆盖。
@@ -259,11 +259,12 @@ export function ChatTab({
                 {quickPrompts.map((prompt) => (
                   <button
                     key={prompt.label}
-                    className="ghost-button"
+                    className="chat-quick-action"
                     onClick={() => setDraft(prompt.prompt)}
                     type="button"
                   >
-                    {prompt.label}
+                    <strong>{prompt.label}</strong>
+                    <span>{prompt.prompt}</span>
                   </button>
                 ))}
               </div>

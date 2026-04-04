@@ -46,6 +46,22 @@ def test_client_china_dockerfile_uses_cn_mirrors():
     assert "CLIENT_DOCKERFILE=client/Dockerfile" in env_example
 
 
+def test_gateway_china_dockerfile_uses_cn_mirrors():
+    gateway_dockerfile = _read("gateway/Dockerfile.cn")
+    root_readme = _read("README.md")
+    compose = _read("docker-compose.yml")
+    env_example = _read(".env.example")
+
+    assert "ARG APT_MIRROR_HOST=mirrors.tuna.tsinghua.edu.cn" in gateway_dockerfile
+    assert "ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple" in gateway_dockerfile
+    assert "ARG PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn" in gateway_dockerfile
+    assert "/etc/apt/sources.list.d/debian.sources" in gateway_dockerfile
+    assert "pip install -r /tmp/gateway-requirements.txt -r /tmp/client-requirements.txt" in gateway_dockerfile
+    assert "gateway/Dockerfile.cn" in root_readme
+    assert "${GATEWAY_DOCKERFILE:-gateway/Dockerfile}" in compose
+    assert "GATEWAY_DOCKERFILE=gateway/Dockerfile" in env_example
+
+
 def test_dashboard_container_is_built_from_repo_sources():
     dockerfile = _read("dashboard/Dockerfile")
     nginx_conf = _read("dashboard/nginx.conf")

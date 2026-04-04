@@ -70,8 +70,23 @@ export function AppShell({
 
         <main className="workspace">
           <header className="workspace-header">
-            <h2>{activeTab?.label}</h2>
+            <div className="workspace-title-group">
+              <p className="eyebrow">Workspace</p>
+              <h2>{activeTab?.label}</h2>
+              <p className="muted">{activeTab?.hint ?? "当前业务工作区"}</p>
+            </div>
             <div className="header-actions">
+              <div className="workspace-sync" aria-live="polite">
+                <span className={`live-dot${controller.refreshing ? "" : " solid"}`} />
+                <div>
+                  <strong>{controller.refreshing ? "正在同步数据" : "已同步最新状态"}</strong>
+                  <small>
+                    {controller.activeTab === "chat"
+                      ? "线程、审批与日志会持续回收到同一工作区。"
+                      : "继续操作前，可随时手动刷新当前页。"}
+                  </small>
+                </div>
+              </div>
               <button
                 className="ghost-button"
                 onClick={() => void controller.refreshTab()}

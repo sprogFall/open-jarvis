@@ -33,9 +33,11 @@
   .system-grid,
   .detail-grid,
   .inline-metadata,
-  .prompt-grid,
-  .chat-shell,
   .chat-layout {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .chat-prompt-list {
     grid-template-columns: 1fr 1fr;
   }
 }
@@ -46,8 +48,6 @@
   .system-grid,
   .detail-grid,
   .inline-metadata,
-  .prompt-grid,
-  .chat-shell,
   .chat-layout {
     grid-template-columns: 1fr;
   }
@@ -64,7 +64,8 @@
   .task-filters,
   .row-actions,
   .header-actions,
-  .chat-prompt-list {
+  .chat-prompt-list,
+  .workspace-sync {
     width: 100%;
   }
 
@@ -95,11 +96,5 @@
   .chat-rail {
     position: static;
     max-height: none;
-  }
-
-  .composer-actions,
-  .chat-actions,
-  .prompt-rail {
-    width: 100%;
   }
 }

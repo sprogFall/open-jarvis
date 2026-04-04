@@ -142,17 +142,17 @@
   margin-bottom: 0;
 }
 
-.chat-shell,
 .chat-layout {
   display: grid;
-  grid-template-columns: minmax(18rem, 22rem) minmax(0, 1fr);
+  grid-template-columns: minmax(19rem, 22rem) minmax(0, 1fr);
   gap: 1rem;
   min-height: calc(100vh - 11rem);
+  align-items: stretch;
 }
 
 .chat-rail {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 1rem;
   position: sticky;
   top: 1rem;
@@ -161,11 +161,12 @@
 }
 
 .chat-rail-status,
-.chat-composer,
 .chat-hero,
 .chat-bubble,
 .chat-card,
-.chat-welcome-hero {
+.chat-composer,
+.chat-welcome-hero,
+.chat-quick-action {
   border-radius: 1.15rem;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.03);
@@ -175,31 +176,41 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.9rem 1rem;
+  padding: 0.95rem 1rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 
 .chat-thread-list {
   display: grid;
-  gap: 0.65rem;
+  gap: 0.75rem;
   overflow-y: auto;
   min-height: 0;
-  padding-right: 0.25rem;
+  padding-right: 0.35rem;
+  padding-bottom: 0.2rem;
 }
 
 .chat-thread {
-  padding: 0.9rem 1rem;
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.95rem 1rem;
   text-align: left;
   cursor: pointer;
   border-radius: 1.15rem;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.03);
-  transition: border-color 160ms ease, background 160ms ease;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .chat-thread.active,
 .chat-thread:hover {
+  transform: translateY(-1px);
   background: rgba(125, 245, 180, 0.08);
   border-color: rgba(125, 245, 180, 0.24);
+  box-shadow: 0 18px 32px rgba(4, 16, 24, 0.24);
 }
 
 .chat-thread-head {
@@ -207,14 +218,15 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  margin-bottom: 0.35rem;
 }
 
 .chat-thread > span {
-  display: block;
+  display: -webkit-box;
+  overflow: hidden;
   color: var(--text);
   line-height: 1.45;
-  margin-bottom: 0.45rem;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .chat-thread small {
@@ -223,74 +235,9 @@
   font-size: 0.8rem;
 }
 
-.chat-summary {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.chat-summary article,
-.prompt-chip,
-.thread-item,
-.bubble,
-.approval-card,
-.result-panel,
-.welcome-panel {
-  border-radius: 1.15rem;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.chat-summary article {
-  padding: 0.9rem 1rem;
-}
-
-.chat-summary span,
-.prompt-chip span,
-.thread-item small,
-.bubble small {
-  display: block;
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-
-.thread-list {
-  display: grid;
-  gap: 0.65rem;
-  overflow-y: auto;
-  padding-right: 0.25rem;
-}
-
-.thread-item {
-  padding: 0.9rem 1rem;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 160ms ease, background 160ms ease;
-}
-
-.thread-item.active,
-.thread-item:hover {
-  background: rgba(125, 245, 180, 0.08);
-  border-color: rgba(125, 245, 180, 0.24);
-}
-
-.thread-item-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.35rem;
-}
-
-.thread-item span {
-  display: block;
-  color: var(--text);
-  line-height: 1.45;
-  margin-bottom: 0.45rem;
-}
-
 .chat-stage {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 1rem;
   min-width: 0;
   min-height: calc(100vh - 11rem);
@@ -306,12 +253,25 @@
   align-content: start;
   min-height: 0;
   overflow-y: auto;
-  padding-right: 0.25rem;
+  padding-right: 0.35rem;
+  padding-bottom: 0.2rem;
 }
 
 .chat-hero,
-.chat-composer {
+.chat-bubble,
+.chat-card,
+.chat-composer,
+.chat-welcome-hero {
   padding: 1rem;
+}
+
+.chat-hero,
+.chat-welcome-hero {
+  background: linear-gradient(
+    135deg,
+    rgba(125, 245, 180, 0.08),
+    rgba(25, 137, 255, 0.08)
+  );
 }
 
 .chat-hero {
@@ -322,22 +282,37 @@
 }
 
 .chat-bubble,
-.chat-card,
-.chat-welcome-hero {
-  padding: 1rem;
+.chat-card {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 
 .chat-bubble-user {
   background: linear-gradient(
     135deg,
-    rgba(125, 245, 180, 0.08),
+    rgba(125, 245, 180, 0.1),
     rgba(25, 137, 255, 0.08)
   );
 }
 
+.chat-bubble-assistant,
+.chat-card {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.chat-approval-card {
+  border-color: rgba(246, 195, 91, 0.22);
+  background: linear-gradient(
+    135deg,
+    rgba(246, 195, 91, 0.06),
+    rgba(255, 255, 255, 0.02)
+  );
+}
+
 .chat-bubble span,
+.chat-card small,
 .chat-effective-ai span,
-.alignment-right span {
+.alignment-right span,
+.chat-quick-action span {
   display: block;
   color: var(--muted);
   font-size: 0.8rem;
@@ -345,16 +320,29 @@
 
 .chat-bubble strong,
 .chat-card h4,
-.chat-welcome h4 {
+.chat-welcome-hero h4,
+.chat-quick-action strong {
   display: block;
   margin-top: 0.2rem;
 }
 
 .chat-bubble p,
+.chat-welcome-hero p,
 .chat-card pre,
-.chat-result pre {
+.chat-result pre,
+.chat-approval-card pre {
   margin: 0.7rem 0 0;
   white-space: pre-wrap;
+}
+
+.chat-card pre,
+.chat-result pre,
+.chat-approval-card pre {
+  overflow-x: auto;
+  color: #dce6ed;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.84rem;
+  line-height: 1.6;
 }
 
 .chat-result.success {
@@ -368,136 +356,65 @@
 .chat-welcome {
   display: grid;
   gap: 1rem;
+  min-height: 100%;
+  align-content: start;
 }
 
 .chat-prompt-list {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.75rem;
+}
+
+.chat-quick-action {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.95rem 1rem;
+  text-align: left;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.chat-quick-action:hover {
+  transform: translateY(-1px);
+  border-color: rgba(125, 245, 180, 0.24);
+  background: rgba(125, 245, 180, 0.08);
+  box-shadow: 0 16px 28px rgba(4, 16, 24, 0.2);
 }
 
 .chat-composer {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.85rem;
 }
 
 .chat-composer-head {
   display: grid;
   grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr);
   gap: 1rem;
-  align-items: end;
+  align-items: stretch;
+}
+
+.chat-target-field,
+.chat-effective-ai {
+  min-height: 100%;
 }
 
 .chat-effective-ai {
-  padding: 0.95rem 1rem;
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
   border-radius: 1.15rem;
-  background: rgba(255, 255, 255, 0.035);
   border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.035);
 }
 
 .alignment-right {
   text-align: right;
 }
 
-.chat-head {
-  align-items: flex-start;
-}
-
-.chat-actions {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.chat-transcript {
-  display: grid;
-  gap: 1rem;
-  flex: 1;
-  min-height: 0;
-}
-
-.bubble,
-.approval-card,
-.result-panel,
-.welcome-panel {
-  padding: 1rem;
-}
-
-.bubble-user {
-  background: linear-gradient(135deg, rgba(125, 245, 180, 0.08), rgba(25, 137, 255, 0.08));
-}
-
-.bubble-assistant {
-  background: rgba(255, 255, 255, 0.035);
-}
-
-.bubble strong,
-.approval-card strong,
-.result-panel strong,
-.welcome-panel h3 {
-  display: block;
-  margin-top: 0.2rem;
-}
-
-.bubble p {
-  margin: 0.7rem 0 0.55rem;
-  white-space: pre-wrap;
-}
-
-.approval-card .detail-grid,
-.result-panel .detail-grid {
-  margin-top: 0.75rem;
-}
-
 .log-panel {
   min-width: 0;
-}
-
-.welcome-panel {
-  min-height: 18rem;
-  display: grid;
-  gap: 1rem;
-  align-content: start;
-}
-
-.prompt-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
-}
-
-.prompt-chip {
-  padding: 0.9rem;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 160ms ease, background 160ms ease;
-}
-
-.prompt-chip:hover {
-  border-color: rgba(125, 245, 180, 0.24);
-  background: rgba(125, 245, 180, 0.08);
-}
-
-.prompt-chip strong {
-  display: block;
-  margin-bottom: 0.35rem;
-}
-
-.chat-composer {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.composer-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.prompt-rail {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
 }

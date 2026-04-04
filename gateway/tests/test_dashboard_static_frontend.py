@@ -198,3 +198,37 @@ def test_dashboard_sheet_styles_keep_long_content_fully_visible():
     assert "overflow: hidden" in layout_css
     assert ".sheet-body" in layout_css
     assert "overflow-y: auto" in layout_css
+
+
+def test_dashboard_chat_workspace_uses_single_visual_language():
+    dashboard_root = Path(__file__).resolve().parents[2] / "dashboard" / "src"
+    features_css = (dashboard_root / "styles" / "features.css").read_text(encoding="utf-8")
+
+    assert ".chat-stage" in features_css
+    assert "grid-template-rows: auto minmax(0, 1fr) auto" in features_css
+    assert ".chat-conversation" in features_css
+    assert ".chat-thread-list" in features_css
+
+    legacy_chat_selectors = [
+        ".chat-summary",
+        ".thread-item",
+        ".bubble,",
+        ".approval-card,",
+        ".result-panel,",
+        ".welcome-panel",
+        ".chat-transcript",
+        ".prompt-chip",
+    ]
+
+    for selector in legacy_chat_selectors:
+        assert selector not in features_css
+
+
+def test_dashboard_workspace_header_shows_tab_hint_and_sync_context():
+    app_shell = (
+        Path(__file__).resolve().parents[2] / "dashboard" / "src" / "app" / "AppShell.tsx"
+    ).read_text(encoding="utf-8")
+
+    assert "workspace-title-group" in app_shell
+    assert "activeTab?.hint" in app_shell
+    assert "workspace-sync" in app_shell
