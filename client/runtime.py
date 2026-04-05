@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Callable
 
 from client.checkpoints import CheckpointStore
@@ -8,6 +7,7 @@ from client.langgraph_workflow import LangGraphTaskWorkflow
 from client.models import TaskAction
 from client.redaction import LogRedactor
 from client.safety import CommandSafetyFilter
+from client.storage import StorageTarget, derive_workflow_storage_target, normalize_storage_target
 from skill_catalog import SkillActionSpec
 
 
@@ -64,7 +64,7 @@ class TaskRunner:
         registry: ActionRegistry,
         transport,
         checkpoints: CheckpointStore,
-        workflow_store_path: Path | None = None,
+        workflow_store_path: StorageTarget | None = None,
         redactor: LogRedactor | None = None,
         safety_filter: CommandSafetyFilter | None = None,
     ) -> None:
@@ -75,9 +75,9 @@ class TaskRunner:
         self.redactor = redactor or LogRedactor()
         self.safety_filter = safety_filter or CommandSafetyFilter()
         self.workflow_store_path = (
-            Path(workflow_store_path)
+            normalize_storage_target(workflow_store_path)
             if workflow_store_path is not None
-            else checkpoints.database_path.with_suffix(".langgraph.db")
+            else derive_workflow_storage_target(checkpoints.database_url)
         )
         self.workflow = LangGraphTaskWorkflow(
             planner=self.planner,

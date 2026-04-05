@@ -58,7 +58,10 @@ class GatewayLocalExecutor:
         from client.runtime import TaskRunner
         from client.service import build_default_registry
 
-        checkpoints = CheckpointStore(self.settings.local_checkpoint_path)
+        checkpoints = CheckpointStore(
+            self.settings.local_checkpoint_path,
+            ai_scope="gateway-local",
+        )
         self.runner = TaskRunner(
             planner=LLMPlanner(config_resolver=self.config_resolver.resolve),
             registry=build_default_registry(self.settings),

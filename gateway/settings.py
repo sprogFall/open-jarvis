@@ -21,12 +21,18 @@ def _resolve_storage_path(raw_path: str) -> Path:
 def _normalize_database_url(raw_url: str | None) -> str:
     if not raw_url:
         return f"sqlite:///{_resolve_storage_path('gateway/gateway.db')}"
-    if raw_url.startswith("postgresql"):
-        return raw_url
+    return _normalize_storage_target(raw_url, "gateway/gateway.db")
+
+
+def _normalize_storage_target(raw_target: str | None, default_relative_path: str) -> str:
+    if not raw_target:
+        raw_target = default_relative_path
+    if raw_target.startswith("postgresql://"):
+        return raw_target
     for prefix in ("sqlite:///", "sqlite://"):
-        if raw_url.startswith(prefix):
-            return f"sqlite:///{_resolve_storage_path(raw_url[len(prefix):])}"
-    return str(_resolve_storage_path(raw_url))
+        if raw_target.startswith(prefix):
+            return f"sqlite:///{_resolve_storage_path(raw_target[len(prefix):])}"
+    return str(_resolve_storage_path(raw_target))
 
 
 @dataclass(slots=True)
@@ -42,8 +48,8 @@ class GatewaySettings:
     allowed_roots: list[Path] = field(default_factory=lambda: [Path.cwd().resolve()])
     iot_base_url: str | None = None
     iot_token: str | None = None
-    local_checkpoint_path: Path = Path("gateway/local-client.db")
-    local_workflow_store_path: Path = Path("gateway/local-langgraph.db")
+    local_checkpoint_path: str = str(_resolve_storage_path("gateway/local-client.db"))
+    local_workflow_store_path: str = str(_resolve_storage_path("gateway/local-langgraph.db"))
     ai_provider: str | None = None
     ai_model: str | None = None
     ai_api_key: str | None = None
@@ -80,8 +86,14 @@ class GatewaySettings:
             if origin.strip()
         ]
         roots = os.getenv("OMNI_AGENT_GATEWAY_ALLOWED_ROOTS", str(Path.cwd())).split(":")
+        normalized_database_url = _normalize_database_url(database_url)
+        raw_local_checkpoint_path = os.getenv("OMNI_AGENT_GATEWAY_LOCAL_CHECKPOINT_DB", "").strip()
+        raw_local_workflow_store_path = os.getenv(
+            "OMNI_AGENT_GATEWAY_LOCAL_LANGGRAPH_DB",
+            "",
+        ).strip()
         return cls(
-            database_url=_normalize_database_url(database_url),
+            database_url=normalized_database_url,
             jwt_secret=os.getenv(
                 "OMNI_AGENT_JWT_SECRET", "change-me-change-me-change-me-1234"
             ),
@@ -97,11 +109,21 @@ class GatewaySettings:
             allowed_roots=[Path(root).expanduser().resolve() for root in roots if root],
             iot_base_url=os.getenv("OMNI_AGENT_GATEWAY_IOT_BASE_URL"),
             iot_token=os.getenv("OMNI_AGENT_GATEWAY_IOT_TOKEN"),
-            local_checkpoint_path=Path(
-                os.getenv("OMNI_AGENT_GATEWAY_LOCAL_CHECKPOINT_DB", "gateway/local-client.db")
+            local_checkpoint_path=_normalize_storage_target(
+                raw_local_checkpoint_path or (
+                    normalized_database_url
+                    if normalized_database_url.startswith("postgresql://")
+                    else None
+                ),
+                "gateway/local-client.db",
             ),
-            local_workflow_store_path=Path(
-                os.getenv("OMNI_AGENT_GATEWAY_LOCAL_LANGGRAPH_DB", "gateway/local-langgraph.db")
+            local_workflow_store_path=_normalize_storage_target(
+                raw_local_workflow_store_path or (
+                    normalized_database_url
+                    if normalized_database_url.startswith("postgresql://")
+                    else None
+                ),
+                "gateway/local-langgraph.db",
             ),
             ai_provider=os.getenv("OMNI_AGENT_GATEWAY_AI_PROVIDER"),
             ai_model=os.getenv("OMNI_AGENT_GATEWAY_AI_MODEL"),

@@ -126,7 +126,7 @@ def create_default_service(config: ClientConfig | None = None) -> ClientService:
     from client.runtime import TaskRunner
 
     config = config or ClientConfig.from_env()
-    checkpoint_store = CheckpointStore(config.checkpoint_path)
+    checkpoint_store = CheckpointStore(config.checkpoint_path, ai_scope=config.device_id)
     registry = build_default_registry(config, enable_builtin_by_default=False)
     transport = NullTransport()
     skill_workspace = SkillWorkspaceManager(
@@ -159,7 +159,7 @@ def run_forever(config: ClientConfig | None = None) -> None:
     if ws_connect is None:
         raise RuntimeError("websockets is required to run the client service")
 
-    checkpoint_store = CheckpointStore(config.checkpoint_path)
+    checkpoint_store = CheckpointStore(config.checkpoint_path, ai_scope=config.device_id)
     registry = build_default_registry(config, enable_builtin_by_default=False)
     planner = LLMPlanner(
         config_resolver=lambda: checkpoint_store.load_ai_config() or config.ai_config(),

@@ -3,8 +3,14 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlparse
 
 from client.ai import AIModelConfig, coerce_ai_config
+from client.storage import (
+    StorageTarget,
+    is_postgres_target,
+    normalize_storage_target,
+)
 
 
 @dataclass(slots=True)
@@ -12,8 +18,8 @@ class ClientConfig:
     gateway_http_url: str = "http://127.0.0.1:8000"
     device_id: str = "device-alpha"
     device_key: str = "device-secret"
-    checkpoint_path: Path = Path("client/client.db")
-    workflow_store_path: Path = Path("client/langgraph.db")
+    checkpoint_path: StorageTarget = normalize_storage_target("client/client.db")
+    workflow_store_path: StorageTarget = normalize_storage_target("client/langgraph.db")
     skills_workspace: Path = Path("client/skills-runtime")
     allowed_roots: list[Path] = field(default_factory=lambda: [Path.cwd()])
     iot_base_url: str | None = None
@@ -42,14 +48,33 @@ class ClientConfig:
     @classmethod
     def from_env(cls) -> "ClientConfig":
         roots = os.getenv("OMNI_AGENT_ALLOWED_ROOTS", str(Path.cwd())).split(":")
+        gateway_http_url = os.getenv("OMNI_AGENT_GATEWAY_URL", "http://127.0.0.1:8000")
+        shared_database_url = os.getenv("DATABASE_URL", "").strip()
+        gateway_hostname = (urlparse(gateway_http_url).hostname or "").lower()
+        shared_postgres_allowed = (
+            shared_database_url.startswith("postgresql://")
+            and gateway_hostname in {"gateway", "127.0.0.1", "localhost"}
+        )
+        raw_checkpoint_path = os.getenv("OMNI_AGENT_CHECKPOINT_DB", "").strip()
+        checkpoint_target = normalize_storage_target(
+            raw_checkpoint_path
+            or (shared_database_url if shared_postgres_allowed else "client/client.db")
+        )
+        raw_workflow_store_path = os.getenv("OMNI_AGENT_LANGGRAPH_DB", "").strip()
+        workflow_target = normalize_storage_target(
+            raw_workflow_store_path
+            or (
+                checkpoint_target
+                if is_postgres_target(checkpoint_target)
+                else "client/langgraph.db"
+            )
+        )
         return cls(
-            gateway_http_url=os.getenv("OMNI_AGENT_GATEWAY_URL", "http://127.0.0.1:8000"),
+            gateway_http_url=gateway_http_url,
             device_id=os.getenv("OMNI_AGENT_DEVICE_ID", "device-alpha"),
             device_key=os.getenv("OMNI_AGENT_DEVICE_KEY", "device-secret"),
-            checkpoint_path=Path(os.getenv("OMNI_AGENT_CHECKPOINT_DB", "client/client.db")),
-            workflow_store_path=Path(
-                os.getenv("OMNI_AGENT_LANGGRAPH_DB", "client/langgraph.db")
-            ),
+            checkpoint_path=checkpoint_target,
+            workflow_store_path=workflow_target,
             skills_workspace=Path(
                 os.getenv("OMNI_AGENT_SKILLS_WORKSPACE", "client/skills-runtime")
             ),

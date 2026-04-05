@@ -38,6 +38,52 @@ def test_checkpoint_store_persists_ai_override(tmp_path):
     assert restarted.load_ai_config() is None
 
 
+def test_checkpoint_store_isolates_ai_overrides_by_scope_when_sharing_one_database(tmp_path):
+    database_path = tmp_path / "shared-client.db"
+    alpha_store = CheckpointStore(database_path, ai_scope="device-alpha")
+    beta_store = CheckpointStore(database_path, ai_scope="device-beta")
+
+    alpha_store.save_ai_config(
+        {
+            "provider": "custom",
+            "model": "qwen-max",
+            "api_key": "alpha-secret",
+            "base_url": "https://alpha.example/v1/chat/completions",
+        }
+    )
+    beta_store.save_ai_config(
+        {
+            "provider": "custom",
+            "model": "deepseek-chat",
+            "api_key": "beta-secret",
+            "base_url": "https://beta.example/v1/chat/completions",
+        }
+    )
+
+    assert alpha_store.load_ai_config() == {
+        "provider": "custom",
+        "model": "qwen-max",
+        "api_key": "alpha-secret",
+        "base_url": "https://alpha.example/v1/chat/completions",
+    }
+    assert beta_store.load_ai_config() == {
+        "provider": "custom",
+        "model": "deepseek-chat",
+        "api_key": "beta-secret",
+        "base_url": "https://beta.example/v1/chat/completions",
+    }
+
+    alpha_store.delete_ai_config()
+
+    assert alpha_store.load_ai_config() is None
+    assert beta_store.load_ai_config() == {
+        "provider": "custom",
+        "model": "deepseek-chat",
+        "api_key": "beta-secret",
+        "base_url": "https://beta.example/v1/chat/completions",
+    }
+
+
 def test_llm_planner_uses_model_output_when_ai_config_exists():
     model_client = FakeModelClient(
         {

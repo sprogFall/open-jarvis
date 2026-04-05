@@ -13,6 +13,7 @@ def _read(relative_path: str) -> str:
 def test_gateway_and_client_dockerfiles_bundle_runtime_dependencies():
     gateway_dockerfile = _read("gateway/Dockerfile")
     client_dockerfile = _read("client/Dockerfile")
+    client_requirements = _read("client/requirements.txt")
 
     assert "COPY gateway /app/gateway" in gateway_dockerfile
     assert "COPY client /app/client" in gateway_dockerfile
@@ -28,6 +29,8 @@ def test_gateway_and_client_dockerfiles_bundle_runtime_dependencies():
     assert "docker.io" in client_dockerfile
     assert "bash" in client_dockerfile
     assert "procps" in client_dockerfile
+    assert "psycopg2-binary" in client_requirements
+    assert "langgraph-checkpoint-postgres" in client_requirements
 
 
 def test_client_china_dockerfile_uses_cn_mirrors():
@@ -109,6 +112,12 @@ def test_compose_stack_can_boot_from_clone_without_external_database_or_static_h
     assert "dashboard/Dockerfile" in compose
     assert "postgres:16-alpine" in compose
     assert "postgresql://${POSTGRES_USER:-jarvis}:${POSTGRES_PASSWORD:-jarvis}@postgres:5432/${POSTGRES_DB:-jarvis}" in compose
+    assert "client:\n" in compose
+    assert "DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-jarvis}:${POSTGRES_PASSWORD:-jarvis}@postgres:5432/${POSTGRES_DB:-jarvis}}" in compose
+    assert "OMNI_AGENT_GATEWAY_LOCAL_CHECKPOINT_DB: ${OMNI_AGENT_GATEWAY_LOCAL_CHECKPOINT_DB:-}" in compose
+    assert "OMNI_AGENT_GATEWAY_LOCAL_LANGGRAPH_DB: ${OMNI_AGENT_GATEWAY_LOCAL_LANGGRAPH_DB:-}" in compose
+    assert "OMNI_AGENT_CHECKPOINT_DB: ${OMNI_AGENT_CHECKPOINT_DB:-}" in compose
+    assert "OMNI_AGENT_LANGGRAPH_DB: ${OMNI_AGENT_LANGGRAPH_DB:-}" in compose
     assert "condition: service_healthy" in compose
     assert "./:/workspace:ro" in compose
     assert "/var/run/docker.sock:/var/run/docker.sock" in compose
