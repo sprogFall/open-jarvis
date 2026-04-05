@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+from gateway import settings as gateway_settings_module
 from gateway.main import create_app
 from gateway.security import sign_device_request
 from gateway.settings import GatewaySettings
@@ -194,10 +195,53 @@ def test_rotated_env_device_key_persists_across_restart(tmp_path):
     restarted_client.close()
 
 
-def test_from_env_reads_legacy_gateway_db_variable(monkeypatch):
+def test_from_env_uses_stable_default_sqlite_path_across_working_directories(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("OMNI_AGENT_GATEWAY_DB", raising=False)
+    monkeypatch.setattr(gateway_settings_module, "_project_root", lambda: tmp_path)
+
+    first_cwd = tmp_path / "run-a"
+    second_cwd = tmp_path / "run-b"
+    first_cwd.mkdir()
+    second_cwd.mkdir()
+
+    monkeypatch.chdir(first_cwd)
+    first_settings = GatewaySettings.from_env()
+    first_store = GatewayStore(first_settings.database_url)
+    first_store.save_ai_config(
+        "gateway",
+        provider="openai",
+        model="gpt-4o-mini",
+        api_key="gateway-secret",
+    )
+
+    monkeypatch.chdir(second_cwd)
+    second_settings = GatewaySettings.from_env()
+    second_store = GatewayStore(second_settings.database_url)
+    stored = second_store.get_ai_config("gateway")
+
+    assert first_settings.database_url == second_settings.database_url
+    assert first_settings.database_url == (
+        f"sqlite:///{(tmp_path / 'gateway' / 'gateway.db').resolve()}"
+    )
+    assert stored == {
+        "scope": "gateway",
+        "provider": "openai",
+        "model": "gpt-4o-mini",
+        "api_key": "gateway-secret",
+        "base_url": None,
+        "updated_at": stored["updated_at"],
+    }
+
+
+def test_from_env_reads_legacy_gateway_db_variable(monkeypatch, tmp_path):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.setenv("OMNI_AGENT_GATEWAY_DB", "gateway/legacy.db")
+    monkeypatch.setattr(gateway_settings_module, "_project_root", lambda: tmp_path)
 
     settings = GatewaySettings.from_env()
 
-    assert settings.database_url == "gateway/legacy.db"
+    assert settings.database_url == str((tmp_path / "gateway" / "legacy.db").resolve())

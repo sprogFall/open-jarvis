@@ -196,6 +196,9 @@ export DATABASE_URL=gateway/gateway.db
 # 或不设置，使用默认值
 ```
 
+Gateway 会将相对 SQLite 路径统一解析为仓库根目录下的绝对路径，
+避免因从不同工作目录启动服务而落到不同的数据库文件。
+
 ---
 
 ## Dashboard 管理面板

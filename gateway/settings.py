@@ -7,9 +7,31 @@ from pathlib import Path
 from client.ai import AIModelConfig, coerce_ai_config
 
 
+def _project_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def _resolve_storage_path(raw_path: str) -> Path:
+    path = Path(raw_path).expanduser()
+    if not path.is_absolute():
+        path = _project_root() / path
+    return path.resolve()
+
+
+def _normalize_database_url(raw_url: str | None) -> str:
+    if not raw_url:
+        return f"sqlite:///{_resolve_storage_path('gateway/gateway.db')}"
+    if raw_url.startswith("postgresql"):
+        return raw_url
+    for prefix in ("sqlite:///", "sqlite://"):
+        if raw_url.startswith(prefix):
+            return f"sqlite:///{_resolve_storage_path(raw_url[len(prefix):])}"
+    return str(_resolve_storage_path(raw_url))
+
+
 @dataclass(slots=True)
 class GatewaySettings:
-    database_url: str = "sqlite:///gateway/gateway.db"
+    database_url: str = f"sqlite:///{_project_root() / 'gateway' / 'gateway.db'}"
     jwt_secret: str = "change-me-change-me-change-me-1234"
     jwt_algorithm: str = "HS256"
     admin_username: str = "operator"
@@ -50,7 +72,7 @@ class GatewaySettings:
         if not database_url:
             legacy_database = os.getenv("OMNI_AGENT_GATEWAY_DB")
             if legacy_database:
-                database_url = str(Path(legacy_database).expanduser())
+                database_url = legacy_database
         raw_dashboard_origins = os.getenv("OMNI_AGENT_DASHBOARD_ORIGINS", "")
         dashboard_origins = [
             origin.strip()
@@ -59,7 +81,7 @@ class GatewaySettings:
         ]
         roots = os.getenv("OMNI_AGENT_GATEWAY_ALLOWED_ROOTS", str(Path.cwd())).split(":")
         return cls(
-            database_url=database_url or "sqlite:///gateway/gateway.db",
+            database_url=_normalize_database_url(database_url),
             jwt_secret=os.getenv(
                 "OMNI_AGENT_JWT_SECRET", "change-me-change-me-change-me-1234"
             ),
