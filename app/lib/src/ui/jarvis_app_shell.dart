@@ -7,8 +7,8 @@ import 'package:app/src/ui/chat/composer_bar.dart';
 import 'package:app/src/ui/chat/conversation_viewport.dart';
 import 'package:app/src/ui/components/backdrop.dart';
 import 'package:app/src/ui/settings_sheet.dart';
+import 'package:app/src/ui/setup_tray.dart';
 import 'package:app/src/ui/sidebar/thread_rail.dart';
-import 'package:app/src/ui/workspace_summary.dart';
 import 'package:flutter/material.dart';
 
 class JarvisAppShell extends StatefulWidget {
@@ -30,6 +30,7 @@ class _JarvisAppShellState extends State<JarvisAppShell> {
   final _passwordController = TextEditingController();
   final _composerController = TextEditingController();
   String? _selectedDeviceId;
+  bool _isSetupExpanded = false;
 
   TaskController get controller => widget.controller;
 
@@ -52,11 +53,8 @@ class _JarvisAppShellState extends State<JarvisAppShell> {
   }
 
   void _syncSelectedDevice() {
-    final availableDeviceIds = controller.devices
-        .map((device) => device.deviceId)
-        .toSet();
-    if (_selectedDeviceId != null &&
-        !availableDeviceIds.contains(_selectedDeviceId)) {
+    final availableDeviceIds = controller.devices.map((device) => device.deviceId).toSet();
+    if (_selectedDeviceId != null && !availableDeviceIds.contains(_selectedDeviceId)) {
       _selectedDeviceId = null;
     }
     final preferredDeviceId = controller.preferredDeviceId;
@@ -65,9 +63,8 @@ class _JarvisAppShellState extends State<JarvisAppShell> {
         availableDeviceIds.contains(preferredDeviceId)) {
       _selectedDeviceId = preferredDeviceId;
     }
-    _selectedDeviceId ??= controller.devices.isNotEmpty
-        ? controller.devices.first.deviceId
-        : null;
+    _selectedDeviceId ??=
+        controller.devices.isNotEmpty ? controller.devices.first.deviceId : null;
   }
 
   Future<void> _connectGateway() async {
@@ -124,7 +121,9 @@ class _JarvisAppShellState extends State<JarvisAppShell> {
     if (!mounted) {
       return;
     }
-    setState(() {});
+    setState(() {
+      _isSetupExpanded = false;
+    });
     FocusScope.of(context).unfocus();
   }
 
@@ -157,6 +156,12 @@ class _JarvisAppShellState extends State<JarvisAppShell> {
     setState(() {});
   }
 
+  void _toggleSetupPanel() {
+    setState(() {
+      _isSetupExpanded = !_isSetupExpanded;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -165,33 +170,30 @@ class _JarvisAppShellState extends State<JarvisAppShell> {
         _syncSelectedDevice();
         return LayoutBuilder(
           builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 1120;
+            final horizontalPadding = constraints.maxWidth >= 900 ? 24.0 : 16.0;
             final rail = ThreadRail(
               controller: controller,
               selectedDeviceId: _selectedDeviceId,
               onDeviceChanged: _handleDeviceChanged,
-              onNewChat: () => _startNewChat(closeDrawer: !isWide),
-              onSelectTask: (taskId) =>
-                  _selectTask(taskId, closeDrawer: !isWide),
+              onNewChat: () => _startNewChat(closeDrawer: true),
+              onSelectTask: (taskId) => _selectTask(taskId, closeDrawer: true),
             );
 
             return Scaffold(
               key: _scaffoldKey,
-              drawer: isWide
-                  ? null
-                  : Drawer(
-                      key: const Key('threadDrawer'),
-                      width: math.min(constraints.maxWidth * 0.88, 360),
-                      child: SafeArea(
-                        bottom: false,
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: rail,
-                        ),
-                      ),
-                    ),
+              drawer: Drawer(
+                key: const Key('threadDrawer'),
+                width: math.min(constraints.maxWidth * 0.88, 380),
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: rail,
+                  ),
+                ),
+              ),
               appBar: JarvisAppBar(
-                isWide: isWide,
+                isWide: false,
                 controller: controller,
                 selectedDeviceId: _selectedDeviceId,
                 onOpenMenu: () => _scaffoldKey.currentState?.openDrawer(),
@@ -200,68 +202,71 @@ class _JarvisAppShellState extends State<JarvisAppShell> {
               body: Backdrop(
                 child: SafeArea(
                   top: false,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (isWide)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 20, 0, 20),
-                          child: SizedBox(
-                            width: 320,
-                            child: KeyedSubtree(
-                              key: const Key('desktopThreadRail'),
-                              child: rail,
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 960),
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              horizontalPadding,
+                              12,
+                              horizontalPadding,
+                              0,
+                            ),
+                            child: SetupTray(
+                              controller: controller,
+                              expanded: _isSetupExpanded,
+                              selectedDeviceId: _selectedDeviceId,
+                              onToggle: _toggleSetupPanel,
+                              onDeviceChanged: _handleDeviceChanged,
+                              onPrefillInstruction: _prefillInstruction,
+                              onFocusPending: () {
+                                if (controller.pendingTasks.isNotEmpty) {
+                                  controller.selectTask(
+                                    controller.pendingTasks.first.taskId,
+                                  );
+                                  setState(() {
+                                    _isSetupExpanded = false;
+                                  });
+                                }
+                              },
                             ),
                           ),
-                        ),
-                      Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            isWide ? 20 : 16,
-                            20,
-                            16,
-                            16,
-                          ),
-                          child: Align(
-                            alignment: Alignment.topCenter,
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 860),
-                              child: Column(
-                                children: [
-                                  WorkspaceSummary(
-                                    controller: controller,
-                                    selectedDeviceId: _selectedDeviceId,
-                                    onFocusPending: () {
-                                      if (controller.pendingTasks.isNotEmpty) {
-                                        controller.selectTask(
-                                          controller.pendingTasks.first.taskId,
-                                        );
-                                      }
-                                    },
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Expanded(
-                                    child: ConversationViewport(
-                                      controller: controller,
-                                      composerController: _composerController,
-                                      onPrefillInstruction: _prefillInstruction,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  ComposerBar(
-                                    controller: controller,
-                                    selectedDeviceId: _selectedDeviceId,
-                                    composerController: _composerController,
-                                    onComposerChanged: () => setState(() {}),
-                                    onSend: _sendInstruction,
-                                  ),
-                                ],
+                          Expanded(
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                horizontalPadding,
+                                8,
+                                horizontalPadding,
+                                8,
+                              ),
+                              child: ConversationViewport(
+                                controller: controller,
+                                composerController: _composerController,
+                                onPrefillInstruction: _prefillInstruction,
                               ),
                             ),
                           ),
-                        ),
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              horizontalPadding,
+                              0,
+                              horizontalPadding,
+                              16,
+                            ),
+                            child: ComposerBar(
+                              controller: controller,
+                              selectedDeviceId: _selectedDeviceId,
+                              composerController: _composerController,
+                              onComposerChanged: () => setState(() {}),
+                              onSend: _sendInstruction,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),

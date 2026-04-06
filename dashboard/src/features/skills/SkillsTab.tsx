@@ -1,4 +1,6 @@
 import { formatBytes, formatDate } from "../../lib/format";
+import { MetricCard } from "../../components/MetricCard";
+import { SectionHeader } from "../../components/SectionHeader";
 import type { Skill } from "../../types";
 
 type SkillsTabProps = {
@@ -24,33 +26,21 @@ export function SkillsTab({
 
   return (
     <section className="panel">
-      <div className="panel-head">
-        <div>
-          <p className="eyebrow">Catalog</p>
-          <h3>Skill 目录</h3>
-          <p className="muted">内建 Skills 可直接分配给设备，自定义 Skills 通过 zip 归档上传后同步。</p>
-        </div>
-        <button className="primary-button" onClick={onCreate} type="button">
-          添加 Skill
-        </button>
-      </div>
+      <SectionHeader
+        actions={
+          <button className="primary-button" onClick={onCreate} type="button">
+            添加 Skill
+          </button>
+        }
+        description="内建 Skills 可直接分配给设备，自定义 Skills 通过 zip 归档上传后同步。"
+        eyebrow="Catalog"
+        title="Skill 目录"
+      />
       <div className="metric-strip compact-strip">
-        <article>
-          <span>总数</span>
-          <strong>{skills.length}</strong>
-        </article>
-        <article>
-          <span>内建</span>
-          <strong>{builtinCount}</strong>
-        </article>
-        <article>
-          <span>归档就绪</span>
-          <strong>{archiveReadyCount}</strong>
-        </article>
-        <article>
-          <span>待补归档</span>
-          <strong>{archivePendingCount}</strong>
-        </article>
+        <MetricCard label="总数" value={skills.length} />
+        <MetricCard label="内建" value={builtinCount} />
+        <MetricCard label="归档就绪" value={archiveReadyCount} />
+        <MetricCard label="待补归档" value={archivePendingCount} />
       </div>
       <div className="table-shell">
         <table>

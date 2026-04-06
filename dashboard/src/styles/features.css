@@ -7,7 +7,9 @@
 
 .poster-grid div,
 .metric-strip article,
-.system-grid article {
+.metric-card,
+.system-grid article,
+.key-value-card {
   padding: 1rem 1.1rem;
   border-radius: 1.25rem;
   background: rgba(255, 255, 255, 0.04);
@@ -16,9 +18,11 @@
 
 .poster-grid span,
 .metric-strip span,
+.metric-card span,
 .system-grid span,
 .detail-grid span,
-.inline-metadata span {
+.inline-metadata span,
+.key-value-card span {
   display: block;
   color: var(--muted);
   font-size: 0.78rem;
@@ -27,12 +31,24 @@
 
 .poster-grid strong,
 .metric-strip strong,
+.metric-card strong,
 .system-grid strong,
 .detail-grid strong,
-.inline-metadata strong {
+.inline-metadata strong,
+.key-value-card strong {
   display: block;
   font-size: 1rem;
   line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.metric-detail,
+.key-value-card small {
+  display: block;
+  margin-top: 0.4rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
 
 .metric-strip {
@@ -42,7 +58,7 @@
 }
 
 .compact-strip {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-bottom: 1.25rem;
 }
 
@@ -116,7 +132,8 @@
 
 .system-grid,
 .detail-grid,
-.inline-metadata {
+.inline-metadata,
+.key-value-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;

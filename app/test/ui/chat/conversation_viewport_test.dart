@@ -35,7 +35,7 @@ void main() {
     );
 
     expect(find.byType(WelcomeView), findsOneWidget);
-    expect(find.text('给 Jarvis 一个目标'), findsOneWidget);
+    expect(find.text('开始一个任务'), findsOneWidget);
   });
 
   testWidgets('shows task timeline when task is selected', (tester) async {

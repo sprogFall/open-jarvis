@@ -1,3 +1,5 @@
+import { KeyValueGrid } from "../../components/KeyValueGrid";
+import { SectionHeader } from "../../components/SectionHeader";
 import { SideSheet } from "../../components/SideSheet";
 import { formatTaskStatus } from "../../lib/format";
 import type { Task } from "../../types";
@@ -15,39 +17,18 @@ export function TaskDetailSheet({ task, onClose }: TaskDetailSheetProps) {
       onClose={onClose}
     >
       <div className="stack">
-        <div className="detail-grid">
-          <div>
-            <span>指令</span>
-            <strong>{task.instruction}</strong>
-          </div>
-          <div>
-            <span>检查点</span>
-            <strong>{task.checkpoint_id || "无"}</strong>
-          </div>
-          <div>
-            <span>审批命令</span>
-            <strong>{task.command || "无"}</strong>
-          </div>
-          <div>
-            <span>审批原因</span>
-            <strong>{task.reason || "无"}</strong>
-          </div>
-          <div>
-            <span>执行结果</span>
-            <strong>{task.result || "无"}</strong>
-          </div>
-          <div>
-            <span>错误信息</span>
-            <strong>{task.error || "无"}</strong>
-          </div>
-        </div>
+        <KeyValueGrid
+          items={[
+            { label: "指令", value: task.instruction },
+            { label: "检查点", value: task.checkpoint_id || "无" },
+            { label: "审批命令", value: task.command || "无" },
+            { label: "审批原因", value: task.reason || "无" },
+            { label: "执行结果", value: task.result || "无" },
+            { label: "错误信息", value: task.error || "无" },
+          ]}
+        />
         <section className="log-panel">
-          <div className="panel-head compact">
-            <div>
-              <p className="eyebrow">Realtime Trail</p>
-              <h3>日志</h3>
-            </div>
-          </div>
+          <SectionHeader compact eyebrow="Realtime Trail" title="日志" />
           {task.logs.length ? (
             <pre>{task.logs.join("\n")}</pre>
           ) : (

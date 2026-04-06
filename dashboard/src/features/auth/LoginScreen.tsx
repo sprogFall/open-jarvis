@@ -1,5 +1,7 @@
 import type { FormEvent } from "react";
 
+import { FormField } from "../../components/FormField";
+
 type LoginScreenProps = {
   loginPending: boolean;
   loginError: string | null;
@@ -35,14 +37,22 @@ export function LoginScreen({
         <p className="eyebrow">Operator Access</p>
         <h2>登录 Dashboard</h2>
         <form className="stack" onSubmit={onSubmit}>
-          <label className="field">
-            <span>用户名</span>
-            <input name="username" defaultValue="operator" placeholder="operator" />
-          </label>
-          <label className="field">
-            <span>密码</span>
-            <input name="password" type="password" placeholder="passw0rd" />
-          </label>
+          <FormField htmlFor="login-username" label="用户名">
+            <input
+              defaultValue="operator"
+              id="login-username"
+              name="username"
+              placeholder="operator"
+            />
+          </FormField>
+          <FormField htmlFor="login-password" label="密码">
+            <input
+              id="login-password"
+              name="password"
+              placeholder="passw0rd"
+              type="password"
+            />
+          </FormField>
           {loginError ? <p className="error-text">{loginError}</p> : null}
           <button className="primary-button" disabled={loginPending} type="submit">
             {loginPending ? "登录中..." : "进入控制台"}

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { FormField } from "../../components/FormField";
+import { SectionHeader } from "../../components/SectionHeader";
 import { StatusPill } from "../../components/StatusPill";
 import {
   describeTaskNarrative,
@@ -109,15 +111,16 @@ export function ChatTab({
   return (
     <section className="chat-layout">
       <aside className="panel chat-rail">
-        <div className="panel-head compact">
-          <div>
-            <p className="eyebrow">线程</p>
-            <h3>聊天任务</h3>
-          </div>
-          <button className="ghost-button" onClick={() => onSelectTask(null)} type="button">
-            新对话
-          </button>
-        </div>
+        <SectionHeader
+          actions={
+            <button className="ghost-button" onClick={() => onSelectTask(null)} type="button">
+              新对话
+            </button>
+          }
+          compact
+          eyebrow="线程"
+          title="聊天任务"
+        />
 
         <div className="chat-rail-status">
           <span className={`live-dot${socketState === "connected" ? " solid" : ""}`} />
@@ -148,17 +151,18 @@ export function ChatTab({
       </aside>
 
       <div className="panel chat-stage">
-        <div className="panel-head chat-stage-head">
-          <div>
-            <p className="eyebrow">会话</p>
-            <h3>{selectedTask ? `任务 ${selectedTask.task_id}` : "给 Jarvis 一个目标"}</h3>
-          </div>
-          <div className="header-actions">
-            <button className="ghost-button" onClick={() => void onRefresh()} type="button">
-              刷新线程
-            </button>
-          </div>
-        </div>
+        <SectionHeader
+          actions={
+            <div className="header-actions">
+              <button className="ghost-button" onClick={() => void onRefresh()} type="button">
+                刷新线程
+              </button>
+            </div>
+          }
+          className="chat-stage-head"
+          eyebrow="会话"
+          title={selectedTask ? `任务 ${selectedTask.task_id}` : "给 Jarvis 一个目标"}
+        />
 
         <div className="chat-conversation">
           {selectedTask ? (
@@ -186,13 +190,13 @@ export function ChatTab({
 
               {selectedTask.command || selectedTask.reason || selectedTask.status === "AWAITING_APPROVAL" ? (
                 <section className="chat-card chat-approval-card">
-                  <div className="panel-head compact">
-                    <div>
-                      <p className="eyebrow">审批</p>
-                      <h4>待审批动作</h4>
-                    </div>
-                    <StatusPill status={selectedTask.status} />
-                  </div>
+                  <SectionHeader
+                    actions={<StatusPill status={selectedTask.status} />}
+                    compact
+                    eyebrow="审批"
+                    title="待审批动作"
+                    titleAs="h4"
+                  />
                   <pre>{selectedTask.command || "等待命令生成"}</pre>
                   {selectedTask.reason ? <p className="muted">{selectedTask.reason}</p> : null}
                   {selectedTask.status === "AWAITING_APPROVAL" ? (
@@ -220,12 +224,7 @@ export function ChatTab({
 
               {selectedTask.logs.length ? (
                 <section className="chat-card log-panel">
-                  <div className="panel-head compact">
-                    <div>
-                      <p className="eyebrow">日志</p>
-                      <h4>实时日志</h4>
-                    </div>
-                  </div>
+                  <SectionHeader compact eyebrow="日志" title="实时日志" titleAs="h4" />
                   <pre>{selectedTask.logs.join("\n")}</pre>
                 </section>
               ) : null}
@@ -274,9 +273,9 @@ export function ChatTab({
 
         <div className="chat-composer">
           <div className="chat-composer-head">
-            <label className="field chat-target-field">
-              <span>执行目标</span>
+            <FormField className="chat-target-field" htmlFor="chat-target-device" label="执行目标">
               <select
+                id="chat-target-device"
                 value={selectedDeviceId}
                 onChange={(event) => onSelectDevice(event.target.value)}
               >
@@ -286,7 +285,7 @@ export function ChatTab({
                   </option>
                 ))}
               </select>
-            </label>
+            </FormField>
             <div className="chat-effective-ai">
               <span>当前生效配置</span>
               <strong>
@@ -303,15 +302,15 @@ export function ChatTab({
               )}
             </div>
           </div>
-          <label className="field">
-            <span>任务描述</span>
+          <FormField htmlFor="chat-task-draft" label="任务描述">
             <textarea
+              id="chat-task-draft"
               rows={4}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               placeholder="例如：查看网关最近 100 行日志并标出异常"
             />
-          </label>
+          </FormField>
           <div className="panel-head compact">
             <div className="muted">
               {selectedTarget

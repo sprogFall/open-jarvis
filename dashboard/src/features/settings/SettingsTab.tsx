@@ -1,5 +1,8 @@
 import type { FormEvent } from "react";
 
+import { FormField } from "../../components/FormField";
+import { KeyValueGrid } from "../../components/KeyValueGrid";
+import { SectionHeader } from "../../components/SectionHeader";
 import type { AIConfigSummary, Device, SystemInfo } from "../../types";
 import type { DeviceAiForm, GatewayAiForm } from "../../app/model";
 import { formatAiSource } from "../../lib/format";
@@ -43,30 +46,15 @@ export function SettingsTab({
 
   return (
     <section className="panel panel-stack">
-      <div className="panel-head">
-        <div>
-          <p className="eyebrow">System</p>
-          <h3>运行信息</h3>
-        </div>
-      </div>
-      <div className="system-grid">
-        <article>
-          <span>操作账号</span>
-          <strong>{systemInfo?.admin_username ?? "-"}</strong>
-        </article>
-        <article>
-          <span>已配置设备数</span>
-          <strong>{configuredDevices.length || "-"}</strong>
-        </article>
-        <article>
-          <span>设备范围</span>
-          <strong>{configuredDevices.join(", ") || "-"}</strong>
-        </article>
-        <article>
-          <span>当前焦点</span>
-          <strong>任务跟踪、设备管理、Skill 分配</strong>
-        </article>
-      </div>
+      <SectionHeader eyebrow="System" title="运行信息" />
+      <KeyValueGrid
+        items={[
+          { label: "操作账号", value: systemInfo?.admin_username ?? "-" },
+          { label: "已配置设备数", value: configuredDevices.length || "-" },
+          { label: "设备范围", value: configuredDevices.join(", ") || "-" },
+          { label: "当前焦点", value: "任务跟踪、设备管理、Skill 分配" },
+        ]}
+      />
       <div className="callout">
         <p className="eyebrow">Operations</p>
         <h4>业务配置与账号范围</h4>
@@ -76,58 +64,34 @@ export function SettingsTab({
       </div>
 
       <section className="panel panel-stack">
-        <div className="panel-head">
-          <div>
-            <p className="eyebrow">Effective</p>
-            <h4>当前生效配置</h4>
-          </div>
-        </div>
+        <SectionHeader eyebrow="Effective" title="当前生效配置" titleAs="h4" />
 
-        <div className="system-grid">
-          <article>
-            <span>Gateway 供应商</span>
-            <strong>{gatewayAiSummary?.provider ?? "-"}</strong>
-          </article>
-          <article>
-            <span>Gateway 模型</span>
-            <strong>{gatewayAiSummary?.model ?? "-"}</strong>
-          </article>
-          <article>
-            <span>Gateway Base URL</span>
-            <strong>{gatewayAiSummary?.base_url ?? "-"}</strong>
-          </article>
-          <article>
-            <span>Gateway API Key（掩码）</span>
-            <strong>{gatewayAiSummary?.api_key_masked ?? "-"}</strong>
-          </article>
-        </div>
+        <KeyValueGrid
+          items={[
+            { label: "Gateway 供应商", value: gatewayAiSummary?.provider ?? "-" },
+            { label: "Gateway 模型", value: gatewayAiSummary?.model ?? "-" },
+            { label: "Gateway Base URL", value: gatewayAiSummary?.base_url ?? "-" },
+            {
+              label: "Gateway API Key（掩码）",
+              value: gatewayAiSummary?.api_key_masked ?? "-",
+            },
+          ]}
+        />
 
         <div className="panel panel-nested panel-stack">
-          <div className="panel-head compact">
-            <div>
-              <p className="eyebrow">CLI Effective</p>
-              <h4>CLI 生效摘要</h4>
-            </div>
-          </div>
+          <SectionHeader compact eyebrow="CLI Effective" title="CLI 生效摘要" titleAs="h4" />
           {deviceAiSummary ? (
-            <div className="system-grid">
-              <article>
-                <span>当前设备</span>
-                <strong>{deviceAiSummary.device_id ?? deviceAiForm.device_id}</strong>
-              </article>
-              <article>
-                <span>当前供应商</span>
-                <strong>{deviceAiSummary.provider}</strong>
-              </article>
-              <article>
-                <span>当前模型</span>
-                <strong>{deviceAiSummary.model}</strong>
-              </article>
-              <article>
-                <span>API Key（掩码）</span>
-                <strong>{deviceAiSummary.api_key_masked}</strong>
-              </article>
-            </div>
+            <KeyValueGrid
+              items={[
+                {
+                  label: "当前设备",
+                  value: deviceAiSummary.device_id ?? deviceAiForm.device_id,
+                },
+                { label: "当前供应商", value: deviceAiSummary.provider },
+                { label: "当前模型", value: deviceAiSummary.model },
+                { label: "API Key（掩码）", value: deviceAiSummary.api_key_masked },
+              ]}
+            />
           ) : null}
           {clientAiSummaries.length ? (
             <div className="assignment-list">
@@ -154,45 +118,40 @@ export function SettingsTab({
       </section>
 
       <form className="panel panel-stack" onSubmit={onSaveGatewayAiConfig}>
-        <div className="panel-head">
-          <div>
-            <p className="eyebrow">Gateway</p>
-            <h4>Gateway AI 默认配置</h4>
-          </div>
-        </div>
-        <label className="field">
-          <span>供应商</span>
+        <SectionHeader eyebrow="Gateway" title="Gateway AI 默认配置" titleAs="h4" />
+        <FormField htmlFor="gateway-ai-provider" label="供应商">
           <input
+            id="gateway-ai-provider"
             value={gatewayAiForm.provider}
             onChange={(event) => onGatewayAiChange({ provider: event.target.value })}
             placeholder="openai / anthropic / custom"
           />
-        </label>
-        <label className="field">
-          <span>模型</span>
+        </FormField>
+        <FormField htmlFor="gateway-ai-model" label="模型">
           <input
+            id="gateway-ai-model"
             value={gatewayAiForm.model}
             onChange={(event) => onGatewayAiChange({ model: event.target.value })}
             placeholder="gpt-4o-mini"
           />
-        </label>
-        <label className="field">
-          <span>API Key</span>
+        </FormField>
+        <FormField htmlFor="gateway-ai-key" label="API Key">
           <input
+            id="gateway-ai-key"
             type="password"
             value={gatewayAiForm.api_key}
             onChange={(event) => onGatewayAiChange({ api_key: event.target.value })}
             placeholder="sk-..."
           />
-        </label>
-        <label className="field">
-          <span>Base URL（可选）</span>
+        </FormField>
+        <FormField htmlFor="gateway-ai-base-url" label="Base URL（可选）">
           <input
+            id="gateway-ai-base-url"
             value={gatewayAiForm.base_url}
             onChange={(event) => onGatewayAiChange({ base_url: event.target.value })}
             placeholder="https://llm.example/v1/chat/completions"
           />
-        </label>
+        </FormField>
         {gatewayAiError ? <div className="banner-error">{gatewayAiError}</div> : null}
         <div className="panel-head">
           <button className="primary-button" type="submit">
@@ -205,15 +164,10 @@ export function SettingsTab({
       </form>
 
       <form className="panel panel-stack" onSubmit={onSaveDeviceAiConfig}>
-        <div className="panel-head">
-          <div>
-            <p className="eyebrow">CLI</p>
-            <h4>CLI 特殊覆盖</h4>
-          </div>
-        </div>
-        <label className="field">
-          <span>目标设备</span>
+        <SectionHeader eyebrow="CLI" title="CLI 特殊覆盖" titleAs="h4" />
+        <FormField htmlFor="device-ai-device-id" label="目标设备">
           <select
+            id="device-ai-device-id"
             value={deviceAiForm.device_id}
             onChange={(event) => onDeviceAiChange({ device_id: event.target.value })}
           >
@@ -224,62 +178,55 @@ export function SettingsTab({
               </option>
             ))}
           </select>
-        </label>
+        </FormField>
 
         {deviceAiSummary ? (
-          <div className="system-grid">
-            <article>
-              <span>当前供应商</span>
-              <strong>{deviceAiSummary.provider}</strong>
-            </article>
-            <article>
-              <span>当前模型</span>
-              <strong>{deviceAiSummary.model}</strong>
-            </article>
-            <article>
-              <span>当前来源</span>
-              <strong>{formatAiSource(deviceAiSummary.source)}</strong>
-            </article>
-            <article>
-              <span>API Key（掩码）</span>
-              <strong>{deviceAiSummary.api_key_masked}</strong>
-            </article>
-          </div>
+          <KeyValueGrid
+            items={[
+              { label: "当前供应商", value: deviceAiSummary.provider },
+              { label: "当前模型", value: deviceAiSummary.model },
+              {
+                label: "当前来源",
+                value: formatAiSource(deviceAiSummary.source),
+              },
+              { label: "API Key（掩码）", value: deviceAiSummary.api_key_masked },
+            ]}
+          />
         ) : null}
 
-        <label className="field">
-          <span>供应商</span>
+        <FormField htmlFor="device-ai-provider" label="供应商">
           <input
+            id="device-ai-provider"
             value={deviceAiForm.provider}
             onChange={(event) => onDeviceAiChange({ provider: event.target.value })}
             placeholder="custom / openai / anthropic"
           />
-        </label>
-        <label className="field">
-          <span>模型</span>
+        </FormField>
+        <FormField htmlFor="device-ai-model" label="模型">
           <input
+            id="device-ai-model"
             value={deviceAiForm.model}
             onChange={(event) => onDeviceAiChange({ model: event.target.value })}
             placeholder="deepseek-chat"
           />
-        </label>
-        <label className="field">
-          <span>API Key</span>
+        </FormField>
+        <FormField htmlFor="device-ai-key" label="API Key">
           <input
+            id="device-ai-key"
             type="password"
             value={deviceAiForm.api_key}
             onChange={(event) => onDeviceAiChange({ api_key: event.target.value })}
             placeholder="sk-..."
           />
-        </label>
-        <label className="field">
-          <span>Base URL（可选）</span>
+        </FormField>
+        <FormField htmlFor="device-ai-base-url" label="Base URL（可选）">
           <input
+            id="device-ai-base-url"
             value={deviceAiForm.base_url}
             onChange={(event) => onDeviceAiChange({ base_url: event.target.value })}
             placeholder="https://llm.example/v1/chat/completions"
           />
-        </label>
+        </FormField>
         {deviceAiError ? <div className="banner-error">{deviceAiError}</div> : null}
         <div className="panel-head">
           <button className="primary-button" type="submit">

@@ -1,6 +1,9 @@
 import type { FormEvent } from "react";
 
+import { KeyValueGrid } from "../../components/KeyValueGrid";
 import { SideSheet } from "../../components/SideSheet";
+import { FormField } from "../../components/FormField";
+import { SectionHeader } from "../../components/SectionHeader";
 import type { AssignmentForm } from "../../app/model";
 import { formatBytes } from "../../lib/format";
 import type { Device, DeviceSkill, Skill } from "../../types";
@@ -37,21 +40,17 @@ export function AssignmentSheet({
       onClose={onClose}
     >
       <div className="stack">
-        <div className="inline-metadata">
-          <div>
-            <span>设备名称</span>
-            <strong>{device.name}</strong>
-          </div>
-          <div>
-            <span>当前状态</span>
-            <strong>{device.connected ? "在线" : "离线"}</strong>
-          </div>
-        </div>
+        <KeyValueGrid
+          items={[
+            { label: "设备名称", value: device.name },
+            { label: "当前状态", value: device.connected ? "在线" : "离线" },
+          ]}
+        />
 
         <form className="stack" onSubmit={onSubmit}>
-          <label className="field">
-            <span>选择 Skill</span>
+          <FormField htmlFor="assignment-skill-id" label="选择 Skill">
             <select
+              id="assignment-skill-id"
               value={readySkills.length ? form.skill_id : ""}
               onChange={(event) => onChange({ skill_id: event.target.value })}
             >
@@ -61,18 +60,18 @@ export function AssignmentSheet({
                 </option>
               ))}
             </select>
-          </label>
+          </FormField>
           {!readySkills.length ? (
             <p className="error-text">当前没有可分配的 Skill。请先启用内建 Skill 或上传 zip 归档。</p>
           ) : null}
-          <label className="field">
-            <span>分配配置 JSON</span>
+          <FormField htmlFor="assignment-config" label="分配配置 JSON">
             <textarea
+              id="assignment-config"
               rows={6}
               value={form.config}
               onChange={(event) => onChange({ config: event.target.value })}
             />
-          </label>
+          </FormField>
           {error ? <p className="error-text">{error}</p> : null}
           <button className="primary-button" disabled={!readySkills.length} type="submit">
             分配 Skill
@@ -80,12 +79,7 @@ export function AssignmentSheet({
         </form>
 
         <section className="panel panel-nested">
-          <div className="panel-head compact">
-            <div>
-              <p className="eyebrow">Attached</p>
-              <h3>已分配 Skill</h3>
-            </div>
-          </div>
+          <SectionHeader compact eyebrow="Attached" title="已分配 Skill" />
           {(device.skills ?? []).length ? (
             <div className="assignment-list">
               {(device.skills ?? []).map((skill) => (

@@ -69,7 +69,7 @@ void main() {
       ),
     );
 
-    expect(find.textContaining('还没有可用设备'), findsOneWidget);
+    expect(find.textContaining('请先在顶部展开会话设置并选择设备'), findsOneWidget);
   });
 
   testWidgets('send button is 44x44 minimum touch target', (tester) async {

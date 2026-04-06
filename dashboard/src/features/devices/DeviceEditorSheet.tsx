@@ -1,6 +1,7 @@
 import type { FormEvent } from "react";
 
 import { SideSheet } from "../../components/SideSheet";
+import { FormField } from "../../components/FormField";
 import type { DeviceForm } from "../../app/model";
 
 type DeviceEditorSheetProps = {
@@ -27,39 +28,39 @@ export function DeviceEditorSheet({
       onClose={onClose}
     >
       <form className="stack" onSubmit={onSubmit}>
-        <label className="field">
-          <span>设备 ID</span>
+        <FormField htmlFor="device-editor-id" label="设备 ID">
           <input
             disabled={mode === "edit"}
+            id="device-editor-id"
             value={form.device_id}
             onChange={(event) => onChange({ device_id: event.target.value })}
           />
-        </label>
-        <label className="field">
-          <span>名称</span>
+        </FormField>
+        <FormField htmlFor="device-editor-name" label="名称">
           <input
+            id="device-editor-name"
             value={form.name}
             onChange={(event) => onChange({ name: event.target.value })}
           />
-        </label>
-        <label className="field">
-          <span>类型</span>
+        </FormField>
+        <FormField htmlFor="device-editor-type" label="类型">
           <select
+            id="device-editor-type"
             value={form.type}
             onChange={(event) => onChange({ type: event.target.value })}
           >
             <option value="cli">CLI</option>
             <option value="app">App</option>
           </select>
-        </label>
-        <label className="field">
-          <span>设备密钥</span>
+        </FormField>
+        <FormField htmlFor="device-editor-key" label="设备密钥">
           <input
+            id="device-editor-key"
             placeholder={mode === "create" ? "留空自动生成" : ""}
             value={form.device_key}
             onChange={(event) => onChange({ device_key: event.target.value })}
           />
-        </label>
+        </FormField>
         {error ? <p className="error-text">{error}</p> : null}
         <button className="primary-button" type="submit">
           {mode === "create" ? "创建设备" : "保存变更"}

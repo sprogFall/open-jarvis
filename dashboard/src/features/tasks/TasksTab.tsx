@@ -1,4 +1,5 @@
 import { taskStatuses } from "../../app/model";
+import { SectionHeader } from "../../components/SectionHeader";
 import { StatusPill } from "../../components/StatusPill";
 import { formatTaskStatus } from "../../lib/format";
 import type { Device, Task } from "../../types";
@@ -36,39 +37,40 @@ export function TasksTab({
 
   return (
     <section className="panel">
-      <div className="panel-head tasks-head">
-        <div>
-          <p className="eyebrow">Monitor</p>
-          <h3>任务监控</h3>
-        </div>
-        <div className="task-filters">
-          <select
-            value={taskStatusFilter}
-            onChange={(event) => onStatusFilterChange(event.target.value)}
-          >
-            <option value="">全部状态</option>
-            {taskStatuses.map((status) => (
-              <option key={status} value={status}>
-                {formatTaskStatus(status)}
-              </option>
-            ))}
-          </select>
-          <select
-            value={taskDeviceFilter}
-            onChange={(event) => onDeviceFilterChange(event.target.value)}
-          >
-            <option value="">全部设备</option>
-            {devices.map((device) => (
-              <option key={device.device_id} value={device.device_id}>
-                {device.device_id}
-              </option>
-            ))}
-          </select>
-          <button className="ghost-button" onClick={() => void onRefresh()} type="button">
-            刷新数据
-          </button>
-        </div>
-      </div>
+      <SectionHeader
+        actions={
+          <div className="task-filters">
+            <select
+              value={taskStatusFilter}
+              onChange={(event) => onStatusFilterChange(event.target.value)}
+            >
+              <option value="">全部状态</option>
+              {taskStatuses.map((status) => (
+                <option key={status} value={status}>
+                  {formatTaskStatus(status)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={taskDeviceFilter}
+              onChange={(event) => onDeviceFilterChange(event.target.value)}
+            >
+              <option value="">全部设备</option>
+              {devices.map((device) => (
+                <option key={device.device_id} value={device.device_id}>
+                  {device.device_id}
+                </option>
+              ))}
+            </select>
+            <button className="ghost-button" onClick={() => void onRefresh()} type="button">
+              刷新数据
+            </button>
+          </div>
+        }
+        className="tasks-head"
+        eyebrow="Monitor"
+        title="任务监控"
+      />
       <div className="table-shell">
         <table>
           <thead>

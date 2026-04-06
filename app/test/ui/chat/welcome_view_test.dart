@@ -23,19 +23,19 @@ void main() {
       WelcomeView(controller: controller, onQuickPrompt: (_) {}),
     );
 
-    expect(find.text('给 Jarvis 一个目标'), findsOneWidget);
+    expect(find.text('开始一个任务'), findsOneWidget);
   });
 
-  testWidgets('shows quick prompt chips', (tester) async {
+  testWidgets('keeps quick prompts out of the empty conversation canvas', (tester) async {
     final controller = await connectController();
     await pumpWidget(
       tester,
       WelcomeView(controller: controller, onQuickPrompt: (_) {}),
     );
 
-    expect(find.text('巡检容器'), findsOneWidget);
-    expect(find.text('恢复挂起任务'), findsOneWidget);
-    expect(find.text('查看网关日志'), findsOneWidget);
+    expect(find.text('巡检容器'), findsNothing);
+    expect(find.text('恢复挂起任务'), findsNothing);
+    expect(find.text('查看网关日志'), findsNothing);
   });
 
   testWidgets('shows connected message', (tester) async {
@@ -46,7 +46,7 @@ void main() {
     );
 
     expect(
-      find.textContaining('直接输入任务'),
+      find.textContaining('任务下发、审批、恢复和实时日志都会留在这条对话里'),
       findsOneWidget,
     );
   });

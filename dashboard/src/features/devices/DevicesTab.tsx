@@ -1,4 +1,5 @@
 import { StatusPill } from "../../components/StatusPill";
+import { SectionHeader } from "../../components/SectionHeader";
 import { formatDate } from "../../lib/format";
 import type { Device } from "../../types";
 
@@ -19,15 +20,15 @@ export function DevicesTab({
 }: DevicesTabProps) {
   return (
     <section className="panel">
-      <div className="panel-head">
-        <div>
-          <p className="eyebrow">Registry</p>
-          <h3>设备清单</h3>
-        </div>
-        <button className="primary-button" onClick={onCreate} type="button">
-          添加设备
-        </button>
-      </div>
+      <SectionHeader
+        actions={
+          <button className="primary-button" onClick={onCreate} type="button">
+            添加设备
+          </button>
+        }
+        eyebrow="Registry"
+        title="设备清单"
+      />
       <div className="table-shell">
         <table>
           <thead>

@@ -8,9 +8,19 @@
   gap: 0.5rem;
 }
 
-.field span {
+.field span,
+.field-label {
   color: var(--muted);
   font-size: 0.84rem;
+}
+
+.field-label {
+  display: block;
+}
+
+.field-note {
+  color: var(--muted);
+  font-size: 0.76rem;
 }
 
 .field input,
@@ -70,6 +80,25 @@
 .danger-button:hover,
 .tab-chip:hover {
   transform: translateY(-1px);
+}
+
+.primary-button:disabled,
+.ghost-button:disabled,
+.danger-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+  transform: none;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.tab-chip:focus-visible,
+.chat-thread:focus-visible,
+.chat-quick-action:focus-visible {
+  outline: 2px solid rgba(125, 245, 180, 0.8);
+  outline-offset: 2px;
 }
 
 .error-text,

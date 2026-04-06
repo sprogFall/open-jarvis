@@ -33,6 +33,7 @@
   .system-grid,
   .detail-grid,
   .inline-metadata,
+  .key-value-grid,
   .chat-layout {
     grid-template-columns: 1fr 1fr;
   }
@@ -48,6 +49,7 @@
   .system-grid,
   .detail-grid,
   .inline-metadata,
+  .key-value-grid,
   .chat-layout {
     grid-template-columns: 1fr;
   }

@@ -246,3 +246,56 @@ def test_dashboard_workspace_header_shows_tab_hint_and_sync_context():
     assert "workspace-title-group" in app_shell
     assert "activeTab?.hint" in app_shell
     assert "workspace-sync" in app_shell
+
+
+def test_dashboard_extracts_shared_ui_primitives_for_metrics_and_detail_blocks():
+    src_root = Path(__file__).resolve().parents[2] / "dashboard" / "src"
+    section_header = src_root / "components" / "SectionHeader.tsx"
+    form_field = src_root / "components" / "FormField.tsx"
+    metric_card = src_root / "components" / "MetricCard.tsx"
+    key_value_grid = src_root / "components" / "KeyValueGrid.tsx"
+
+    assert section_header.exists()
+    assert form_field.exists()
+    assert metric_card.exists()
+    assert key_value_grid.exists()
+
+    overview_tab = (src_root / "features" / "overview" / "OverviewTab.tsx").read_text(
+        encoding="utf-8"
+    )
+    settings_tab = (src_root / "features" / "settings" / "SettingsTab.tsx").read_text(
+        encoding="utf-8"
+    )
+    devices_sheet = (src_root / "features" / "devices" / "AssignmentSheet.tsx").read_text(
+        encoding="utf-8"
+    )
+
+    assert "SectionHeader" in overview_tab
+    assert "MetricCard" in overview_tab
+    assert "SectionHeader" in settings_tab
+    assert "KeyValueGrid" in settings_tab
+    assert "FormField" in settings_tab
+    assert "KeyValueGrid" in devices_sheet
+
+
+def test_dashboard_accessibility_and_motion_guards_are_centralized():
+    src_root = Path(__file__).resolve().parents[2] / "dashboard" / "src"
+    side_sheet = (src_root / "components" / "SideSheet.tsx").read_text(encoding="utf-8")
+    base_css = (src_root / "styles" / "base.css").read_text(encoding="utf-8")
+    components_css = (src_root / "styles" / "components.css").read_text(encoding="utf-8")
+
+    assert 'role="dialog"' in side_sheet
+    assert 'aria-modal="true"' in side_sheet
+    assert "aria-labelledby" in side_sheet
+    assert "@media (prefers-reduced-motion: reduce)" in base_css
+    assert ":focus-visible" in components_css
+
+
+def test_agents_document_shared_ui_primitives_and_app_shell_rules():
+    agents_file = Path(__file__).resolve().parents[2] / "AGENTS.md"
+    content = agents_file.read_text(encoding="utf-8")
+
+    assert "同类页面头部、统计卡、键值信息块、表单标签必须优先抽成共享组件" in content
+    assert "Dashboard 必须统一提供 `:focus-visible` 与 `prefers-reduced-motion` 兜底" in content
+    assert "App 端聊天首页只保留一个一等壳层实现" in content
+    assert "`home_screen.dart` 仅保留入口包装职责" in content

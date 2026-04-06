@@ -1,5 +1,8 @@
 import type { FormEvent } from "react";
 
+import { FormField } from "../../components/FormField";
+import { KeyValueGrid } from "../../components/KeyValueGrid";
+import { SectionHeader } from "../../components/SectionHeader";
 import { SideSheet } from "../../components/SideSheet";
 import type { SkillForm } from "../../app/model";
 import { formatBytes } from "../../lib/format";
@@ -56,83 +59,87 @@ export function SkillEditorSheet({
           )}
         </section>
 
-        <label className="field">
-          <span>Skill ID</span>
+        <FormField htmlFor="skill-editor-id" label="Skill ID">
           <input
             disabled={mode === "edit"}
+            id="skill-editor-id"
             value={form.skill_id}
             onChange={(event) => onChange({ skill_id: event.target.value })}
           />
-        </label>
-        <label className="field">
-          <span>名称</span>
+        </FormField>
+        <FormField htmlFor="skill-editor-name" label="名称">
           <input
+            id="skill-editor-name"
             value={form.name}
             onChange={(event) => onChange({ name: event.target.value })}
           />
-        </label>
-        <label className="field">
-          <span>描述</span>
+        </FormField>
+        <FormField htmlFor="skill-editor-description" label="描述">
           <textarea
+            id="skill-editor-description"
             rows={3}
             value={form.description}
             onChange={(event) => onChange({ description: event.target.value })}
           />
-        </label>
+        </FormField>
         {!isBuiltin ? (
-          <label className="field">
-            <span>{mode === "create" ? "上传归档 zip" : "替换归档 zip"}</span>
+          <FormField
+            htmlFor="skill-editor-archive"
+            label={mode === "create" ? "上传归档 zip" : "替换归档 zip"}
+          >
             <input
               accept=".zip,application/zip"
+              id="skill-editor-archive"
               type="file"
               onChange={(event) =>
                 onChange({ archive_file: event.target.files?.[0] ?? null })
               }
             />
-          </label>
+          </FormField>
         ) : null}
         <section className="panel panel-nested">
-          <div className="panel-head compact">
-            <div>
-              <p className="eyebrow">{isBuiltin ? "Builtin" : "Archive"}</p>
-              <h3>{isBuiltin ? "能力状态" : "归档状态"}</h3>
-            </div>
-          </div>
-          <div className="detail-grid">
-            <div>
-              <span>{isBuiltin ? "来源" : "当前文件"}</span>
-              <strong>{isBuiltin ? "系统预置" : selectedArchiveName || "未选择 zip"}</strong>
-            </div>
-            <div>
-              <span>{isBuiltin ? "分配方式" : "当前大小"}</span>
-              <strong>{isBuiltin
-                ? "直接同步到 AI 能力目录"
-                : form.archive_file
-                  ? formatBytes(form.archive_file.size)
-                  : formatBytes(form.existing_archive_size)}</strong>
-            </div>
-            <div>
-              <span>{isBuiltin ? "归档" : "当前校验"}</span>
-              <strong>{isBuiltin ? "不需要 zip" : archiveHash}</strong>
-            </div>
-            <div>
-              <span>上传提示</span>
-              <strong>{isBuiltin
-                ? "可直接修改描述或默认配置"
-                : mode === "create"
-                  ? "创建时必须上传 zip"
-                  : "可只改配置，不替换 zip"}</strong>
-            </div>
-          </div>
+          <SectionHeader
+            compact
+            eyebrow={isBuiltin ? "Builtin" : "Archive"}
+            title={isBuiltin ? "能力状态" : "归档状态"}
+          />
+          <KeyValueGrid
+            items={[
+              {
+                label: isBuiltin ? "来源" : "当前文件",
+                value: isBuiltin ? "系统预置" : selectedArchiveName || "未选择 zip",
+              },
+              {
+                label: isBuiltin ? "分配方式" : "当前大小",
+                value: isBuiltin
+                  ? "直接同步到 AI 能力目录"
+                  : form.archive_file
+                    ? formatBytes(form.archive_file.size)
+                    : formatBytes(form.existing_archive_size),
+              },
+              {
+                label: isBuiltin ? "归档" : "当前校验",
+                value: isBuiltin ? "不需要 zip" : archiveHash,
+              },
+              {
+                label: "上传提示",
+                value: isBuiltin
+                  ? "可直接修改描述或默认配置"
+                  : mode === "create"
+                    ? "创建时必须上传 zip"
+                    : "可只改配置，不替换 zip",
+              },
+            ]}
+          />
         </section>
-        <label className="field">
-          <span>配置 JSON</span>
+        <FormField htmlFor="skill-editor-config" label="配置 JSON">
           <textarea
+            id="skill-editor-config"
             rows={8}
             value={form.config}
             onChange={(event) => onChange({ config: event.target.value })}
           />
-        </label>
+        </FormField>
         {error ? <p className="error-text">{error}</p> : null}
         <button className="primary-button" type="submit">
           {mode === "create" ? "创建 Skill" : "保存变更"}
