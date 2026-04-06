@@ -31,10 +31,19 @@ class TaskController extends ChangeNotifier {
   ConnectionStatus get status => _status;
   String? get token => _token;
   String? get errorMessage => _errorMessage;
+  bool get hasSavedSession => _session != null;
   String? get savedBaseUrl => _session?.baseUrl;
   String? get savedUsername => _session?.username;
   String? get savedPassword => _session?.password;
   String? get preferredDeviceId => _session?.preferredDeviceId;
+  bool get canReconnect {
+    final savedToken = _token ?? _session?.token;
+    final savedPassword = _session?.password;
+    return _session != null &&
+        ((savedToken != null && savedToken.isNotEmpty) ||
+            (savedPassword != null && savedPassword.isNotEmpty));
+  }
+
   List<DeviceRecord> get devices => List<DeviceRecord>.unmodifiable(_devices);
   List<TaskRecord> get tasks => List<TaskRecord>.unmodifiable(_tasks);
   List<TaskRecord> get pendingTasks => _tasks
@@ -127,6 +136,41 @@ class TaskController extends ChangeNotifier {
     for (final task in pending) {
       _upsertTask(task, selectIfMissing: _selectedTaskId == null);
     }
+    notifyListeners();
+  }
+
+  Future<void> reconnect() async {
+    final session = _session;
+    if (session == null) {
+      _status = ConnectionStatus.failed;
+      _errorMessage = '当前还没有保存连接信息，请先修改连接。';
+      notifyListeners();
+      return;
+    }
+
+    final activeToken = _token ?? session.token;
+    final password = session.password;
+    final hasPassword = password != null && password.isNotEmpty;
+    final hasToken = activeToken != null && activeToken.isNotEmpty;
+    final reconnectSession = hasToken
+        ? session.copyWith(token: activeToken)
+        : session;
+
+    if (_status != ConnectionStatus.connected && hasPassword) {
+      await _restoreWithPassword(reconnectSession, password);
+      return;
+    }
+    if (hasToken) {
+      await _connectWithToken(reconnectSession);
+      return;
+    }
+    if (hasPassword) {
+      await _restoreWithPassword(reconnectSession, password);
+      return;
+    }
+
+    _status = ConnectionStatus.failed;
+    _errorMessage = '当前连接缺少可用的登录信息，请修改连接后重新登录。';
     notifyListeners();
   }
 
@@ -350,7 +394,7 @@ class TaskController extends ChangeNotifier {
   String _savedSessionError(Object error) {
     final message = error.toString();
     if (message.contains('401')) {
-      return '已保存的登录态失效，请重新输入密码连接。';
+      return '已保存的登录态失效，请重新连接或修改连接信息。';
     }
     return message;
   }

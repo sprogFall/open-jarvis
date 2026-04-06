@@ -13,6 +13,9 @@ class FakeGatewayApi implements GatewayApi {
   FakeGatewayApi({this.pendingApprovals = const <TaskRecord>[]});
 
   final List<TaskRecord> pendingApprovals;
+  int loginCallCount = 0;
+  int fetchDevicesCallCount = 0;
+  int fetchPendingApprovalsCallCount = 0;
   String? lastInstruction;
   String? lastBaseUrl;
   String? lastUsername;
@@ -24,6 +27,7 @@ class FakeGatewayApi implements GatewayApi {
     required String username,
     required String password,
   }) async {
+    loginCallCount += 1;
     lastBaseUrl = baseUrl;
     lastUsername = username;
     lastPassword = password;
@@ -35,6 +39,7 @@ class FakeGatewayApi implements GatewayApi {
     required String baseUrl,
     required String token,
   }) async {
+    fetchPendingApprovalsCallCount += 1;
     return pendingApprovals;
   }
 
@@ -43,6 +48,7 @@ class FakeGatewayApi implements GatewayApi {
     required String baseUrl,
     required String token,
   }) async {
+    fetchDevicesCallCount += 1;
     return [const DeviceRecord(deviceId: 'device-alpha', connected: true)];
   }
 
@@ -338,6 +344,78 @@ void main() {
       expect(api.lastPassword, 'secret');
     },
   );
+
+  testWidgets(
+    'shows saved server and account info before entering the edit form',
+    (tester) async {
+      final controller = TaskController(
+        api: FakeGatewayApi(),
+        socket: FakeGatewaySocket(),
+        sessionStore: FakeConnectionSessionStore(
+          session: const ConnectionSession(
+            baseUrl: 'http://10.0.0.8:8000',
+            username: 'root',
+            password: 'secret',
+            token: 'jwt-token',
+          ),
+        ),
+      );
+
+      await controller.restoreSavedSession();
+      await pumpApp(tester, controller);
+
+      await tester.tap(find.byKey(const Key('appBarSettingsButton')));
+      await pumpFrames(tester);
+
+      expect(find.text('当前连接'), findsOneWidget);
+      expect(find.text('http://10.0.0.8:8000'), findsOneWidget);
+      expect(find.text('root'), findsOneWidget);
+      expect(find.byKey(const Key('settingsReconnectButton')), findsOneWidget);
+      expect(
+        find.byKey(const Key('settingsEditConnectionButton')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('settingsBaseUrlField')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('settingsEditConnectionButton')));
+      await pumpFrames(tester);
+
+      expect(find.byKey(const Key('settingsBaseUrlField')), findsOneWidget);
+      expect(find.byKey(const Key('settingsUsernameField')), findsOneWidget);
+      expect(find.byKey(const Key('settingsPasswordField')), findsOneWidget);
+    },
+  );
+
+  testWidgets('reconnects from the saved connection summary', (tester) async {
+    final api = FakeGatewayApi();
+    final controller = TaskController(
+      api: api,
+      socket: FakeGatewaySocket(),
+      sessionStore: FakeConnectionSessionStore(
+        session: const ConnectionSession(
+          baseUrl: 'http://10.0.0.8:8000',
+          username: 'root',
+          password: 'secret',
+          token: 'jwt-token',
+        ),
+      ),
+    );
+
+    await controller.restoreSavedSession();
+    expect(api.fetchDevicesCallCount, 1);
+    expect(api.fetchPendingApprovalsCallCount, 1);
+
+    await pumpApp(tester, controller);
+
+    await tester.tap(find.byKey(const Key('appBarSettingsButton')));
+    await pumpFrames(tester);
+    await tester.tap(find.byKey(const Key('settingsReconnectButton')));
+    await pumpFrames(tester);
+
+    expect(api.fetchDevicesCallCount, 2);
+    expect(api.fetchPendingApprovalsCallCount, 2);
+    expect(controller.status, ConnectionStatus.connected);
+  });
 
   testWidgets('restores saved connection settings after app restart', (
     tester,

@@ -98,6 +98,15 @@ class _JarvisAppShellState extends State<JarvisAppShell> {
               Navigator.of(sheetContext).pop();
             }
           },
+          onReconnect: () async {
+            await controller.reconnect();
+            if (!mounted || !sheetContext.mounted) {
+              return;
+            }
+            if (controller.status == ConnectionStatus.connected) {
+              Navigator.of(sheetContext).pop();
+            }
+          },
           onRefresh: controller.refresh,
         );
       },
