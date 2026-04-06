@@ -134,8 +134,8 @@ sed -i 's/^DEPLOY_NETWORK_PROFILE=.*/DEPLOY_NETWORK_PROFILE=cn/' .env
 | `OMNI_AGENT_DEVICE_KEYS` | `device-alpha=device-secret` | 预注册设备，格式 `id1=key1,id2=key2` |
 | `OMNI_AGENT_DASHBOARD_ORIGINS` | 空 | Dashboard 跨域白名单；同域反代部署时通常无需设置 |
 | `OMNI_AGENT_GATEWAY_ALLOWED_ROOTS` | `/workspace` | Gateway 本机执行端可访问的文件根目录，使用 `:` 分隔 |
-| `OMNI_AGENT_GATEWAY_LOCAL_CHECKPOINT_DB` | 空 | Gateway 本机执行端 checkpoint 存储目标；留空时若 `DATABASE_URL` 是 PostgreSQL，则自动复用主库，否则回退到本地 SQLite |
-| `OMNI_AGENT_GATEWAY_LOCAL_LANGGRAPH_DB` | 空 | Gateway 本机执行端 LangGraph 状态存储目标；留空时若 `DATABASE_URL` 是 PostgreSQL，则自动复用主库，否则回退到本地 SQLite |
+| `OMNI_AGENT_GATEWAY_LOCAL_CHECKPOINT_DB` | `/data/gateway/local-client.db` | Gateway 本机执行端 checkpoint 存储目标；默认使用本地 SQLite，只有显式填写 PostgreSQL 连接串时才切到中心库 |
+| `OMNI_AGENT_GATEWAY_LOCAL_LANGGRAPH_DB` | `/data/gateway/local-langgraph.db` | Gateway 本机执行端 LangGraph 状态存储目标；默认使用本地 SQLite，只有显式填写 PostgreSQL 连接串时才切到中心库 |
 | `OMNI_AGENT_SKILL_ARCHIVES_DIR` | `/data/gateway/skill-archives` | Gateway 侧 archive skill 归档目录 |
 | `OMNI_AGENT_GATEWAY_IOT_BASE_URL` | 空 | Gateway 侧 IoT 平台接口地址 |
 | `OMNI_AGENT_GATEWAY_IOT_TOKEN` | 空 | Gateway 侧 IoT Token |
@@ -151,8 +151,8 @@ sed -i 's/^DEPLOY_NETWORK_PROFILE=.*/DEPLOY_NETWORK_PROFILE=cn/' .env
 | `OMNI_AGENT_GATEWAY_URL` | `http://gateway:8000` | Client 连接 Gateway 的地址；与本地 `gateway` 联合部署时可保留默认值，单独部署 Client 时必须改为容器内可访问的远端地址 |
 | `OMNI_AGENT_DEVICE_ID` | `device-alpha` | 当前设备标识 |
 | `OMNI_AGENT_DEVICE_KEY` | `device-secret` | 当前设备签名密钥，需与 Gateway 侧一致 |
-| `OMNI_AGENT_CHECKPOINT_DB` | 空 | Client checkpoint 存储目标；留空时若 Client 与 Gateway 同栈部署且 `DATABASE_URL` 是 PostgreSQL，则自动复用主库，否则回退到本地 SQLite |
-| `OMNI_AGENT_LANGGRAPH_DB` | 空 | Client LangGraph workflow 状态存储目标；留空时若 Client 与 Gateway 同栈部署且 `DATABASE_URL` 是 PostgreSQL，则自动复用主库，否则回退到本地 SQLite |
+| `OMNI_AGENT_CHECKPOINT_DB` | `/data/client/client.db` | Client checkpoint 存储目标；默认使用本地 SQLite，只有显式填写 PostgreSQL 连接串时才切到中心库 |
+| `OMNI_AGENT_LANGGRAPH_DB` | `/data/client/langgraph.db` | Client LangGraph workflow 状态存储目标；默认使用本地 SQLite，只有显式填写 PostgreSQL 连接串时才切到中心库 |
 | `OMNI_AGENT_SKILLS_WORKSPACE` | `/data/client/skills-runtime` | archive skill 下载/解压目录 |
 | `OMNI_AGENT_ALLOWED_ROOTS` | `/workspace` | 文件系统技能允许访问的根目录 |
 | `OMNI_AGENT_IOT_BASE_URL` | 空 | Client 侧 IoT 平台接口地址 |
@@ -185,16 +185,16 @@ psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE jarvis TO jarvis;"
 export DATABASE_URL=postgresql://jarvis:your-password@localhost:5432/jarvis
 ```
 
-如果希望把 Gateway 主数据、Gateway 本机执行端 checkpoint/LangGraph 状态、同栈部署的 Client checkpoint/LangGraph 状态全部统一到同一套 PostgreSQL，保持以下变量为空即可：
+如果希望把 Gateway 主数据继续放在 PostgreSQL，但让 `gateway-local` 和 `client` 保持最轻量，本地默认值不用改，它们会各自使用 SQLite：
 
 ```bash
-export OMNI_AGENT_GATEWAY_LOCAL_CHECKPOINT_DB=
-export OMNI_AGENT_GATEWAY_LOCAL_LANGGRAPH_DB=
-export OMNI_AGENT_CHECKPOINT_DB=
-export OMNI_AGENT_LANGGRAPH_DB=
+export OMNI_AGENT_GATEWAY_LOCAL_CHECKPOINT_DB=/data/gateway/local-client.db
+export OMNI_AGENT_GATEWAY_LOCAL_LANGGRAPH_DB=/data/gateway/local-langgraph.db
+export OMNI_AGENT_CHECKPOINT_DB=/data/client/client.db
+export OMNI_AGENT_LANGGRAPH_DB=/data/client/langgraph.db
 ```
 
-在 `docker-compose.yml` 中，上述四个变量默认就是空值，因此整套容器默认会复用同一个 `DATABASE_URL`。
+如果你后续确实想把 `gateway-local` 或 `client` 也切到 PostgreSQL，可以单独把这四个变量改成 PostgreSQL 连接串，不需要改 Gateway 主库逻辑。
 
 ### SQLite（开发/测试）
 
@@ -351,7 +351,7 @@ cd app && flutter test
 - Gateway 容器负责 API、WebSocket 与 `gateway-local` 本机执行端
 - Gateway 与 Client 都会只读挂载整个仓库到 `/workspace`，供文件系统技能访问
 - Gateway 与 Client 都挂载 `/var/run/docker.sock`，以便 Docker 技能执行容器查询与重启
-- `postgres_data` 会持久化 Gateway 主数据以及默认统一后的 checkpoint / LangGraph 状态；`gateway_data`、`client_data` 仍用于技能归档和运行时工作目录
+- `postgres_data` 会持久化 Gateway 主数据；`gateway_data`、`client_data` 会持久化本地 checkpoint、LangGraph 状态、技能归档和运行时工作目录
 - 国内网络推荐把 `.env` 里的 `DEPLOY_NETWORK_PROFILE` 改成 `cn`；脚本会自动切到 `gateway/Dockerfile.cn`、`client/Dockerfile.cn`、`dashboard/Dockerfile.cn`
 - `gateway/client` 的 `.cn` Dockerfile` 使用清华 `apt/pip` 镜像，Dashboard 的 `.cn` Dockerfile 使用 `https://registry.npmmirror.com`
 - 基础镜像拉取仍由宿主机 Docker 负责；如果 `python:3.11-slim`、`node:20-alpine`、`nginx:1.27-alpine` 或 `postgres:16-alpine` 拉取缓慢，需在服务器 Docker daemon 上额外配置 registry mirror

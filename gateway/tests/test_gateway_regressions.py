@@ -247,10 +247,27 @@ def test_from_env_reads_legacy_gateway_db_variable(monkeypatch, tmp_path):
     assert settings.database_url == str((tmp_path / "gateway" / "legacy.db").resolve())
 
 
-def test_from_env_reuses_gateway_postgres_for_local_executor_storage(monkeypatch):
+def test_from_env_defaults_local_executor_storage_to_local_sqlite(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://jarvis:pg-secret@db:5432/jarvis")
     monkeypatch.delenv("OMNI_AGENT_GATEWAY_LOCAL_CHECKPOINT_DB", raising=False)
     monkeypatch.delenv("OMNI_AGENT_GATEWAY_LOCAL_LANGGRAPH_DB", raising=False)
+
+    settings = GatewaySettings.from_env()
+
+    assert str(settings.local_checkpoint_path).endswith("/gateway/local-client.db")
+    assert str(settings.local_workflow_store_path).endswith("/gateway/local-langgraph.db")
+
+
+def test_from_env_accepts_explicit_postgres_for_local_executor_storage(monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv(
+        "OMNI_AGENT_GATEWAY_LOCAL_CHECKPOINT_DB",
+        "postgresql://jarvis:pg-secret@db:5432/jarvis",
+    )
+    monkeypatch.setenv(
+        "OMNI_AGENT_GATEWAY_LOCAL_LANGGRAPH_DB",
+        "postgresql://jarvis:pg-secret@db:5432/jarvis",
+    )
 
     settings = GatewaySettings.from_env()
 

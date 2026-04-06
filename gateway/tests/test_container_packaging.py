@@ -113,11 +113,10 @@ def test_compose_stack_can_boot_from_clone_without_external_database_or_static_h
     assert "postgres:16-alpine" in compose
     assert "postgresql://${POSTGRES_USER:-jarvis}:${POSTGRES_PASSWORD:-jarvis}@postgres:5432/${POSTGRES_DB:-jarvis}" in compose
     assert "client:\n" in compose
-    assert "DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-jarvis}:${POSTGRES_PASSWORD:-jarvis}@postgres:5432/${POSTGRES_DB:-jarvis}}" in compose
-    assert "OMNI_AGENT_GATEWAY_LOCAL_CHECKPOINT_DB: ${OMNI_AGENT_GATEWAY_LOCAL_CHECKPOINT_DB:-}" in compose
-    assert "OMNI_AGENT_GATEWAY_LOCAL_LANGGRAPH_DB: ${OMNI_AGENT_GATEWAY_LOCAL_LANGGRAPH_DB:-}" in compose
-    assert "OMNI_AGENT_CHECKPOINT_DB: ${OMNI_AGENT_CHECKPOINT_DB:-}" in compose
-    assert "OMNI_AGENT_LANGGRAPH_DB: ${OMNI_AGENT_LANGGRAPH_DB:-}" in compose
+    assert "OMNI_AGENT_GATEWAY_LOCAL_CHECKPOINT_DB: ${OMNI_AGENT_GATEWAY_LOCAL_CHECKPOINT_DB:-/data/gateway/local-client.db}" in compose
+    assert "OMNI_AGENT_GATEWAY_LOCAL_LANGGRAPH_DB: ${OMNI_AGENT_GATEWAY_LOCAL_LANGGRAPH_DB:-/data/gateway/local-langgraph.db}" in compose
+    assert "OMNI_AGENT_CHECKPOINT_DB: ${OMNI_AGENT_CHECKPOINT_DB:-/data/client/client.db}" in compose
+    assert "OMNI_AGENT_LANGGRAPH_DB: ${OMNI_AGENT_LANGGRAPH_DB:-/data/client/langgraph.db}" in compose
     assert "condition: service_healthy" in compose
     assert "./:/workspace:ro" in compose
     assert "/var/run/docker.sock:/var/run/docker.sock" in compose

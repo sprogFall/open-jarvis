@@ -110,19 +110,11 @@ class GatewaySettings:
             iot_base_url=os.getenv("OMNI_AGENT_GATEWAY_IOT_BASE_URL"),
             iot_token=os.getenv("OMNI_AGENT_GATEWAY_IOT_TOKEN"),
             local_checkpoint_path=_normalize_storage_target(
-                raw_local_checkpoint_path or (
-                    normalized_database_url
-                    if normalized_database_url.startswith("postgresql://")
-                    else None
-                ),
+                raw_local_checkpoint_path,
                 "gateway/local-client.db",
             ),
             local_workflow_store_path=_normalize_storage_target(
-                raw_local_workflow_store_path or (
-                    normalized_database_url
-                    if normalized_database_url.startswith("postgresql://")
-                    else None
-                ),
+                raw_local_workflow_store_path,
                 "gateway/local-langgraph.db",
             ),
             ai_provider=os.getenv("OMNI_AGENT_GATEWAY_AI_PROVIDER"),
