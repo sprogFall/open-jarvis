@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from client.ai import AIModelConfig
 from client.checkpoints import CheckpointStore
 from client.planner import LLMPlanner
 
@@ -12,6 +13,12 @@ class FakeModelClient:
     def generate_json(self, *, system_prompt: str, user_prompt: str) -> dict:
         self.calls.append((system_prompt, user_prompt))
         return self.payload
+
+
+def test_ai_model_config_ignores_none_fields():
+    assert AIModelConfig.from_dict(
+        {"provider": None, "model": None, "api_key": None}
+    ) is None
 
 
 def test_checkpoint_store_persists_ai_override(tmp_path):
@@ -199,3 +206,35 @@ def test_llm_planner_normalizes_docker_command_instead_of_preserving_chinese():
     assert [action.name for action in actions] == ["docker.restart"]
     assert actions[0].command == "docker restart api-service"
     assert actions[0].args == {"container": "api-service"}
+
+
+def test_llm_planner_rejects_natural_language_shell_command_from_model():
+    model_client = FakeModelClient(
+        {
+            "actions": [
+                {
+                    "name": "shell.exec",
+                    "command": "帮我查看一下服务器状态",
+                    "args": {"command": "帮我查看一下服务器状态"},
+                    "requires_approval": True,
+                    "reason": "需要进入终端查看",
+                }
+            ]
+        }
+    )
+    planner = LLMPlanner(
+        config_resolver=lambda: {
+            "provider": "custom",
+            "model": "qwen-max",
+            "api_key": "client-secret",
+            "base_url": "https://llm.example/v1/chat/completions",
+        },
+        model_client_factory=lambda _config: model_client,
+    )
+
+    try:
+        planner.plan("帮我查看一下服务器状态")
+    except ValueError as exc:
+        assert "shell command" in str(exc)
+    else:
+        raise AssertionError("expected planner to reject non-executable shell command")

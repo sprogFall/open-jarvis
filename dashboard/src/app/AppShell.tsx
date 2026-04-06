@@ -3,6 +3,7 @@ import { startTransition } from "react";
 import { tabs, type TabId } from "./model";
 import { useDashboardController } from "./useDashboardController";
 import { AssignmentSheet } from "../features/devices/AssignmentSheet";
+import { AiCallsTab } from "../features/ai-logs/AiCallsTab";
 import { ChatTab } from "../features/chat/ChatTab";
 import { DeviceEditorSheet } from "../features/devices/DeviceEditorSheet";
 import { DevicesTab } from "../features/devices/DevicesTab";
@@ -155,6 +156,15 @@ export function AppShell({
             />
           ) : null}
 
+          {controller.activeTab === "ai-calls" ? (
+            <AiCallsTab
+              calls={controller.aiCalls}
+              selectedCall={controller.aiCallDetail}
+              onSelectCall={controller.selectAiCall}
+              onRefresh={() => controller.refreshTab("ai-calls")}
+            />
+          ) : null}
+
           {controller.activeTab === "settings" ? (
             <SettingsTab
               systemInfo={controller.systemInfo}
@@ -165,14 +175,18 @@ export function AppShell({
               }
               gatewayAiForm={controller.gatewayAiForm}
               gatewayAiError={controller.gatewayAiError}
+              gatewayAiTestMessage={controller.gatewayAiTestMessage}
               deviceAiForm={controller.deviceAiForm}
               deviceAiError={controller.deviceAiError}
+              deviceAiTestMessage={controller.deviceAiTestMessage}
               onGatewayAiChange={controller.patchGatewayAiForm}
               onDeviceAiChange={controller.patchDeviceAiForm}
               onSaveGatewayAiConfig={controller.saveGatewayAiConfig}
               onSaveDeviceAiConfig={controller.saveDeviceAiConfig}
               onClearGatewayAiConfig={controller.clearGatewayAiConfig}
               onClearDeviceAiConfig={controller.clearDeviceAiConfig}
+              onTestGatewayAiConfig={controller.testGatewayAiConfig}
+              onTestDeviceAiConfig={controller.testDeviceAiConfig}
             />
           ) : null}
         </main>

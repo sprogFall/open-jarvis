@@ -31,6 +31,19 @@ class NullTransport:
         del payload
 
 
+def _build_ai_call_sink(transport, device_id: str):
+    def sink(payload: dict) -> None:
+        transport.send(
+            {
+                "type": "AI_CALL_LOG",
+                "device_id": device_id,
+                **payload,
+            }
+        )
+
+    return sink
+
+
 def build_default_registry(
     config: ClientConfig,
     *,
@@ -137,6 +150,8 @@ def create_default_service(config: ClientConfig | None = None) -> ClientService:
         planner=LLMPlanner(
             config_resolver=lambda: checkpoint_store.load_ai_config() or config.ai_config(),
             action_catalog_provider=registry.available_actions,
+            device_id=config.device_id,
+            call_log_sink=_build_ai_call_sink(transport, config.device_id),
         ),
         registry=registry,
         transport=transport,
@@ -161,10 +176,6 @@ def run_forever(config: ClientConfig | None = None) -> None:
 
     checkpoint_store = CheckpointStore(config.checkpoint_path, ai_scope=config.device_id)
     registry = build_default_registry(config, enable_builtin_by_default=False)
-    planner = LLMPlanner(
-        config_resolver=lambda: checkpoint_store.load_ai_config() or config.ai_config(),
-        action_catalog_provider=registry.available_actions,
-    )
     skill_workspace = SkillWorkspaceManager(
         workspace_root=config.skills_workspace,
         archive_fetcher=GatewaySkillArchiveFetcher(config),
@@ -180,6 +191,12 @@ def run_forever(config: ClientConfig | None = None) -> None:
         try:
             with ws_connect(ws_url, open_timeout=5) as connection:
                 transport = WebSocketTransport(connection)
+                planner = LLMPlanner(
+                    config_resolver=lambda: checkpoint_store.load_ai_config() or config.ai_config(),
+                    action_catalog_provider=registry.available_actions,
+                    device_id=config.device_id,
+                    call_log_sink=_build_ai_call_sink(transport, config.device_id),
+                )
                 runner = TaskRunner(
                     planner=planner,
                     registry=registry,

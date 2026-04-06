@@ -1,4 +1,4 @@
-import type { Device, Overview, Skill, SystemInfo, Task } from "./types";
+import type { AICallLog, Device, Overview, Skill, SystemInfo, Task } from "./types";
 
 function normalizeGatewayBaseUrl(raw: string): string {
   const trimmed = raw.trim().replace(/\/+$/, "");
@@ -214,6 +214,34 @@ export const dashboardApi = {
   },
   getSystemInfo(token: string): Promise<SystemInfo> {
     return request("/dashboard/api/system", {}, token);
+  },
+  listAiCallLogs(
+    token: string,
+    filters: { source?: string; device_id?: string; limit?: number } = {},
+  ): Promise<AICallLog[]> {
+    const params = new URLSearchParams();
+    if (filters.source) {
+      params.set("source", filters.source);
+    }
+    if (filters.device_id) {
+      params.set("device_id", filters.device_id);
+    }
+    if (filters.limit) {
+      params.set("limit", String(filters.limit));
+    }
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    return request(`/dashboard/api/ai/calls${suffix}`, {}, token);
+  },
+  testGatewayAiConfig(
+    token: string,
+  ): Promise<{ provider: string; model: string; response: Record<string, unknown> }> {
+    return request("/dashboard/api/ai/test/gateway", { method: "POST" }, token);
+  },
+  testDeviceAiConfig(
+    token: string,
+    deviceId: string,
+  ): Promise<{ provider: string; model: string; response: Record<string, unknown> }> {
+    return request(`/dashboard/api/ai/test/devices/${deviceId}`, { method: "POST" }, token);
   },
   saveGatewayAiConfig(
     token: string,

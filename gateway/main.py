@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
+from client.ai import StructuredModelClient
 from gateway.ai import GATEWAY_LOCAL_DEVICE_ID, GatewayTaskRouter
 from gateway.dashboard_api import build_device_skill_sync_payload, dashboard_api
 from gateway.dashboard_api import build_device_ai_config_sync_payload
@@ -193,6 +194,7 @@ def create_app(settings: GatewaySettings | None = None) -> FastAPI:
     app.state.manager = manager
     app.state.task_router = GatewayTaskRouter(store, settings)
     app.state.local_executor = GatewayLocalExecutor(store, manager, settings)
+    app.state.ai_model_client_factory = StructuredModelClient
     if settings.dashboard_origins:
         app.add_middleware(
             CORSMiddleware,
@@ -381,7 +383,7 @@ def create_app(settings: GatewaySettings | None = None) -> FastAPI:
         store.touch_device(device_id)
         skill_sync = build_device_skill_sync_payload(store, device_id)
         await manager.send_device_skills_sync(device_id, skill_sync)
-        ai_sync = build_device_ai_config_sync_payload(store, device_id)
+        ai_sync = build_device_ai_config_sync_payload(store, settings, device_id)
         if ai_sync["config"] is not None:
             await manager.send_device_ai_config_sync(device_id, ai_sync)
         for task in store.list_tasks_for_device(device_id, ["PENDING_DISPATCH"]):
@@ -409,6 +411,19 @@ def create_app(settings: GatewaySettings | None = None) -> FastAPI:
                         reason=payload["reason"],
                     )
                     await manager.broadcast_task(updated)
+                elif message_type == "AI_CALL_LOG":
+                    store.record_ai_call(
+                        source=payload["source"],
+                        device_id=payload.get("device_id"),
+                        task_id=payload.get("task_id"),
+                        provider=payload["provider"],
+                        model=payload["model"],
+                        endpoint=payload.get("endpoint"),
+                        system_prompt=payload["system_prompt"],
+                        user_prompt=payload["user_prompt"],
+                        response=payload.get("response"),
+                        error=payload.get("error"),
+                    )
                 elif message_type == "TASK_COMPLETED":
                     updated = store.update_task(
                         task_id,

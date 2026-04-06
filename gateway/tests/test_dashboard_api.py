@@ -386,6 +386,86 @@ def test_dashboard_ai_override_can_target_device_without_readback(tmp_path):
     ]
 
 
+class StubModelClient:
+    def __init__(self, payload: dict) -> None:
+        self.payload = payload
+        self.calls: list[tuple[str, str]] = []
+
+    def generate_json(self, *, system_prompt: str, user_prompt: str) -> dict:
+        self.calls.append((system_prompt, user_prompt))
+        return self.payload
+
+
+def test_dashboard_can_test_current_gateway_ai_config_and_persist_call_log(tmp_path):
+    client, headers = _setup(tmp_path)
+    stub = StubModelClient({"ok": True, "summary": "模型响应正常"})
+    client.app.state.ai_model_client_factory = lambda _config: stub
+
+    save_response = client.put(
+        "/dashboard/api/ai/gateway",
+        headers=headers,
+        json={
+            "provider": "openai",
+            "model": "gpt-4o-mini",
+            "api_key": "gateway-secret",
+        },
+    )
+    assert save_response.status_code == 204
+
+    response = client.post("/dashboard/api/ai/test/gateway", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "provider": "openai",
+        "model": "gpt-4o-mini",
+        "response": {"ok": True, "summary": "模型响应正常"},
+    }
+    assert "连通性检查" in stub.calls[0][0]
+    assert "结构化 JSON" in stub.calls[0][1]
+
+    call_logs = client.get("/dashboard/api/ai/calls", headers=headers).json()
+    assert len(call_logs) == 1
+    assert call_logs[0]["source"] == "config_test"
+    assert call_logs[0]["provider"] == "openai"
+    assert call_logs[0]["model"] == "gpt-4o-mini"
+    assert call_logs[0]["response"] == {"ok": True, "summary": "模型响应正常"}
+    assert call_logs[0]["error"] is None
+
+
+def test_dashboard_can_test_current_device_ai_effective_config(tmp_path):
+    client, headers = _setup(tmp_path)
+    stub = StubModelClient({"ok": True, "summary": "设备配置可用"})
+    client.app.state.ai_model_client_factory = lambda _config: stub
+
+    save_response = client.put(
+        "/dashboard/api/ai/gateway",
+        headers=headers,
+        json={
+            "provider": "custom",
+            "model": "deepseek-chat",
+            "api_key": "gateway-secret",
+            "base_url": "https://llm.example/v1/chat/completions",
+        },
+    )
+    assert save_response.status_code == 204
+
+    response = client.post("/dashboard/api/ai/test/devices/device-alpha", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "provider": "custom",
+        "model": "deepseek-chat",
+        "response": {"ok": True, "summary": "设备配置可用"},
+    }
+    assert len(stub.calls) == 1
+
+    call_logs = client.get("/dashboard/api/ai/calls", headers=headers).json()
+    assert len(call_logs) == 1
+    assert call_logs[0]["source"] == "config_test"
+    assert call_logs[0]["device_id"] == "device-alpha"
+    assert call_logs[0]["endpoint"] == "https://llm.example/v1/chat/completions"
+
+
 def test_existing_gateway_health(tmp_path):
     client, _ = _setup(tmp_path)
     assert client.get("/health").json() == {"status": "ok"}

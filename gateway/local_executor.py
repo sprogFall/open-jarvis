@@ -62,10 +62,17 @@ class GatewayLocalExecutor:
             self.settings.local_checkpoint_path,
             ai_scope="gateway-local",
         )
+        transport = _GatewayLocalTransport(self)
         self.runner = TaskRunner(
-            planner=LLMPlanner(config_resolver=self.config_resolver.resolve),
+            planner=LLMPlanner(
+                config_resolver=self.config_resolver.resolve,
+                device_id="gateway-local",
+                call_log_sink=lambda payload: transport.send(
+                    {"type": "AI_CALL_LOG", **payload}
+                ),
+            ),
             registry=build_default_registry(self.settings),
-            transport=_GatewayLocalTransport(self),
+            transport=transport,
             checkpoints=checkpoints,
             workflow_store_path=self.settings.local_workflow_store_path,
         )
@@ -100,6 +107,19 @@ class GatewayLocalExecutor:
                 reason=payload["reason"],
             )
             await self.manager.broadcast_task(updated)
+        elif message_type == "AI_CALL_LOG":
+            self.store.record_ai_call(
+                source=payload["source"],
+                device_id=payload.get("device_id"),
+                task_id=payload.get("task_id"),
+                provider=payload["provider"],
+                model=payload["model"],
+                endpoint=payload.get("endpoint"),
+                system_prompt=payload["system_prompt"],
+                user_prompt=payload["user_prompt"],
+                response=payload.get("response"),
+                error=payload.get("error"),
+            )
         elif message_type == "TASK_COMPLETED":
             updated = self.store.update_task(
                 task_id,

@@ -14,14 +14,18 @@ type SettingsTabProps = {
   deviceAiSummary: AIConfigSummary | null;
   gatewayAiForm: GatewayAiForm;
   gatewayAiError: string | null;
+  gatewayAiTestMessage: string | null;
   deviceAiForm: DeviceAiForm;
   deviceAiError: string | null;
+  deviceAiTestMessage: string | null;
   onGatewayAiChange: (patch: Partial<GatewayAiForm>) => void;
   onDeviceAiChange: (patch: Partial<DeviceAiForm>) => void;
   onSaveGatewayAiConfig: (event: FormEvent<HTMLFormElement>) => void;
   onSaveDeviceAiConfig: (event: FormEvent<HTMLFormElement>) => void;
   onClearGatewayAiConfig: () => void;
   onClearDeviceAiConfig: () => void;
+  onTestGatewayAiConfig: () => void;
+  onTestDeviceAiConfig: () => void;
 };
 
 export function SettingsTab({
@@ -31,14 +35,18 @@ export function SettingsTab({
   deviceAiSummary,
   gatewayAiForm,
   gatewayAiError,
+  gatewayAiTestMessage,
   deviceAiForm,
   deviceAiError,
+  deviceAiTestMessage,
   onGatewayAiChange,
   onDeviceAiChange,
   onSaveGatewayAiConfig,
   onSaveDeviceAiConfig,
   onClearGatewayAiConfig,
   onClearDeviceAiConfig,
+  onTestGatewayAiConfig,
+  onTestDeviceAiConfig,
 }: SettingsTabProps) {
   const configuredDevices = systemInfo?.configured_devices ?? [];
   const clientAiSummaries = systemInfo?.client_ai ?? [];
@@ -77,6 +85,12 @@ export function SettingsTab({
             },
           ]}
         />
+        <div className="row-actions">
+          <button className="ghost-button" onClick={onTestGatewayAiConfig} type="button">
+            测试当前默认
+          </button>
+        </div>
+        {gatewayAiTestMessage ? <div className="callout"><p>{gatewayAiTestMessage}</p></div> : null}
 
         <div className="panel panel-nested panel-stack">
           <SectionHeader compact eyebrow="CLI Effective" title="CLI 生效摘要" titleAs="h4" />
@@ -93,6 +107,12 @@ export function SettingsTab({
               ]}
             />
           ) : null}
+          <div className="row-actions">
+            <button className="ghost-button" onClick={onTestDeviceAiConfig} type="button">
+              测试当前设备配置
+            </button>
+          </div>
+          {deviceAiTestMessage ? <div className="callout"><p>{deviceAiTestMessage}</p></div> : null}
           {clientAiSummaries.length ? (
             <div className="assignment-list">
               {clientAiSummaries.map((summary) => (

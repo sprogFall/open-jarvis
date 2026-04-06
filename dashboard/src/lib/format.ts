@@ -1,4 +1,4 @@
-import type { AIConfigSource, Task } from "../types";
+import type { AIConfigSource, AICallSource, Task } from "../types";
 
 export function formatDate(value: string | null | undefined): string {
   if (!value) {
@@ -87,4 +87,14 @@ export function formatAiSource(source: AIConfigSource | null | undefined): strin
     return "环境回退";
   }
   return "继承 Gateway 默认";
+}
+
+export function formatAiCallSource(source: AICallSource): string {
+  if (source === "gateway_router") {
+    return "Gateway 路由";
+  }
+  if (source === "client_planner") {
+    return "Client 规划";
+  }
+  return "配置测试";
 }

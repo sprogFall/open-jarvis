@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
+from uuid import uuid4
 
 from skill_catalog import builtin_skill
 
@@ -21,6 +22,21 @@ TASK_FIELDS = (
     "result",
     "error",
     "logs",
+)
+
+AI_CALL_FIELDS = (
+    "call_id",
+    "source",
+    "device_id",
+    "task_id",
+    "provider",
+    "model",
+    "endpoint",
+    "system_prompt",
+    "user_prompt",
+    "response",
+    "error",
+    "created_at",
 )
 
 DEVICE_REGISTRY_BOOTSTRAP_KEY = "device_registry_bootstrapped"
@@ -78,6 +94,20 @@ CREATE TABLE IF NOT EXISTS ai_configs (
     base_url   TEXT,
     updated_at TEXT NOT NULL,
     PRIMARY KEY (scope, device_id)
+);
+CREATE TABLE IF NOT EXISTS ai_call_logs (
+    call_id        TEXT PRIMARY KEY,
+    source         TEXT NOT NULL,
+    device_id      TEXT,
+    task_id        TEXT,
+    provider       TEXT NOT NULL,
+    model          TEXT NOT NULL,
+    endpoint       TEXT,
+    system_prompt  TEXT NOT NULL,
+    user_prompt    TEXT NOT NULL,
+    response_json  TEXT,
+    error          TEXT,
+    created_at     TEXT NOT NULL
 );
 """
 
@@ -592,6 +622,91 @@ class GatewayStore:
                 (scope, normalized_device_id),
             )
         return cursor.rowcount > 0
+
+    # ── ai call logs ───────────────────────────────────────────────────────
+
+    def record_ai_call(
+        self,
+        *,
+        source: str,
+        provider: str,
+        model: str,
+        system_prompt: str,
+        user_prompt: str,
+        device_id: str | None = None,
+        task_id: str | None = None,
+        endpoint: str | None = None,
+        response: Any | None = None,
+        error: str | None = None,
+    ) -> dict:
+        call_id = uuid4().hex[:12]
+        now = self._now()
+        response_json = (
+            json.dumps(response, ensure_ascii=False)
+            if response is not None
+            else None
+        )
+        with self._connect() as db:
+            db.execute(
+                "INSERT INTO ai_call_logs "
+                "(call_id, source, device_id, task_id, provider, model, endpoint, "
+                "system_prompt, user_prompt, response_json, error, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    call_id,
+                    source,
+                    device_id,
+                    task_id,
+                    provider,
+                    model,
+                    endpoint,
+                    system_prompt,
+                    user_prompt,
+                    response_json,
+                    error,
+                    now,
+                ),
+            )
+        return self.get_ai_call(call_id)  # type: ignore[return-value]
+
+    def get_ai_call(self, call_id: str) -> dict | None:
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT * FROM ai_call_logs WHERE call_id = ?",
+                (call_id,),
+            ).fetchone()
+        return self._row_to_ai_call(row) if row else None
+
+    def list_ai_calls(
+        self,
+        *,
+        source: str | None = None,
+        device_id: str | None = None,
+        limit: int = 100,
+    ) -> list[dict]:
+        query = "SELECT * FROM ai_call_logs WHERE 1=1"
+        params: list[Any] = []
+        if source:
+            query += " AND source = ?"
+            params.append(source)
+        if device_id:
+            query += " AND device_id = ?"
+            params.append(device_id)
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+        with self._connect() as db:
+            rows = db.execute(query, params).fetchall()
+        return [self._row_to_ai_call(row) for row in rows]
+
+    @staticmethod
+    def _row_to_ai_call(row: Any) -> dict:
+        payload = dict(row)
+        payload["response"] = (
+            json.loads(payload.pop("response_json"))
+            if payload.get("response_json") is not None
+            else None
+        )
+        return {field: payload.get(field) for field in AI_CALL_FIELDS}
 
 
 # ── thin wrappers to normalise sqlite3 / psycopg2 differences ────────────

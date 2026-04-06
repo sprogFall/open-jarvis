@@ -27,9 +27,9 @@ class AIModelConfig:
     def from_dict(cls, payload: dict[str, Any] | None) -> "AIModelConfig | None":
         if not payload:
             return None
-        provider = str(payload.get("provider", "")).strip()
-        model = str(payload.get("model", "")).strip()
-        api_key = str(payload.get("api_key", "")).strip()
+        provider = _normalize_string(payload.get("provider"))
+        model = _normalize_string(payload.get("model"))
+        api_key = _normalize_string(payload.get("api_key"))
         base_url = payload.get("base_url")
         if not provider or not model or not api_key:
             return None
@@ -37,7 +37,7 @@ class AIModelConfig:
             provider=provider,
             model=model,
             api_key=api_key,
-            base_url=str(base_url).strip() or None if base_url is not None else None,
+            base_url=_normalize_string(base_url) or None,
         )
 
 
@@ -47,6 +47,12 @@ def coerce_ai_config(payload: AIModelConfig | dict[str, Any] | None) -> AIModelC
     if isinstance(payload, AIModelConfig):
         return payload
     return AIModelConfig.from_dict(payload)
+
+
+def _normalize_string(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
 
 
 class StructuredModelClient:
@@ -68,7 +74,7 @@ class StructuredModelClient:
         system_prompt: str,
         user_prompt: str,
     ) -> dict[str, Any]:
-        endpoint = self.config.base_url or "https://api.openai.com/v1/chat/completions"
+        endpoint = resolve_model_endpoint(self.config)
         payload = {
             "model": self.config.model,
             "temperature": 0,
@@ -101,7 +107,7 @@ class StructuredModelClient:
         system_prompt: str,
         user_prompt: str,
     ) -> dict[str, Any]:
-        endpoint = self.config.base_url or "https://api.anthropic.com/v1/messages"
+        endpoint = resolve_model_endpoint(self.config)
         payload = {
             "model": self.config.model,
             "system": system_prompt,
@@ -172,3 +178,11 @@ class StructuredModelClient:
         if not isinstance(parsed, dict):
             raise AIRequestError("AI provider returned unexpected response body")
         return parsed
+
+
+def resolve_model_endpoint(config: AIModelConfig) -> str:
+    if config.base_url:
+        return config.base_url
+    if config.normalized_provider() == "anthropic":
+        return "https://api.anthropic.com/v1/messages"
+    return "https://api.openai.com/v1/chat/completions"

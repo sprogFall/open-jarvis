@@ -426,3 +426,123 @@ def test_device_connect_receives_ai_config_sync_before_pending_tasks(tmp_path):
         },
     }
     assert third_payload["type"] == "TASK_ASSIGNED"
+
+
+def test_device_connect_inherits_gateway_default_ai_config_sync_before_pending_tasks(tmp_path):
+    client, settings = build_test_client(tmp_path)
+    token = login(client)
+    config_response = client.put(
+        "/dashboard/api/ai/gateway",
+        headers=auth_headers(token),
+        json={
+            "provider": "openai",
+            "model": "gpt-4o-mini",
+            "api_key": "gateway-secret-key",
+        },
+    )
+    assert config_response.status_code == 204
+
+    create_response = client.post(
+        "/tasks",
+        headers=auth_headers(token),
+        json={
+            "device_id": "device-alpha",
+            "instruction": "查看系统负载",
+        },
+    )
+    assert create_response.status_code == 201
+
+    timestamp = 1700000005
+    signature = sign_device_request(
+        device_id="device-alpha",
+        timestamp=timestamp,
+        device_key=settings.device_keys["device-alpha"],
+    )
+
+    with client.websocket_connect(
+        f"/ws/client?device_id=device-alpha&timestamp={timestamp}&signature={signature}"
+    ) as device_ws:
+        first_payload = device_ws.receive_json()
+        second_payload = device_ws.receive_json()
+        third_payload = device_ws.receive_json()
+
+    assert first_payload == {
+        "type": "DEVICE_SKILLS_SYNC",
+        "device_id": "device-alpha",
+        "skills": [],
+    }
+    assert second_payload == {
+        "type": "DEVICE_AI_CONFIG_SYNC",
+        "device_id": "device-alpha",
+        "config": {
+            "provider": "openai",
+            "model": "gpt-4o-mini",
+            "api_key": "gateway-secret-key",
+            "base_url": None,
+        },
+    }
+    assert third_payload["type"] == "TASK_ASSIGNED"
+
+
+def test_client_ai_call_log_is_persisted_and_listed(tmp_path):
+    client, settings = build_test_client(tmp_path)
+    token = login(client)
+    create_response = client.post(
+        "/tasks",
+        headers=auth_headers(token),
+        json={
+            "device_id": "device-alpha",
+            "instruction": "查看系统负载",
+        },
+    )
+    task_id = create_response.json()["task_id"]
+
+    timestamp = 1700000006
+    signature = sign_device_request(
+        device_id="device-alpha",
+        timestamp=timestamp,
+        device_key=settings.device_keys["device-alpha"],
+    )
+
+    with client.websocket_connect(
+        f"/ws/client?device_id=device-alpha&timestamp={timestamp}&signature={signature}"
+    ) as device_ws:
+        receive_until_message_type(device_ws, "DEVICE_SKILLS_SYNC")
+        receive_until_message_type(device_ws, "TASK_ASSIGNED")
+        device_ws.send_json(
+            {
+                "type": "AI_CALL_LOG",
+                "task_id": task_id,
+                "source": "client_planner",
+                "device_id": "device-alpha",
+                "provider": "custom",
+                "model": "qwen-max",
+                "endpoint": "https://llm.example/v1/chat/completions",
+                "system_prompt": "你是规划器",
+                "user_prompt": "用户指令：查看系统负载",
+                "response": {
+                    "actions": [
+                        {
+                            "name": "process.inspect_load",
+                            "command": "inspect system load",
+                            "args": {},
+                            "requires_approval": False,
+                            "reason": None,
+                        }
+                    ]
+                },
+                "error": None,
+            }
+        )
+
+    response = client.get("/dashboard/api/ai/calls", headers=auth_headers(token))
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload) == 1
+    assert payload[0]["task_id"] == task_id
+    assert payload[0]["source"] == "client_planner"
+    assert payload[0]["provider"] == "custom"
+    assert payload[0]["model"] == "qwen-max"
+    assert payload[0]["user_prompt"] == "用户指令：查看系统负载"
+    assert payload[0]["response"]["actions"][0]["name"] == "process.inspect_load"

@@ -17,7 +17,16 @@ import {
 } from "./model";
 import { getErrorMessage } from "../lib/format";
 import { parseJsonInput } from "../lib/json";
-import type { AIConfigSummary, Device, DeviceSkill, Overview, Skill, SystemInfo, Task } from "../types";
+import type {
+  AICallLog,
+  AIConfigSummary,
+  Device,
+  DeviceSkill,
+  Overview,
+  Skill,
+  SystemInfo,
+  Task,
+} from "../types";
 
 type UseDashboardControllerArgs = {
   token: string;
@@ -92,6 +101,21 @@ function pickChatDeviceId(targets: ChatTarget[], current: string): string {
   return targets[0]?.device_id ?? "";
 }
 
+function pickAiCallId(calls: AICallLog[], current: string | null): string | null {
+  if (current && calls.some((call) => call.call_id === current)) {
+    return current;
+  }
+  return calls[0]?.call_id ?? null;
+}
+
+function summarizeAiTestResponse(response: Record<string, unknown>): string {
+  const summary = response.summary;
+  if (typeof summary === "string" && summary.trim()) {
+    return summary.trim();
+  }
+  return JSON.stringify(response, null, 2);
+}
+
 export function useDashboardController({
   token,
   onSessionExpired,
@@ -104,11 +128,13 @@ export function useDashboardController({
   const [devices, setDevices] = useState<Device[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [aiCalls, setAiCalls] = useState<AICallLog[]>([]);
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
 
   const [taskStatusFilter, setTaskStatusFilter] = useState("");
   const [taskDeviceFilter, setTaskDeviceFilter] = useState("");
   const [chatTaskId, setChatTaskId] = useState<string | null>(null);
+  const [selectedAiCallId, setSelectedAiCallId] = useState<string | null>(null);
   const [chatDeviceId, setChatDeviceId] = useState<string>(GATEWAY_LOCAL_DEVICE_ID);
   const [chatSocketState, setChatSocketState] = useState<"connecting" | "connected" | "offline">(
     "offline",
@@ -129,13 +155,16 @@ export function useDashboardController({
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
   const [gatewayAiForm, setGatewayAiForm] = useState<GatewayAiForm>(createEmptyGatewayAiForm());
   const [gatewayAiError, setGatewayAiError] = useState<string | null>(null);
+  const [gatewayAiTestMessage, setGatewayAiTestMessage] = useState<string | null>(null);
   const [deviceAiForm, setDeviceAiForm] = useState<DeviceAiForm>(createEmptyDeviceAiForm());
   const [deviceAiError, setDeviceAiError] = useState<string | null>(null);
+  const [deviceAiTestMessage, setDeviceAiTestMessage] = useState<string | null>(null);
 
   const [taskDetail, setTaskDetail] = useState<Task | null>(null);
 
   const chatTargets = useMemo(() => buildChatTargets(devices), [devices]);
   const chatTask = tasks.find((task) => task.task_id === chatTaskId) ?? null;
+  const aiCallDetail = aiCalls.find((call) => call.call_id === selectedAiCallId) ?? null;
   const gatewayAiSummary: AIConfigSummary | null = systemInfo?.gateway_ai ?? null;
   const clientAiSummaries = useMemo(() => {
     return Object.fromEntries(
@@ -159,6 +188,12 @@ export function useDashboardController({
   async function refreshSystemInfo() {
     const nextSystemInfo = await dashboardApi.getSystemInfo(token);
     setSystemInfo(nextSystemInfo);
+  }
+
+  async function refreshAiCalls() {
+    const nextCalls = await dashboardApi.listAiCallLogs(token, { limit: 100 });
+    setAiCalls(nextCalls);
+    setSelectedAiCallId((current) => pickAiCallId(nextCalls, current));
   }
 
   async function refreshChatData() {
@@ -255,6 +290,14 @@ export function useDashboardController({
           if (!cancelled) {
             setTasks(nextTasks);
             setChatTaskId((current) => pickChatTaskId(nextTasks, current));
+          }
+        }
+
+        if (activeTab === "ai-calls") {
+          const nextCalls = await dashboardApi.listAiCallLogs(token, { limit: 100 });
+          if (!cancelled) {
+            setAiCalls(nextCalls);
+            setSelectedAiCallId((current) => pickAiCallId(nextCalls, current));
           }
         }
 
@@ -371,6 +414,9 @@ export function useDashboardController({
         setTasks(nextTasks);
         setChatTaskId((current) => pickChatTaskId(nextTasks, current));
       }
+      if (tab === "ai-calls") {
+        await refreshAiCalls();
+      }
       if (tab === "settings") {
         await refreshSystemInfo();
       }
@@ -402,10 +448,12 @@ export function useDashboardController({
   }
 
   function patchGatewayAiForm(patch: Partial<GatewayAiForm>) {
+    setGatewayAiTestMessage(null);
     setGatewayAiForm((current) => ({ ...current, ...patch }));
   }
 
   function patchDeviceAiForm(patch: Partial<DeviceAiForm>) {
+    setDeviceAiTestMessage(null);
     setDeviceAiForm((current) => ({ ...current, ...patch }));
   }
 
@@ -642,6 +690,10 @@ export function useDashboardController({
     setChatDeviceId(deviceId);
   }
 
+  function selectAiCall(callId: string | null) {
+    setSelectedAiCallId(callId);
+  }
+
   async function createChatTask(instruction: string) {
     try {
       const nextTask = await dashboardApi.createTask(token, {
@@ -676,6 +728,7 @@ export function useDashboardController({
   async function saveGatewayAiConfig(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setGatewayAiError(null);
+    setGatewayAiTestMessage(null);
     try {
       await dashboardApi.saveGatewayAiConfig(token, {
         provider: gatewayAiForm.provider.trim(),
@@ -696,6 +749,7 @@ export function useDashboardController({
       await dashboardApi.clearGatewayAiConfig(token);
       setGatewayAiForm(createEmptyGatewayAiForm());
       setGatewayAiError(null);
+      setGatewayAiTestMessage(null);
       await refreshSystemInfo();
       setBannerMessage("Gateway AI 默认配置已清除");
     } catch (error) {
@@ -706,6 +760,7 @@ export function useDashboardController({
   async function saveDeviceAiConfig(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setDeviceAiError(null);
+    setDeviceAiTestMessage(null);
     if (!deviceAiForm.device_id) {
       setDeviceAiError("请选择需要覆盖的 CLI 设备");
       return;
@@ -736,10 +791,43 @@ export function useDashboardController({
       await dashboardApi.clearDeviceAiConfig(token, selectedDeviceId);
       setDeviceAiForm({ ...createEmptyDeviceAiForm(), device_id: selectedDeviceId });
       setDeviceAiError(null);
+      setDeviceAiTestMessage(null);
       await refreshSystemInfo();
       setBannerMessage(`CLI 设备 ${selectedDeviceId} 的特殊覆盖已清除`);
     } catch (error) {
       handleApiError(error);
+    }
+  }
+
+  async function testGatewayAiConfig() {
+    setGatewayAiError(null);
+    try {
+      const result = await dashboardApi.testGatewayAiConfig(token);
+      setGatewayAiTestMessage(
+        `${result.provider} · ${result.model}：${summarizeAiTestResponse(result.response)}`,
+      );
+      await refreshAiCalls();
+      setBannerMessage("Gateway AI 默认配置测试完成");
+    } catch (error) {
+      setGatewayAiError(getErrorMessage(error));
+    }
+  }
+
+  async function testDeviceAiConfig() {
+    setDeviceAiError(null);
+    if (!deviceAiForm.device_id) {
+      setDeviceAiError("请选择需要测试的 CLI 设备");
+      return;
+    }
+    try {
+      const result = await dashboardApi.testDeviceAiConfig(token, deviceAiForm.device_id);
+      setDeviceAiTestMessage(
+        `${result.provider} · ${result.model}：${summarizeAiTestResponse(result.response)}`,
+      );
+      await refreshAiCalls();
+      setBannerMessage(`CLI 设备 ${deviceAiForm.device_id} 配置测试完成`);
+    } catch (error) {
+      setDeviceAiError(getErrorMessage(error));
     }
   }
 
@@ -751,10 +839,13 @@ export function useDashboardController({
     devices,
     skills,
     tasks,
+    aiCalls,
     systemInfo,
     chatTargets,
     chatTaskId,
     chatTask,
+    selectedAiCallId,
+    aiCallDetail,
     chatDeviceId,
     chatSocketState,
     gatewayAiSummary,
@@ -772,8 +863,10 @@ export function useDashboardController({
     assignmentError,
     gatewayAiForm,
     gatewayAiError,
+    gatewayAiTestMessage,
     deviceAiForm,
     deviceAiError,
+    deviceAiTestMessage,
     taskDetail,
     setTaskStatusFilter,
     setTaskDeviceFilter,
@@ -807,8 +900,11 @@ export function useDashboardController({
     selectChatTask,
     openChatThread: selectChatTask,
     selectChatDevice,
+    selectAiCall,
     createChatTask,
     sendChatInstruction: createChatTask,
     submitChatDecision,
+    testGatewayAiConfig,
+    testDeviceAiConfig,
   };
 }

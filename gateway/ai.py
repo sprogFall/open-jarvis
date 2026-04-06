@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from client.ai import AIModelConfig, StructuredModelClient, coerce_ai_config
+from client.ai import AIModelConfig, StructuredModelClient, coerce_ai_config, resolve_model_endpoint
 from gateway.settings import GatewaySettings
 from gateway.store import GatewayStore
 
@@ -36,15 +36,38 @@ class GatewayTaskRouter:
         config = self.config_resolver.resolve()
         if config is None:
             raise RuntimeError("未指定 device_id 时，Gateway 需要先配置 AI 供应商")
-
-        response = self.model_client_factory(config).generate_json(
-            system_prompt=self._system_prompt(candidates),
-            user_prompt=f"用户任务：{instruction}",
-        )
+        system_prompt = self._system_prompt(candidates)
+        user_prompt = f"用户任务：{instruction}"
+        try:
+            response = self.model_client_factory(config).generate_json(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+            )
+        except Exception as exc:
+            self.store.record_ai_call(
+                source="gateway_router",
+                provider=config.provider,
+                model=config.model,
+                endpoint=resolve_model_endpoint(config),
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                error=str(exc),
+            )
+            raise
         device_id = str(response.get("device_id", "")).strip()
         if device_id not in {candidate["device_id"] for candidate in candidates}:
             raise ValueError(f"AI routed to unknown device: {device_id}")
         rewritten_instruction = str(response.get("instruction") or instruction).strip()
+        self.store.record_ai_call(
+            source="gateway_router",
+            device_id=device_id,
+            provider=config.provider,
+            model=config.model,
+            endpoint=resolve_model_endpoint(config),
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            response=response,
+        )
         return {
             "device_id": device_id,
             "instruction": rewritten_instruction or instruction,

@@ -54,6 +54,7 @@ def test_dashboard_frontend_is_split_into_feature_modules():
         root / "features" / "devices" / "DevicesTab.tsx",
         root / "features" / "skills" / "SkillsTab.tsx",
         root / "features" / "tasks" / "TasksTab.tsx",
+        root / "features" / "ai-logs" / "AiCallsTab.tsx",
         root / "features" / "overview" / "OverviewTab.tsx",
         root / "features" / "settings" / "SettingsTab.tsx",
         root / "lib" / "format.ts",
@@ -187,6 +188,30 @@ def test_dashboard_settings_exposes_write_only_ai_override_entrypoints():
     assert "saveDeviceAiConfig" in controller
     assert "/dashboard/api/ai/gateway" in api
     assert "/dashboard/api/ai/devices/" in api
+
+
+def test_dashboard_exposes_ai_call_log_workspace_and_ai_test_actions():
+    dashboard_root = Path(__file__).resolve().parents[2] / "dashboard" / "src"
+    app_model = (dashboard_root / "app" / "model.ts").read_text(encoding="utf-8")
+    app_shell = (dashboard_root / "app" / "AppShell.tsx").read_text(encoding="utf-8")
+    controller = (dashboard_root / "app" / "useDashboardController.ts").read_text(
+        encoding="utf-8"
+    )
+    settings_tab = (dashboard_root / "features" / "settings" / "SettingsTab.tsx").read_text(
+        encoding="utf-8"
+    )
+    api = (dashboard_root / "api.ts").read_text(encoding="utf-8")
+
+    assert 'label: "AI 调用"' in app_model
+    assert "AiCallsTab" in app_shell
+    assert "测试当前默认" in settings_tab
+    assert "测试当前设备配置" in settings_tab
+    assert "testGatewayAiConfig" in controller
+    assert "testDeviceAiConfig" in controller
+    assert "listAiCallLogs" in controller
+    assert "/dashboard/api/ai/calls" in api
+    assert "/dashboard/api/ai/test/gateway" in api
+    assert "/dashboard/api/ai/test/devices/" in api
 
 
 def test_dashboard_settings_guards_missing_ai_summary_fields():

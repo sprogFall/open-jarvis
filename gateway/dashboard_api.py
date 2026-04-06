@@ -6,8 +6,10 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
+from client.ai import AIModelConfig, StructuredModelClient, resolve_model_endpoint
 from gateway.security import verify_access_token
 from gateway.store import GatewayStore
+from gateway.settings import GatewaySettings
 
 
 class DeviceCreate(BaseModel):
@@ -138,6 +140,21 @@ def _resolve_client_ai_summaries(store: GatewayStore, request: Request) -> list[
     return summaries
 
 
+def _resolve_effective_client_ai_config(
+    store: GatewayStore,
+    settings: GatewaySettings,
+    device_id: str,
+) -> dict | None:
+    override = store.get_ai_config("client", device_id=device_id)
+    if override is not None:
+        return override
+    gateway_default = store.get_ai_config("gateway")
+    if gateway_default is not None:
+        return gateway_default
+    gateway_fallback = settings.ai_config()
+    return gateway_fallback.to_dict() if gateway_fallback is not None else None
+
+
 def build_device_skill_sync_payload(store: GatewayStore, device_id: str) -> dict:
     skills = []
     for skill in store.list_device_skills(device_id):
@@ -163,8 +180,12 @@ async def _sync_skill_targets(request: Request, skill_id: str) -> None:
         await _sync_device_skills(request, device_id)
 
 
-def build_device_ai_config_sync_payload(store: GatewayStore, device_id: str) -> dict:
-    config = store.get_ai_config("client", device_id=device_id)
+def build_device_ai_config_sync_payload(
+    store: GatewayStore,
+    settings: GatewaySettings,
+    device_id: str,
+) -> dict:
+    config = _resolve_effective_client_ai_config(store, settings, device_id)
     if config is not None:
         config = {
             "provider": config["provider"],
@@ -180,8 +201,66 @@ def build_device_ai_config_sync_payload(store: GatewayStore, device_id: str) -> 
 
 
 async def _sync_device_ai_config(request: Request, device_id: str) -> None:
-    payload = build_device_ai_config_sync_payload(request.app.state.store, device_id)
+    payload = build_device_ai_config_sync_payload(
+        request.app.state.store,
+        request.app.state.settings,
+        device_id,
+    )
     await request.app.state.manager.send_device_ai_config_sync(device_id, payload)
+
+
+def _test_ai_config(
+    request: Request,
+    *,
+    config: dict,
+    source: str,
+    device_id: str | None = None,
+) -> dict:
+    model_client_factory = getattr(request.app.state, "ai_model_client_factory", StructuredModelClient)
+    model_config = AIModelConfig.from_dict(config)
+    if model_config is None:
+        raise HTTPException(400, "当前没有可测试的 AI 配置")
+
+    system_prompt = (
+        "你是 OpenJarvis 的 AI 连通性检查器。"
+        "请仅返回 JSON 对象，格式为 "
+        "{\"ok\":true,\"summary\":\"一句话说明当前模型可正常返回结构化 JSON\"}。"
+    )
+    user_prompt = "请返回一条结构化 JSON 连通性检查结果。"
+    endpoint = resolve_model_endpoint(model_config)
+    try:
+        response = model_client_factory(model_config).generate_json(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+        )
+    except Exception as exc:
+        request.app.state.store.record_ai_call(
+            source=source,
+            device_id=device_id,
+            provider=model_config.provider,
+            model=model_config.model,
+            endpoint=endpoint,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            error=str(exc),
+        )
+        raise HTTPException(502, str(exc)) from exc
+
+    request.app.state.store.record_ai_call(
+        source=source,
+        device_id=device_id,
+        provider=model_config.provider,
+        model=model_config.model,
+        endpoint=endpoint,
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        response=response,
+    )
+    return {
+        "provider": model_config.provider,
+        "model": model_config.model,
+        "response": response,
+    }
 
 
 dashboard_api = APIRouter(
@@ -454,6 +533,50 @@ async def delete_device_ai_config(
         raise HTTPException(404, "设备不存在")
     store.delete_ai_config("client", device_id=device_id)
     await _sync_device_ai_config(request, device_id)
+
+
+@dashboard_api.post("/ai/test/gateway")
+def test_gateway_ai_config(
+    request: Request,
+    store: GatewayStore = Depends(_get_store),
+) -> dict:
+    config = store.get_ai_config("gateway")
+    if config is None:
+        fallback = request.app.state.settings.ai_config()
+        config = fallback.to_dict() if fallback is not None else None
+    if config is None:
+        raise HTTPException(404, "当前没有可测试的 Gateway AI 配置")
+    return _test_ai_config(request, config=config, source="config_test")
+
+
+@dashboard_api.post("/ai/test/devices/{device_id}")
+def test_device_ai_config(
+    device_id: str,
+    request: Request,
+    store: GatewayStore = Depends(_get_store),
+) -> dict:
+    if not store.get_device(device_id):
+        raise HTTPException(404, "设备不存在")
+    config = _resolve_effective_client_ai_config(store, request.app.state.settings, device_id)
+    if config is None:
+        raise HTTPException(404, "当前设备没有可测试的 AI 配置")
+    return _test_ai_config(
+        request,
+        config=config,
+        source="config_test",
+        device_id=device_id,
+    )
+
+
+@dashboard_api.get("/ai/calls")
+def list_ai_calls(
+    request: Request,
+    source: str | None = None,
+    device_id: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    store: GatewayStore = request.app.state.store
+    return store.list_ai_calls(source=source, device_id=device_id, limit=limit)
 
 
 @dashboard_api.get("/tasks")

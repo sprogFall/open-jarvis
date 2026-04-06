@@ -75,6 +75,8 @@ export type Overview = {
 
 export type AIConfigSource = "gateway_default" | "device_override" | "environment_fallback";
 
+export type AICallSource = "gateway_router" | "client_planner" | "config_test";
+
 export type AIConfigSummary = {
   provider: string;
   model: string;
@@ -93,4 +95,19 @@ export type SystemInfo = {
   skill_archives_path: string;
   gateway_ai: AIConfigSummary | null;
   client_ai: AIConfigSummary[];
+};
+
+export type AICallLog = {
+  call_id: string;
+  source: AICallSource;
+  device_id: string | null;
+  task_id: string | null;
+  provider: string;
+  model: string;
+  endpoint: string | null;
+  system_prompt: string;
+  user_prompt: string;
+  response: Record<string, unknown> | null;
+  error: string | null;
+  created_at: string;
 };

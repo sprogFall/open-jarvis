@@ -44,6 +44,7 @@ LANGGRAPH_AVAILABLE = all(
 
 
 class WorkflowState(TypedDict, total=False):
+    task_id: str
     instruction: str
     actions: list[dict[str, Any]]
     next_action_index: int
@@ -115,6 +116,7 @@ class LangGraphTaskWorkflow:
         if self.graph is not None:
             result = self.graph.invoke(
                 {
+                    "task_id": task_id,
                     "instruction": instruction,
                     "actions": [],
                     "next_action_index": 0,
@@ -128,6 +130,7 @@ class LangGraphTaskWorkflow:
             return self._normalize_result(result)
 
         state: WorkflowState = {
+            "task_id": task_id,
             "instruction": instruction,
             "actions": [],
             "next_action_index": 0,
@@ -235,7 +238,10 @@ class LangGraphTaskWorkflow:
             return {}
         actions = [
             action.to_dict()
-            for action in self.planner.plan(state["instruction"])
+            for action in self._plan_actions(
+                state["instruction"],
+                task_id=state.get("task_id"),
+            )
         ]
         return {
             "actions": actions,
@@ -317,7 +323,10 @@ class LangGraphTaskWorkflow:
         if not state.get("actions"):
             state["actions"] = [
                 action.to_dict()
-                for action in self.planner.plan(state["instruction"])
+                for action in self._plan_actions(
+                    state["instruction"],
+                    task_id=state.get("task_id") or task_id,
+                )
             ]
             state["next_action_index"] = 0
 
@@ -369,6 +378,14 @@ class LangGraphTaskWorkflow:
                 """,
                 (task_id, json.dumps(state, ensure_ascii=False)),
             )
+
+    def _plan_actions(self, instruction: str, *, task_id: str | None) -> list[TaskAction]:
+        try:
+            return self.planner.plan(instruction, task_id=task_id)
+        except TypeError as exc:
+            if "task_id" not in str(exc):
+                raise
+            return self.planner.plan(instruction)
 
     def _load_state(self, task_id: str) -> WorkflowState | None:
         with self._manual_backend.connect() as connection:

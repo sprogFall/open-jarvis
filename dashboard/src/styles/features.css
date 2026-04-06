@@ -159,6 +159,30 @@
   margin-bottom: 0;
 }
 
+.ai-calls-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(24rem, 0.8fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.ai-call-detail {
+  position: sticky;
+  top: 6.8rem;
+}
+
+.ai-call-code {
+  margin: 0;
+  padding: 0.95rem 1rem;
+  max-height: 18rem;
+  overflow: auto;
+  border-radius: 1rem;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .chat-layout {
   display: grid;
   grid-template-columns: minmax(19rem, 22rem) minmax(0, 1fr);

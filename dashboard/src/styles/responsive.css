@@ -34,6 +34,7 @@
   .detail-grid,
   .inline-metadata,
   .key-value-grid,
+  .ai-calls-layout,
   .chat-layout {
     grid-template-columns: 1fr 1fr;
   }
@@ -50,6 +51,7 @@
   .detail-grid,
   .inline-metadata,
   .key-value-grid,
+  .ai-calls-layout,
   .chat-layout {
     grid-template-columns: 1fr;
   }
@@ -98,5 +100,10 @@
   .chat-rail {
     position: static;
     max-height: none;
+  }
+
+  .ai-call-detail {
+    position: static;
+    top: auto;
   }
 }
