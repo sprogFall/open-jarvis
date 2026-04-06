@@ -4,6 +4,7 @@ import json
 from dataclasses import asdict, dataclass
 from typing import Any
 from urllib import error, request
+from urllib.parse import urlsplit, urlunsplit
 
 
 class AIRequestError(RuntimeError):
@@ -182,7 +183,25 @@ class StructuredModelClient:
 
 def resolve_model_endpoint(config: AIModelConfig) -> str:
     if config.base_url:
-        return config.base_url
+        if config.normalized_provider() == "anthropic":
+            return _resolve_custom_endpoint(config.base_url, suffix="/messages")
+        return _resolve_custom_endpoint(config.base_url, suffix="/chat/completions")
     if config.normalized_provider() == "anthropic":
         return "https://api.anthropic.com/v1/messages"
     return "https://api.openai.com/v1/chat/completions"
+
+
+def _resolve_custom_endpoint(base_url: str, *, suffix: str) -> str:
+    parsed = urlsplit(base_url.strip())
+    path = parsed.path.rstrip("/")
+    if not path.endswith(suffix):
+        path = f"{path}{suffix}"
+    return urlunsplit(
+        (
+            parsed.scheme,
+            parsed.netloc,
+            path or suffix,
+            parsed.query,
+            parsed.fragment,
+        )
+    )

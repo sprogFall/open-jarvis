@@ -90,6 +90,16 @@ def test_agents_document_dashboard_frontend_conventions():
     assert "必要时提供内部滚动" in content
 
 
+def test_agents_document_dashboard_api_response_whitelist_rules():
+    agents_file = Path(__file__).resolve().parents[2] / "AGENTS.md"
+
+    content = agents_file.read_text(encoding="utf-8")
+
+    assert "接口返回必须采用白名单 DTO" in content
+    assert "默认禁止透出数据库连接串" in content
+    assert "设备密钥" in content
+
+
 def test_dashboard_css_is_split_into_style_modules():
     src_root = Path(__file__).resolve().parents[2] / "dashboard" / "src"
     required_files = [

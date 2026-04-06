@@ -97,19 +97,28 @@ def test_create_list_delete_device(tmp_path):
     })
     assert resp.status_code == 201
     assert resp.json()["device_id"] == "dev-new"
+    assert "device_key" not in resp.json()
+    assert "created_at" not in resp.json()
 
     resp = client.get("/dashboard/api/devices", headers=headers)
-    ids = [d["device_id"] for d in resp.json()]
+    devices = resp.json()
+    ids = [d["device_id"] for d in devices]
     assert "dev-new" in ids
     assert "device-alpha" in ids
+    assert all("device_key" not in device for device in devices)
+    assert all("created_at" not in device for device in devices)
 
     resp = client.get("/dashboard/api/devices/dev-new", headers=headers)
     assert resp.status_code == 200
     assert resp.json()["name"] == "新设备"
+    assert "device_key" not in resp.json()
+    assert "created_at" not in resp.json()
 
     resp = client.put("/dashboard/api/devices/dev-new", headers=headers, json={"name": "改名设备"})
     assert resp.status_code == 200
     assert resp.json()["name"] == "改名设备"
+    assert "device_key" not in resp.json()
+    assert "created_at" not in resp.json()
 
     resp = client.delete("/dashboard/api/devices/dev-new", headers=headers)
     assert resp.status_code == 204
@@ -135,7 +144,10 @@ def test_create_device_auto_generates_key(tmp_path):
         "device_id": "auto-key", "name": "自动密钥"
     })
     assert resp.status_code == 201
-    assert resp.json()["device_key"]
+    assert "device_key" not in resp.json()
+    stored = client.app.state.store.get_device("auto-key")
+    assert stored is not None
+    assert stored["device_key"]
 
 
 def test_create_list_delete_skill(tmp_path):
@@ -307,9 +319,16 @@ def test_system_info(tmp_path):
     resp = client.get("/dashboard/api/system", headers=headers)
     assert resp.status_code == 200
     data = resp.json()
-    assert data["admin_username"] == "operator"
-    assert "device-alpha" in data["configured_devices"]
-    assert data["dashboard_origins"] == ["https://dashboard.example.com"]
+    assert data == {
+        "gateway_ai": None,
+        "client_ai": [],
+    }
+    assert "database_url" not in data
+    assert "jwt_algorithm" not in data
+    assert "admin_username" not in data
+    assert "configured_devices" not in data
+    assert "dashboard_origins" not in data
+    assert "skill_archives_path" not in data
 
 
 def test_dashboard_ai_override_is_write_only_for_gateway(tmp_path):
@@ -464,6 +483,30 @@ def test_dashboard_can_test_current_device_ai_effective_config(tmp_path):
     assert call_logs[0]["source"] == "config_test"
     assert call_logs[0]["device_id"] == "device-alpha"
     assert call_logs[0]["endpoint"] == "https://llm.example/v1/chat/completions"
+
+
+def test_dashboard_ai_test_normalizes_openai_compatible_root_base_url(tmp_path):
+    client, headers = _setup(tmp_path)
+    stub = StubModelClient({"ok": True, "summary": "ModelScope 连通"})
+    client.app.state.ai_model_client_factory = lambda _config: stub
+
+    save_response = client.put(
+        "/dashboard/api/ai/gateway",
+        headers=headers,
+        json={
+            "provider": "custom",
+            "model": "Qwen/Qwen2.5-72B-Instruct",
+            "api_key": "gateway-secret",
+            "base_url": "https://api-inference.modelscope.cn/v1",
+        },
+    )
+    assert save_response.status_code == 204
+
+    response = client.post("/dashboard/api/ai/test/gateway", headers=headers)
+
+    assert response.status_code == 200
+    call_logs = client.get("/dashboard/api/ai/calls", headers=headers).json()
+    assert call_logs[0]["endpoint"] == "https://api-inference.modelscope.cn/v1/chat/completions"
 
 
 def test_existing_gateway_health(tmp_path):

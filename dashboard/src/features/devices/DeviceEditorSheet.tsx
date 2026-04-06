@@ -56,7 +56,7 @@ export function DeviceEditorSheet({
         <FormField htmlFor="device-editor-key" label="设备密钥">
           <input
             id="device-editor-key"
-            placeholder={mode === "create" ? "留空自动生成" : ""}
+            placeholder={mode === "create" ? "留空自动生成" : "留空保持现有密钥"}
             value={form.device_key}
             onChange={(event) => onChange({ device_key: event.target.value })}
           />

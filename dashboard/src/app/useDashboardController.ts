@@ -469,7 +469,7 @@ export function useDashboardController({
       device_id: device.device_id,
       name: device.name,
       type: device.type,
-      device_key: device.device_key,
+      device_key: "",
     });
     setDeviceFormError(null);
   }
@@ -489,10 +489,11 @@ export function useDashboardController({
       if (deviceEditorMode === "create") {
         await dashboardApi.createDevice(token, deviceForm);
       } else {
+        const nextDeviceKey = deviceForm.device_key.trim();
         await dashboardApi.updateDevice(token, deviceForm.device_id, {
           name: deviceForm.name,
           type: deviceForm.type,
-          device_key: deviceForm.device_key,
+          device_key: nextDeviceKey || undefined,
         });
       }
       closeDeviceEditor();

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import secrets
+from urllib.parse import urlsplit, urlunsplit
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -94,7 +95,7 @@ def _build_ai_summary(
     summary = {
         "provider": payload["provider"],
         "model": payload["model"],
-        "base_url": payload.get("base_url"),
+        "base_url": _sanitize_url_for_dashboard(payload.get("base_url")),
         "api_key_masked": _mask_api_key(str(payload["api_key"])),
         "source": source,
     }
@@ -209,6 +210,44 @@ async def _sync_device_ai_config(request: Request, device_id: str) -> None:
     await request.app.state.manager.send_device_ai_config_sync(device_id, payload)
 
 
+def _sanitize_url_for_dashboard(raw_url: str | None) -> str | None:
+    if raw_url is None:
+        return None
+    trimmed = str(raw_url).strip()
+    if not trimmed:
+        return None
+    parsed = urlsplit(trimmed)
+    if not parsed.scheme and not parsed.netloc:
+        return urlunsplit(("", "", parsed.path, "", ""))
+    hostname = parsed.hostname or ""
+    port = f":{parsed.port}" if parsed.port else ""
+    return urlunsplit((parsed.scheme, f"{hostname}{port}", parsed.path, "", ""))
+
+
+def _serialize_device(
+    device: dict,
+    *,
+    connected: bool,
+    skills: list[dict] | None = None,
+) -> dict:
+    payload = {
+        "device_id": device["device_id"],
+        "name": device["name"],
+        "type": device["type"],
+        "last_seen_at": device.get("last_seen_at"),
+        "connected": connected,
+    }
+    if skills is not None:
+        payload["skills"] = skills
+    return payload
+
+
+def _serialize_ai_call(call: dict) -> dict:
+    payload = dict(call)
+    payload["endpoint"] = _sanitize_url_for_dashboard(payload.get("endpoint"))
+    return payload
+
+
 def _test_ai_config(
     request: Request,
     *,
@@ -288,9 +327,13 @@ def list_devices(
 ) -> list[dict]:
     devices = store.list_devices()
     conn_info = _get_connection_info(request)
-    for device in devices:
-        device["connected"] = device["device_id"] in conn_info["connected_devices"]
-    return devices
+    return [
+        _serialize_device(
+            device,
+            connected=device["device_id"] in conn_info["connected_devices"],
+        )
+        for device in devices
+    ]
 
 
 @dashboard_api.post("/devices", status_code=201)
@@ -301,10 +344,14 @@ def create_device(
 ) -> dict:
     if store.get_device(body.device_id):
         raise HTTPException(400, "设备ID已存在")
-    key = body.device_key or secrets.token_hex(16)
+    key = str(body.device_key or "").strip() or secrets.token_hex(16)
     device = store.create_device(body.device_id, body.name, body.type, key)
     request.app.state.settings.device_keys[body.device_id] = key
-    return device
+    conn_info = _get_connection_info(request)
+    return _serialize_device(
+        device,
+        connected=body.device_id in conn_info["connected_devices"],
+    )
 
 
 @dashboard_api.get("/devices/{device_id}")
@@ -317,9 +364,11 @@ def get_device(
     if not device:
         raise HTTPException(404, "设备不存在")
     conn_info = _get_connection_info(request)
-    device["connected"] = device_id in conn_info["connected_devices"]
-    device["skills"] = store.list_device_skills(device_id)
-    return device
+    return _serialize_device(
+        device,
+        connected=device_id in conn_info["connected_devices"],
+        skills=store.list_device_skills(device_id),
+    )
 
 
 @dashboard_api.put("/devices/{device_id}")
@@ -332,10 +381,19 @@ def update_device(
     if not store.get_device(device_id):
         raise HTTPException(404, "设备不存在")
     updates = body.model_dump(exclude_none=True)
+    next_device_key = str(body.device_key or "").strip()
+    if next_device_key:
+        updates["device_key"] = next_device_key
+    else:
+        updates.pop("device_key", None)
     device = store.update_device(device_id, **updates)
-    if body.device_key:
-        request.app.state.settings.device_keys[device_id] = body.device_key
-    return device
+    if next_device_key:
+        request.app.state.settings.device_keys[device_id] = next_device_key
+    conn_info = _get_connection_info(request)
+    return _serialize_device(
+        device,
+        connected=device_id in conn_info["connected_devices"],
+    )
 
 
 @dashboard_api.delete("/devices/{device_id}", status_code=204)
@@ -576,7 +634,10 @@ def list_ai_calls(
     limit: int = 100,
 ) -> list[dict]:
     store: GatewayStore = request.app.state.store
-    return store.list_ai_calls(source=source, device_id=device_id, limit=limit)
+    return [
+        _serialize_ai_call(call)
+        for call in store.list_ai_calls(source=source, device_id=device_id, limit=limit)
+    ]
 
 
 @dashboard_api.get("/tasks")
@@ -592,19 +653,8 @@ def list_tasks(
 
 @dashboard_api.get("/system")
 def system_info(request: Request) -> dict:
-    settings = request.app.state.settings
     store: GatewayStore = request.app.state.store
     return {
-        "database_url": (
-            settings.database_url.split("@")[-1]
-            if "@" in settings.database_url
-            else settings.database_url
-        ),
-        "jwt_algorithm": settings.jwt_algorithm,
-        "admin_username": settings.admin_username,
-        "configured_devices": list(settings.device_keys.keys()),
-        "dashboard_origins": settings.dashboard_origins,
-        "skill_archives_path": str(settings.skill_archives_path),
         "gateway_ai": _resolve_gateway_ai_summary(store, request),
         "client_ai": _resolve_client_ai_summaries(store, request),
     }

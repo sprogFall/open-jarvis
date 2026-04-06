@@ -48,18 +48,18 @@ export function SettingsTab({
   onTestGatewayAiConfig,
   onTestDeviceAiConfig,
 }: SettingsTabProps) {
-  const configuredDevices = systemInfo?.configured_devices ?? [];
   const clientAiSummaries = systemInfo?.client_ai ?? [];
   const clientDevices = devices.filter((device) => device.type === "cli");
+  const deviceScope = devices.map((device) => device.device_id).join(", ");
 
   return (
     <section className="panel panel-stack">
       <SectionHeader eyebrow="System" title="运行信息" />
       <KeyValueGrid
         items={[
-          { label: "操作账号", value: systemInfo?.admin_username ?? "-" },
-          { label: "已配置设备数", value: configuredDevices.length || "-" },
-          { label: "设备范围", value: configuredDevices.join(", ") || "-" },
+          { label: "已接入设备数", value: devices.length || "-" },
+          { label: "CLI 设备数", value: clientDevices.length || "-" },
+          { label: "设备范围", value: deviceScope || "-" },
           { label: "当前焦点", value: "任务跟踪、设备管理、Skill 分配" },
         ]}
       />

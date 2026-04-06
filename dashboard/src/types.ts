@@ -12,8 +12,6 @@ export type Device = {
   device_id: string;
   name: string;
   type: string;
-  device_key: string;
-  created_at: string;
   last_seen_at: string | null;
   connected: boolean;
   skills?: DeviceSkill[];
@@ -87,12 +85,6 @@ export type AIConfigSummary = {
 };
 
 export type SystemInfo = {
-  database_url: string;
-  jwt_algorithm: string;
-  admin_username: string;
-  configured_devices: string[];
-  dashboard_origins: string[];
-  skill_archives_path: string;
   gateway_ai: AIConfigSummary | null;
   client_ai: AIConfigSummary[];
 };
