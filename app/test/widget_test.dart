@@ -10,11 +10,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class FakeGatewayApi implements GatewayApi {
-  FakeGatewayApi({this.pendingApprovals = const <TaskRecord>[]});
+  FakeGatewayApi({
+    this.pendingApprovals = const <TaskRecord>[],
+    List<TaskRecord>? tasks,
+  }) : tasks = tasks ?? pendingApprovals;
 
   final List<TaskRecord> pendingApprovals;
+  final List<TaskRecord> tasks;
+  final List<String> deletedTaskIds = <String>[];
   int loginCallCount = 0;
   int fetchDevicesCallCount = 0;
+  int fetchTasksCallCount = 0;
   int fetchPendingApprovalsCallCount = 0;
   String? lastInstruction;
   String? lastBaseUrl;
@@ -32,6 +38,15 @@ class FakeGatewayApi implements GatewayApi {
     lastUsername = username;
     lastPassword = password;
     return 'jwt-token';
+  }
+
+  @override
+  Future<List<TaskRecord>> fetchTasks({
+    required String baseUrl,
+    required String token,
+  }) async {
+    fetchTasksCallCount += 1;
+    return tasks;
   }
 
   @override
@@ -93,6 +108,15 @@ class FakeGatewayApi implements GatewayApi {
       'error': null,
       'logs': ['load1=0.42'],
     });
+  }
+
+  @override
+  Future<void> deleteTask({
+    required String baseUrl,
+    required String token,
+    required String taskId,
+  }) async {
+    deletedTaskIds.add(taskId);
   }
 }
 
@@ -403,7 +427,7 @@ void main() {
 
     await controller.restoreSavedSession();
     expect(api.fetchDevicesCallCount, 1);
-    expect(api.fetchPendingApprovalsCallCount, 1);
+    expect(api.fetchTasksCallCount, 1);
 
     await pumpApp(tester, controller);
 
@@ -413,7 +437,7 @@ void main() {
     await pumpFrames(tester);
 
     expect(api.fetchDevicesCallCount, 2);
-    expect(api.fetchPendingApprovalsCallCount, 2);
+    expect(api.fetchTasksCallCount, 2);
     expect(controller.status, ConnectionStatus.connected);
   });
 
@@ -442,6 +466,40 @@ void main() {
     expect(find.text('root'), findsOneWidget);
     expect(find.text('已连接'), findsWidgets);
   });
+
+  testWidgets(
+    'deletes a completed chat record from the conversation timeline',
+    (tester) async {
+      final api = FakeGatewayApi(
+        tasks: [
+          TaskRecord.fromJson({
+            'task_id': 'task-2',
+            'device_id': 'device-alpha',
+            'instruction': '查看系统负载',
+            'status': 'COMPLETED',
+            'checkpoint_id': null,
+            'command': null,
+            'reason': null,
+            'result': 'ok',
+            'error': null,
+            'logs': ['completed'],
+          }),
+        ],
+      );
+      final controller = await connectController(api: api);
+
+      await pumpApp(tester, controller);
+      await pumpFrames(tester);
+
+      expect(find.byKey(const Key('deleteTaskButton')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('deleteTaskButton')));
+      await pumpFrames(tester);
+
+      expect(api.deletedTaskIds, ['task-2']);
+      expect(find.text('开始一个任务'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'keeps a single chat canvas on wide layouts and opens the drawer on demand',

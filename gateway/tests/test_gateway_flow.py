@@ -115,7 +115,8 @@ def test_task_lifecycle_routes_interrupts_and_approval(tmp_path):
             assert create_response.status_code == 201
             created_task = create_response.json()
             assert created_task["status"] == "PENDING_DISPATCH"
-            create_snapshot = app_ws.receive_json()
+            receive_until_message_type(app_ws, "TASK_HISTORY_SYNC")
+            create_snapshot = receive_until_message_type(app_ws, "TASK_SNAPSHOT")
             assert create_snapshot["type"] == "TASK_SNAPSHOT"
             assert create_snapshot["task"]["status"] == "PENDING_DISPATCH"
 
@@ -227,6 +228,156 @@ def test_pending_approval_is_restored_after_app_reconnect(tmp_path):
     assert pending_response.status_code == 200
     assert pending_response.json()[0]["task_id"] == task_id
     assert pending_response.json()[0]["status"] == "AWAITING_APPROVAL"
+
+
+def test_task_history_endpoint_returns_recent_tasks_and_only_deletes_terminal_records(tmp_path):
+    client, _settings = build_test_client(tmp_path)
+    token = login(client)
+
+    completed_task_id = client.post(
+        "/tasks",
+        headers=auth_headers(token),
+        json={
+            "device_id": "device-alpha",
+            "instruction": "查看系统负载",
+        },
+    ).json()["task_id"]
+    active_task_id = client.post(
+        "/tasks",
+        headers=auth_headers(token),
+        json={
+            "device_id": "device-alpha",
+            "instruction": "重启 api-service",
+        },
+    ).json()["task_id"]
+
+    client.app.state.store.update_task(
+        completed_task_id,
+        status="COMPLETED",
+        result="ok",
+    )
+
+    history_response = client.get("/tasks", headers=auth_headers(token))
+
+    assert history_response.status_code == 200
+    assert history_response.json() == [
+        {
+            "task_id": active_task_id,
+            "device_id": "device-alpha",
+            "instruction": "重启 api-service",
+            "status": "PENDING_DISPATCH",
+            "checkpoint_id": None,
+            "command": None,
+            "reason": None,
+            "result": None,
+            "error": None,
+            "logs": [],
+        },
+        {
+            "task_id": completed_task_id,
+            "device_id": "device-alpha",
+            "instruction": "查看系统负载",
+            "status": "COMPLETED",
+            "checkpoint_id": None,
+            "command": None,
+            "reason": None,
+            "result": "ok",
+            "error": None,
+            "logs": [],
+        },
+    ]
+
+    active_delete = client.delete(f"/tasks/{active_task_id}", headers=auth_headers(token))
+
+    assert active_delete.status_code == 409
+    assert "历史记录" in active_delete.json()["detail"]
+
+    completed_delete = client.delete(
+        f"/tasks/{completed_task_id}",
+        headers=auth_headers(token),
+    )
+
+    assert completed_delete.status_code == 204
+    assert client.get(f"/tasks/{completed_task_id}", headers=auth_headers(token)).status_code == 404
+
+
+def test_app_socket_replays_task_history_and_broadcasts_task_deleted(tmp_path):
+    client, _settings = build_test_client(tmp_path)
+    token = login(client)
+
+    completed_task_id = client.post(
+        "/tasks",
+        headers=auth_headers(token),
+        json={
+            "device_id": "device-alpha",
+            "instruction": "汇总容器健康状态",
+        },
+    ).json()["task_id"]
+    pending_task_id = client.post(
+        "/tasks",
+        headers=auth_headers(token),
+        json={
+            "device_id": "device-alpha",
+            "instruction": "重启 api-service",
+        },
+    ).json()["task_id"]
+
+    client.app.state.store.update_task(
+        completed_task_id,
+        status="COMPLETED",
+        result="all healthy",
+    )
+    client.app.state.store.update_task(
+        pending_task_id,
+        status="AWAITING_APPROVAL",
+        checkpoint_id="cp_sync",
+        command="docker restart api-service",
+        reason="需要审批",
+    )
+
+    with client.websocket_connect(f"/ws/app?token={token}") as app_ws:
+        history_payload = receive_until_message_type(app_ws, "TASK_HISTORY_SYNC")
+
+        assert history_payload == {
+            "type": "TASK_HISTORY_SYNC",
+            "tasks": [
+                {
+                    "task_id": pending_task_id,
+                    "device_id": "device-alpha",
+                    "instruction": "重启 api-service",
+                    "status": "AWAITING_APPROVAL",
+                    "checkpoint_id": "cp_sync",
+                    "command": "docker restart api-service",
+                    "reason": "需要审批",
+                    "result": None,
+                    "error": None,
+                    "logs": [],
+                },
+                {
+                    "task_id": completed_task_id,
+                    "device_id": "device-alpha",
+                    "instruction": "汇总容器健康状态",
+                    "status": "COMPLETED",
+                    "checkpoint_id": None,
+                    "command": None,
+                    "reason": None,
+                    "result": "all healthy",
+                    "error": None,
+                    "logs": [],
+                },
+            ],
+        }
+
+        delete_response = client.delete(
+            f"/tasks/{completed_task_id}",
+            headers=auth_headers(token),
+        )
+
+        assert delete_response.status_code == 204
+        assert app_ws.receive_json() == {
+            "type": "TASK_DELETED",
+            "task_id": completed_task_id,
+        }
 
 
 def test_rejects_invalid_client_signature(tmp_path):

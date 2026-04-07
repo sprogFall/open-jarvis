@@ -22,7 +22,14 @@ class TaskTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final timeline = <Widget>[StatusHero(task: task)];
+    final timeline = <Widget>[
+      StatusHero(
+        task: task,
+        onDelete: task.canDeleteHistory
+            ? () => controller.deleteTask(task.taskId)
+            : null,
+      ),
+    ];
 
     if (task.status == TaskStatus.running) {
       timeline.add(const SizedBox(height: 12));

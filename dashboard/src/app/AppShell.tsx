@@ -120,6 +120,7 @@ export function AppShell({
               onSelectDevice={controller.selectChatDevice}
               onSendTask={controller.createChatTask}
               onSubmitDecision={controller.submitChatDecision}
+              onDeleteTask={controller.deleteChatTask}
               onRefresh={() => controller.refreshTab("chat")}
             />
           ) : null}

@@ -283,6 +283,24 @@ def test_dashboard_workspace_header_shows_tab_hint_and_sync_context():
     assert "workspace-sync" in app_shell
 
 
+def test_dashboard_chat_supports_manual_delete_and_stream_recovery():
+    dashboard_root = Path(__file__).resolve().parents[2] / "dashboard" / "src"
+    chat_tab = (dashboard_root / "features" / "chat" / "ChatTab.tsx").read_text(
+        encoding="utf-8"
+    )
+    controller = (dashboard_root / "app" / "useDashboardController.ts").read_text(
+        encoding="utf-8"
+    )
+    api = (dashboard_root / "api.ts").read_text(encoding="utf-8")
+
+    assert "删除记录" in chat_tab
+    assert "onDeleteTask" in chat_tab
+    assert "TASK_HISTORY_SYNC" in controller
+    assert "TASK_DELETED" in controller
+    assert "deleteTask(" in api
+    assert "/tasks/${taskId}" in api
+
+
 def test_dashboard_extracts_shared_ui_primitives_for_metrics_and_detail_blocks():
     src_root = Path(__file__).resolve().parents[2] / "dashboard" / "src"
     section_header = src_root / "components" / "SectionHeader.tsx"

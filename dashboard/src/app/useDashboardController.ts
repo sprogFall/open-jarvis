@@ -57,12 +57,27 @@ function upsertTask(tasks: Task[], incoming: Task): Task[] {
   return [merged, ...tasks.filter((task) => task.task_id !== incoming.task_id)];
 }
 
+function replaceTasks(current: Task[], incoming: Task[]): Task[] {
+  return incoming.map((task) => mergeTask(
+    current.find((existing) => existing.task_id === task.task_id),
+    task,
+  ));
+}
+
 function appendTaskLog(tasks: Task[], taskId: string, message: string): Task[] {
   return tasks.map((task) => (
     task.task_id === taskId
       ? { ...task, logs: [...task.logs, message] }
       : task
   ));
+}
+
+function removeTask(tasks: Task[], taskId: string): Task[] {
+  return tasks.filter((task) => task.task_id !== taskId);
+}
+
+function isTaskDeletable(task: Task): boolean {
+  return task.status === "COMPLETED" || task.status === "FAILED" || task.status === "REJECTED";
 }
 
 function buildChatTargets(devices: Device[]): ChatTarget[] {
@@ -203,7 +218,7 @@ export function useDashboardController({
       dashboardApi.getSystemInfo(token),
     ]);
     setDevices(nextDevices);
-    setTasks(nextTasks);
+    setTasks((current) => replaceTasks(current, nextTasks));
     setSystemInfo(nextSystemInfo);
     const nextTargets = buildChatTargets(nextDevices);
     setChatDeviceId((current) => pickChatDeviceId(nextTargets, current));
@@ -231,7 +246,7 @@ export function useDashboardController({
         setOverview(nextOverview);
         setDevices(nextDevices);
         setSkills(nextSkills);
-        setTasks(nextTasks);
+        setTasks((current) => replaceTasks(current, nextTasks));
         setSystemInfo(nextSystemInfo);
         const nextTargets = buildChatTargets(nextDevices);
         setChatTaskId((current) => pickChatTaskId(nextTasks, current));
@@ -288,7 +303,7 @@ export function useDashboardController({
         if (activeTab === "tasks") {
           const nextTasks = await dashboardApi.listTasks(token, {});
           if (!cancelled) {
-            setTasks(nextTasks);
+            setTasks((current) => replaceTasks(current, nextTasks));
             setChatTaskId((current) => pickChatTaskId(nextTasks, current));
           }
         }
@@ -326,6 +341,7 @@ export function useDashboardController({
 
   useEffect(() => {
     let socket: WebSocket | null = null;
+    let heartbeatTimer: number | null = null;
     let reconnectTimer: number | null = null;
     let disposed = false;
 
@@ -336,16 +352,35 @@ export function useDashboardController({
       socket.onopen = () => {
         if (!disposed) {
           setChatSocketState("connected");
+          heartbeatTimer = window.setInterval(() => {
+            if (socket?.readyState === WebSocket.OPEN) {
+              socket.send("ping");
+            }
+          }, 15000);
         }
       };
 
       socket.onmessage = (event) => {
         const payload = JSON.parse(String(event.data)) as {
           type?: string;
+          tasks?: Task[];
           task?: Task;
           task_id?: string;
           message?: string;
         };
+
+        if (payload.type === "TASK_HISTORY_SYNC" && payload.tasks) {
+          const incoming = payload.tasks;
+          setTasks((current) => replaceTasks(current, incoming));
+          setTaskDetail((current) => {
+            if (!current) {
+              return current;
+            }
+            const matched = incoming.find((task) => task.task_id === current.task_id);
+            return matched ? mergeTask(current, matched) : null;
+          });
+          setChatTaskId((current) => pickChatTaskId(incoming, current ?? null));
+        }
 
         if (payload.type === "TASK_SNAPSHOT" && payload.task) {
           const incoming = payload.task;
@@ -365,6 +400,20 @@ export function useDashboardController({
             return { ...current, logs: [...current.logs, payload.message!] };
           });
         }
+
+        if (payload.type === "TASK_DELETED" && payload.task_id) {
+          setTasks((current) => {
+            const nextTasks = removeTask(current, payload.task_id!);
+            setChatTaskId((currentTaskId) => pickChatTaskId(
+              nextTasks,
+              currentTaskId === payload.task_id ? null : currentTaskId,
+            ));
+            return nextTasks;
+          });
+          setTaskDetail((current) => (
+            current?.task_id === payload.task_id ? null : current
+          ));
+        }
       };
 
       socket.onerror = () => {
@@ -375,6 +424,10 @@ export function useDashboardController({
         if (disposed) {
           return;
         }
+        if (heartbeatTimer) {
+          window.clearInterval(heartbeatTimer);
+          heartbeatTimer = null;
+        }
         setChatSocketState("offline");
         reconnectTimer = window.setTimeout(connect, 3000);
       };
@@ -384,6 +437,9 @@ export function useDashboardController({
 
     return () => {
       disposed = true;
+      if (heartbeatTimer) {
+        window.clearInterval(heartbeatTimer);
+      }
       if (reconnectTimer) {
         window.clearTimeout(reconnectTimer);
       }
@@ -411,7 +467,7 @@ export function useDashboardController({
       }
       if (tab === "tasks") {
         const nextTasks = await dashboardApi.listTasks(token, {});
-        setTasks(nextTasks);
+        setTasks((current) => replaceTasks(current, nextTasks));
         setChatTaskId((current) => pickChatTaskId(nextTasks, current));
       }
       if (tab === "ai-calls") {
@@ -726,6 +782,34 @@ export function useDashboardController({
     }
   }
 
+  async function deleteChatTask(taskId: string) {
+    const target = tasks.find((task) => task.task_id === taskId);
+    if (!target || !isTaskDeletable(target)) {
+      return;
+    }
+    if (!window.confirm(`确认删除任务 ${taskId} 的聊天记录吗？`)) {
+      return;
+    }
+    try {
+      await dashboardApi.deleteTask(token, taskId);
+      setTasks((current) => {
+        const nextTasks = removeTask(current, taskId);
+        setChatTaskId((currentTaskId) => pickChatTaskId(
+          nextTasks,
+          currentTaskId === taskId ? null : currentTaskId,
+        ));
+        return nextTasks;
+      });
+      setTaskDetail((current) => (
+        current?.task_id === taskId ? null : current
+      ));
+      setBannerMessage(null);
+    } catch (error) {
+      handleApiError(error);
+      throw error;
+    }
+  }
+
   async function saveGatewayAiConfig(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setGatewayAiError(null);
@@ -905,6 +989,7 @@ export function useDashboardController({
     createChatTask,
     sendChatInstruction: createChatTask,
     submitChatDecision,
+    deleteChatTask,
     testGatewayAiConfig,
     testDeviceAiConfig,
   };

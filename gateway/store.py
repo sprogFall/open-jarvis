@@ -326,6 +326,11 @@ class GatewayStore:
             rows = db.execute(query, params).fetchall()
         return [self._row_to_task(row) for row in rows]
 
+    def delete_task(self, task_id: str) -> bool:
+        with self._connect() as db:
+            cursor = db.execute("DELETE FROM tasks WHERE task_id = ?", (task_id,))
+        return cursor.rowcount > 0
+
     def list_connected_view(self) -> list[dict]:
         with self._connect() as db:
             rows = db.execute(

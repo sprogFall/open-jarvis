@@ -16,6 +16,11 @@ abstract class GatewayApi {
     required String token,
   });
 
+  Future<List<TaskRecord>> fetchTasks({
+    required String baseUrl,
+    required String token,
+  });
+
   Future<List<DeviceRecord>> fetchDevices({
     required String baseUrl,
     required String token,
@@ -33,6 +38,12 @@ abstract class GatewayApi {
     required String token,
     required String taskId,
     required bool approved,
+  });
+
+  Future<void> deleteTask({
+    required String baseUrl,
+    required String token,
+    required String taskId,
   });
 }
 
@@ -64,6 +75,22 @@ class HttpGatewayApi implements GatewayApi {
   }) async {
     final response = await _client.get(
       Uri.parse('$baseUrl/tasks/pending_approvals'),
+      headers: _authHeaders(token),
+    );
+    _ensureSuccess(response);
+    final body = jsonDecode(response.body) as List<dynamic>;
+    return body
+        .map((item) => TaskRecord.fromJson(item as Map<String, dynamic>))
+        .toList(growable: false);
+  }
+
+  @override
+  Future<List<TaskRecord>> fetchTasks({
+    required String baseUrl,
+    required String token,
+  }) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/tasks'),
       headers: _authHeaders(token),
     );
     _ensureSuccess(response);
@@ -123,6 +150,19 @@ class HttpGatewayApi implements GatewayApi {
     return TaskRecord.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
     );
+  }
+
+  @override
+  Future<void> deleteTask({
+    required String baseUrl,
+    required String token,
+    required String taskId,
+  }) async {
+    final response = await _client.delete(
+      Uri.parse('$baseUrl/tasks/$taskId'),
+      headers: _authHeaders(token),
+    );
+    _ensureSuccess(response);
   }
 
   Map<String, String> _authHeaders(String token) {

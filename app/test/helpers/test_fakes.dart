@@ -21,10 +21,15 @@ class FakeGatewayApi implements GatewayApi {
     'logs': ['load1=0.42'],
   });
 
-  FakeGatewayApi({List<TaskRecord>? pendingApprovals})
-      : pendingApprovals = pendingApprovals ?? [_defaultPendingTask()];
+  FakeGatewayApi({
+    List<TaskRecord>? pendingApprovals,
+    List<TaskRecord>? tasks,
+  })  : pendingApprovals = pendingApprovals ?? [_defaultPendingTask()],
+        tasks = tasks ?? pendingApprovals ?? [_defaultPendingTask()];
 
   final List<TaskRecord> pendingApprovals;
+  final List<TaskRecord> tasks;
+  final List<String> deletedTaskIds = <String>[];
   String? lastInstruction;
   String? lastBaseUrl;
   String? lastUsername;
@@ -40,6 +45,14 @@ class FakeGatewayApi implements GatewayApi {
     lastUsername = username;
     lastPassword = password;
     return 'jwt-token';
+  }
+
+  @override
+  Future<List<TaskRecord>> fetchTasks({
+    required String baseUrl,
+    required String token,
+  }) async {
+    return tasks;
   }
 
   @override
@@ -99,6 +112,15 @@ class FakeGatewayApi implements GatewayApi {
       'error': null,
       'logs': ['load1=0.42'],
     });
+  }
+
+  @override
+  Future<void> deleteTask({
+    required String baseUrl,
+    required String token,
+    required String taskId,
+  }) async {
+    deletedTaskIds.add(taskId);
   }
 }
 

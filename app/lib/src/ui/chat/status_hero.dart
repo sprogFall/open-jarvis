@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:app/src/models/task_record.dart';
 import 'package:app/src/ui/app_theme.dart';
 import 'package:app/src/ui/components/glass_card.dart';
@@ -6,9 +8,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class StatusHero extends StatelessWidget {
-  const StatusHero({required this.task, super.key});
+  const StatusHero({required this.task, this.onDelete, super.key});
 
   final TaskRecord task;
+  final Future<void> Function()? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -99,6 +102,18 @@ class StatusHero extends StatelessWidget {
               ],
             ),
           ),
+          if (onDelete != null) ...[
+            const SizedBox(width: 12),
+            IconButton(
+              key: const Key('deleteTaskButton'),
+              tooltip: '删除记录',
+              onPressed: () => unawaited(onDelete!()),
+              icon: Icon(
+                Icons.delete_outline_rounded,
+                color: tokens.danger,
+              ),
+            ),
+          ],
         ],
       ),
     );

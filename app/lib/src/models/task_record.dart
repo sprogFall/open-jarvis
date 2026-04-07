@@ -82,6 +82,10 @@ class TaskRecord {
   final List<String> logs;
 
   bool get isAwaitingApproval => status == TaskStatus.awaitingApproval;
+  bool get canDeleteHistory =>
+      status == TaskStatus.completed ||
+      status == TaskStatus.failed ||
+      status == TaskStatus.rejected;
 
   factory TaskRecord.fromJson(Map<String, dynamic> json) {
     return TaskRecord(

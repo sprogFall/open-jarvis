@@ -32,6 +32,7 @@ type ChatTabProps = {
   onSelectDevice: (deviceId: string) => void;
   onSendTask: (instruction: string) => Promise<void>;
   onSubmitDecision: (approved: boolean) => Promise<void>;
+  onDeleteTask: (taskId: string) => Promise<void>;
   onRefresh: () => void | Promise<void>;
 };
 
@@ -54,6 +55,7 @@ export function ChatTab({
   onSelectDevice,
   onSendTask,
   onSubmitDecision,
+  onDeleteTask,
   onRefresh,
 }: ChatTabProps) {
   const [draft, setDraft] = useState("");
@@ -108,6 +110,24 @@ export function ChatTab({
     }
   }
 
+  async function handleDelete() {
+    if (!selectedTask) {
+      return;
+    }
+    setDecisionPending(true);
+    try {
+      await onDeleteTask(selectedTask.task_id);
+    } catch {
+      // error banner is handled by the controller
+    } finally {
+      setDecisionPending(false);
+    }
+  }
+
+  const canDeleteTask = selectedTask
+    ? ["COMPLETED", "FAILED", "REJECTED"].includes(selectedTask.status)
+    : false;
+
   return (
     <section className="chat-layout">
       <aside className="panel chat-rail">
@@ -154,6 +174,16 @@ export function ChatTab({
         <SectionHeader
           actions={
             <div className="header-actions">
+              {selectedTask && canDeleteTask ? (
+                <button
+                  className="ghost-button"
+                  disabled={decisionPending}
+                  onClick={() => void handleDelete()}
+                  type="button"
+                >
+                  删除记录
+                </button>
+              ) : null}
               <button className="ghost-button" onClick={() => void onRefresh()} type="button">
                 刷新线程
               </button>

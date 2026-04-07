@@ -90,6 +90,17 @@ class ConnectionManager:
         for websocket in stale_connections:
             self.disconnect_app(websocket)
 
+    async def broadcast_task_deleted(self, task_id: str) -> None:
+        stale_connections = []
+        payload = {"type": "TASK_DELETED", "task_id": task_id}
+        for websocket in self.app_connections:
+            try:
+                await websocket.send_json(payload)
+            except Exception:
+                stale_connections.append(websocket)
+        for websocket in stale_connections:
+            self.disconnect_app(websocket)
+
     async def send_task_assignment(self, device_id: str, task: dict) -> None:
         websocket = self.client_connections.get(device_id)
         if websocket is None:
@@ -278,6 +289,13 @@ def create_app(settings: GatewaySettings | None = None) -> FastAPI:
     ) -> list[dict]:
         return store.list_pending_approvals()
 
+    @app.get("/tasks")
+    def list_tasks(
+        limit: int = 100,
+        _user: dict = Depends(require_user),
+    ) -> list[dict]:
+        return store.list_tasks_filtered(limit=limit)
+
     @app.get("/tasks/{task_id}")
     def get_task(
         task_id: str,
@@ -287,6 +305,23 @@ def create_app(settings: GatewaySettings | None = None) -> FastAPI:
         if task is None:
             raise HTTPException(status_code=404, detail="Task not found")
         return task
+
+    @app.delete("/tasks/{task_id}", status_code=204)
+    async def delete_task(
+        task_id: str,
+        _user: dict = Depends(require_user),
+    ) -> None:
+        task = store.get_task(task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail="Task not found")
+        if task["status"] not in {"COMPLETED", "FAILED", "REJECTED"}:
+            raise HTTPException(
+                status_code=409,
+                detail="只有已结束的历史记录才允许删除",
+            )
+        if not store.delete_task(task_id):
+            raise HTTPException(status_code=404, detail="Task not found")
+        await manager.broadcast_task_deleted(task_id)
 
     @app.get("/devices")
     def list_devices(
@@ -364,6 +399,12 @@ def create_app(settings: GatewaySettings | None = None) -> FastAPI:
             raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION) from exc
         await manager.connect_app(websocket)
         try:
+            await websocket.send_json(
+                {
+                    "type": "TASK_HISTORY_SYNC",
+                    "tasks": store.list_tasks_filtered(limit=100),
+                }
+            )
             while True:
                 await websocket.receive_text()
         except Exception:

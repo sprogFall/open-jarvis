@@ -212,6 +212,9 @@ export const dashboardApi = {
       token,
     );
   },
+  deleteTask(token: string, taskId: string): Promise<void> {
+    return request(`/tasks/${taskId}`, { method: "DELETE" }, token);
+  },
   getSystemInfo(token: string): Promise<SystemInfo> {
     return request("/dashboard/api/system", {}, token);
   },

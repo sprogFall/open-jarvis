@@ -8,6 +8,8 @@ import 'package:app/src/state/task_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class FakeGatewayApi implements GatewayApi {
+  final List<String> deletedTaskIds = <String>[];
+
   @override
   Future<String> login({
     required String baseUrl,
@@ -18,7 +20,7 @@ class FakeGatewayApi implements GatewayApi {
   }
 
   @override
-  Future<List<TaskRecord>> fetchPendingApprovals({
+  Future<List<TaskRecord>> fetchTasks({
     required String baseUrl,
     required String token,
   }) async {
@@ -36,6 +38,16 @@ class FakeGatewayApi implements GatewayApi {
         'logs': ['load1=0.42'],
       }),
     ];
+  }
+
+  @override
+  Future<List<TaskRecord>> fetchPendingApprovals({
+    required String baseUrl,
+    required String token,
+  }) async {
+    return (await fetchTasks(baseUrl: baseUrl, token: token))
+        .where((task) => task.status == TaskStatus.awaitingApproval)
+        .toList(growable: false);
   }
 
   @override
@@ -86,6 +98,15 @@ class FakeGatewayApi implements GatewayApi {
       'error': null,
       'logs': ['load1=0.42'],
     });
+  }
+
+  @override
+  Future<void> deleteTask({
+    required String baseUrl,
+    required String token,
+    required String taskId,
+  }) async {
+    deletedTaskIds.add(taskId);
   }
 }
 
@@ -165,7 +186,7 @@ class ExpiringTokenGatewayApi extends FakeGatewayApi {
   }
 
   @override
-  Future<List<TaskRecord>> fetchPendingApprovals({
+  Future<List<TaskRecord>> fetchTasks({
     required String baseUrl,
     required String token,
   }) async {
@@ -174,7 +195,7 @@ class ExpiringTokenGatewayApi extends FakeGatewayApi {
         'Gateway request failed: 401 {"detail":"Invalid token"}',
       );
     }
-    return super.fetchPendingApprovals(baseUrl: baseUrl, token: token);
+    return super.fetchTasks(baseUrl: baseUrl, token: token);
   }
 }
 
@@ -213,7 +234,7 @@ class MultiDeviceRestoreGatewayApi extends MultiDeviceGatewayApi {
 }
 
 void main() {
-  test('connect loads pending approvals and selects the first task', () async {
+  test('connect loads task history and selects the first awaiting task', () async {
     final socket = FakeGatewaySocket();
     final controller = TaskController(api: FakeGatewayApi(), socket: socket);
 
@@ -228,6 +249,24 @@ void main() {
     expect(controller.pendingTasks.single.taskId, 'task-1');
     expect(controller.selectedTask?.taskId, 'task-1');
     expect(socket.connectedToken, 'jwt-token');
+  });
+
+  test('connect keeps completed chats in task history after restart', () async {
+    final socket = FakeGatewaySocket();
+    final controller = TaskController(
+      api: _HistoryGatewayApi(),
+      socket: socket,
+    );
+
+    await controller.connect(
+      baseUrl: 'http://127.0.0.1:8000',
+      username: 'operator',
+      password: 'passw0rd',
+    );
+
+    expect(controller.tasks.map((task) => task.taskId), ['task-1', 'task-2']);
+    expect(controller.pendingTasks.single.taskId, 'task-1');
+    expect(controller.selectedTask?.taskId, 'task-1');
   });
 
   test('socket events update task snapshots and append logs', () async {
@@ -262,6 +301,51 @@ void main() {
 
     expect(controller.selectedTask?.status, TaskStatus.approved);
     expect(controller.logsFor('task-1'), contains('container restarted'));
+  });
+
+  test('socket history sync backfills missed tasks after reconnect', () async {
+    final controller = TaskController(
+      api: FakeGatewayApi(),
+      socket: FakeGatewaySocket(),
+    );
+    await controller.connect(
+      baseUrl: 'http://127.0.0.1:8000',
+      username: 'operator',
+      password: 'passw0rd',
+    );
+
+    controller.handleSocketEvent({
+      'type': 'TASK_HISTORY_SYNC',
+      'tasks': [
+        {
+          'task_id': 'task-2',
+          'device_id': 'device-alpha',
+          'instruction': '查看系统负载',
+          'status': 'COMPLETED',
+          'checkpoint_id': null,
+          'command': null,
+          'reason': null,
+          'result': 'ok',
+          'error': null,
+          'logs': ['completed'],
+        },
+        {
+          'task_id': 'task-1',
+          'device_id': 'device-alpha',
+          'instruction': '查看系统负载，然后重启容器 api-service',
+          'status': 'AWAITING_APPROVAL',
+          'checkpoint_id': 'cp_001',
+          'command': 'docker restart api-service',
+          'reason': '重启容器会打断服务，需要人工确认',
+          'result': null,
+          'error': null,
+          'logs': ['load1=0.42'],
+        },
+      ],
+    });
+
+    expect(controller.tasks.map((task) => task.taskId), ['task-2', 'task-1']);
+    expect(controller.selectedTask?.taskId, 'task-1');
   });
 
   test('createTask stores the dispatched task and selects it', () async {
@@ -299,6 +383,26 @@ void main() {
 
     expect(controller.selectedTask, isNull);
     expect(controller.tasks, isNotEmpty);
+  });
+
+  test('deleteTask removes the selected terminal chat from local history', () async {
+    final api = _HistoryGatewayApi();
+    final controller = TaskController(
+      api: api,
+      socket: FakeGatewaySocket(),
+    );
+    await controller.connect(
+      baseUrl: 'http://127.0.0.1:8000',
+      username: 'operator',
+      password: 'passw0rd',
+    );
+
+    controller.selectTask('task-2');
+    await controller.deleteTask('task-2');
+
+    expect(api.deletedTaskIds, ['task-2']);
+    expect(controller.tasks.map((task) => task.taskId), ['task-1']);
+    expect(controller.selectedTask?.taskId, 'task-1');
   });
 
   test(
@@ -417,4 +521,39 @@ void main() {
     expect(store.session?.baseUrl, 'http://10.0.0.8:8000');
     expect(store.session?.username, 'root');
   });
+}
+
+class _HistoryGatewayApi extends FakeGatewayApi {
+  @override
+  Future<List<TaskRecord>> fetchTasks({
+    required String baseUrl,
+    required String token,
+  }) async {
+    return [
+      TaskRecord.fromJson({
+        'task_id': 'task-1',
+        'device_id': 'device-alpha',
+        'instruction': '查看系统负载，然后重启容器 api-service',
+        'status': 'AWAITING_APPROVAL',
+        'checkpoint_id': 'cp_001',
+        'command': 'docker restart api-service',
+        'reason': '重启容器会打断服务，需要人工确认',
+        'result': null,
+        'error': null,
+        'logs': ['load1=0.42'],
+      }),
+      TaskRecord.fromJson({
+        'task_id': 'task-2',
+        'device_id': 'device-alpha',
+        'instruction': '查看系统负载',
+        'status': 'COMPLETED',
+        'checkpoint_id': null,
+        'command': null,
+        'reason': null,
+        'result': 'ok',
+        'error': null,
+        'logs': ['completed'],
+      }),
+    ];
+  }
 }

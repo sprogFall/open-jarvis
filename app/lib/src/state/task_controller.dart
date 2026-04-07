@@ -129,13 +129,11 @@ class TaskController extends ChangeNotifier {
     }
     _devices = await api.fetchDevices(baseUrl: _baseUrl!, token: _token!);
     await _reconcilePreferredDevice();
-    final pending = await api.fetchPendingApprovals(
+    final tasks = await api.fetchTasks(
       baseUrl: _baseUrl!,
       token: _token!,
     );
-    for (final task in pending) {
-      _upsertTask(task, selectIfMissing: _selectedTaskId == null);
-    }
+    _replaceTasks(tasks);
     notifyListeners();
   }
 
@@ -223,6 +221,21 @@ class TaskController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> deleteTask(String taskId) async {
+    final baseUrl = _baseUrl;
+    final token = _token;
+    if (baseUrl == null || token == null) {
+      throw StateError('Gateway connection is not ready');
+    }
+    await api.deleteTask(
+      baseUrl: baseUrl,
+      token: token,
+      taskId: taskId,
+    );
+    _removeTask(taskId);
+    notifyListeners();
+  }
+
   List<String> logsFor(String taskId) {
     final task = _findTask(taskId);
     return task?.logs ?? const <String>[];
@@ -240,6 +253,14 @@ class TaskController extends ChangeNotifier {
 
   void handleSocketEvent(Map<String, dynamic> event) {
     final type = event['type'];
+    if (type == 'TASK_HISTORY_SYNC') {
+      final incoming = ((event['tasks'] as List<dynamic>?) ?? const <dynamic>[])
+          .map((item) => TaskRecord.fromJson(item as Map<String, dynamic>))
+          .toList(growable: false);
+      _replaceTasks(incoming);
+      notifyListeners();
+      return;
+    }
     if (type == 'TASK_SNAPSHOT') {
       final incoming = TaskRecord.fromJson(
         event['task'] as Map<String, dynamic>,
@@ -262,6 +283,12 @@ class TaskController extends ChangeNotifier {
         existing.copyWith(logs: [...existing.logs, event['message'] as String]),
       );
       notifyListeners();
+      return;
+    }
+    if (type == 'TASK_DELETED') {
+      final taskId = event['task_id'] as String;
+      _removeTask(taskId);
+      notifyListeners();
     }
   }
 
@@ -280,27 +307,24 @@ class TaskController extends ChangeNotifier {
       if (token == null || token.isEmpty) {
         throw StateError('Saved gateway session is missing token');
       }
-      final devices = await api.fetchDevices(
-        token: token,
-        baseUrl: session.baseUrl,
-      );
-      final pendingApprovals = await api.fetchPendingApprovals(
-        baseUrl: session.baseUrl,
-        token: token,
-      );
       await socket.connect(
         baseUrl: session.baseUrl,
         token: token,
         onEvent: handleSocketEvent,
       );
+      final devices = await api.fetchDevices(
+        token: token,
+        baseUrl: session.baseUrl,
+      );
+      final tasks = await api.fetchTasks(
+        baseUrl: session.baseUrl,
+        token: token,
+      );
 
       _baseUrl = session.baseUrl;
       _token = token;
       _devices = devices;
-      _tasks = pendingApprovals;
-      _selectedTaskId = pendingApprovals.isNotEmpty
-          ? pendingApprovals.first.taskId
-          : null;
+      _replaceTasks(tasks);
       await _saveSession(session);
       await _reconcilePreferredDevice();
       _status = ConnectionStatus.connected;
@@ -424,6 +448,40 @@ class TaskController extends ChangeNotifier {
     if (select || (_selectedTaskId == null && selectIfMissing)) {
       _selectedTaskId = task.taskId;
     }
+  }
+
+  void _replaceTasks(List<TaskRecord> tasks) {
+    _tasks = List<TaskRecord>.from(tasks);
+    _selectedTaskId = _pickSelectedTaskId(
+      tasks,
+      preferredTaskId: _selectedTaskId,
+    );
+  }
+
+  void _removeTask(String taskId) {
+    _tasks = _tasks
+        .where((task) => task.taskId != taskId)
+        .toList(growable: false);
+    _selectedTaskId = _pickSelectedTaskId(
+      _tasks,
+      preferredTaskId: _selectedTaskId == taskId ? null : _selectedTaskId,
+    );
+  }
+
+  String? _pickSelectedTaskId(
+    List<TaskRecord> tasks, {
+    String? preferredTaskId,
+  }) {
+    if (preferredTaskId != null &&
+        tasks.any((task) => task.taskId == preferredTaskId)) {
+      return preferredTaskId;
+    }
+    for (final task in tasks) {
+      if (task.status == TaskStatus.awaitingApproval) {
+        return task.taskId;
+      }
+    }
+    return tasks.isNotEmpty ? tasks.first.taskId : null;
   }
 
   @override
