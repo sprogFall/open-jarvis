@@ -78,7 +78,7 @@ class ChannelGatewaySocket implements GatewaySocket {
         onEvent(decoded);
       },
       onDone: _handleDisconnect,
-      onError: (_, __) => _handleDisconnect(),
+      onError: (error, stackTrace) => _handleDisconnect(),
       cancelOnError: true,
     );
     try {
