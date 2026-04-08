@@ -1,5 +1,6 @@
 import 'package:app/src/state/task_controller.dart';
 import 'package:app/src/ui/app_theme.dart';
+import 'package:app/src/ui/components/jarvis_dropdown_field.dart';
 import 'package:app/src/ui/helpers.dart';
 import 'package:flutter/material.dart';
 
@@ -26,7 +27,9 @@ class SetupTray extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = JarvisThemeTokens.of(context);
-    final onlineCount = controller.devices.where((device) => device.connected).length;
+    final onlineCount = controller.devices
+        .where((device) => device.connected)
+        .length;
     final summary = <String>[
       selectedDeviceId == null ? '未选择设备' : '设备 $selectedDeviceId',
       '${controller.pendingTasks.length} 待审批',
@@ -44,7 +47,9 @@ class SetupTray extends StatelessWidget {
       decoration: BoxDecoration(
         color: tokens.shell.withValues(alpha: 0.84),
         borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: expanded ? tokens.borderStrong : tokens.border),
+        border: Border.all(
+          color: expanded ? tokens.borderStrong : tokens.border,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -59,7 +64,10 @@ class SetupTray extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('会话设置', style: Theme.of(context).textTheme.titleMedium),
+                      Text(
+                        '会话设置',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                       const SizedBox(height: 4),
                       Text(
                         expanded ? '选择设备并填充常用起手任务。' : summary,
@@ -69,7 +77,10 @@ class SetupTray extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: tokens.surface,
                     borderRadius: BorderRadius.circular(999),
@@ -109,11 +120,10 @@ class SetupTray extends StatelessWidget {
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                         const SizedBox(height: 14),
-                        DropdownButtonFormField<String>(
+                        JarvisDropdownField<String>(
                           key: const Key('setupDeviceField'),
                           initialValue: selectedDeviceId,
-                          isExpanded: true,
-                          decoration: const InputDecoration(hintText: '选择要协作的设备'),
+                          hintText: '选择要协作的设备',
                           items: controller.devices
                               .map(
                                 (device) => DropdownMenuItem<String>(
@@ -135,7 +145,8 @@ class SetupTray extends StatelessWidget {
                           children: quickPrompts
                               .map(
                                 (prompt) => ActionChip(
-                                  onPressed: () => onPrefillInstruction(prompt.$2),
+                                  onPressed: () =>
+                                      onPrefillInstruction(prompt.$2),
                                   avatar: const Icon(
                                     Icons.north_east_rounded,
                                     size: 16,
@@ -151,7 +162,9 @@ class SetupTray extends StatelessWidget {
                           TextButton.icon(
                             onPressed: onFocusPending,
                             icon: const Icon(Icons.playlist_play_rounded),
-                            label: Text('恢复 ${controller.pendingTasks.length} 个挂起任务'),
+                            label: Text(
+                              '恢复 ${controller.pendingTasks.length} 个挂起任务',
+                            ),
                           ),
                         ],
                       ],

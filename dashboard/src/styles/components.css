@@ -32,8 +32,27 @@
   border-radius: 1rem;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text);
+  color-scheme: dark;
   border: 1px solid transparent;
   transition: border-color 120ms ease, background 120ms ease;
+}
+
+.field select option,
+.field select optgroup,
+.task-filters select option,
+.task-filters select optgroup {
+  background-color: var(--panel-strong);
+  color: var(--text);
+}
+
+.field select option:checked,
+.field select option:hover,
+.field select option:focus,
+.task-filters select option:checked,
+.task-filters select option:hover,
+.task-filters select option:focus {
+  background-color: rgba(125, 245, 180, 0.16);
+  color: var(--text);
 }
 
 .field input[type="file"] {

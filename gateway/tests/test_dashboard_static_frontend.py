@@ -123,6 +123,23 @@ def test_dashboard_css_is_split_into_style_modules():
     assert './styles/index.css' in content or "\"./styles/index.css\"" in content
 
 
+def test_dashboard_selects_define_readable_popup_option_styles():
+    components_css = (
+        Path(__file__).resolve().parents[2]
+        / "dashboard"
+        / "src"
+        / "styles"
+        / "components.css"
+    ).read_text(encoding="utf-8")
+
+    assert ".field select option" in components_css
+    assert ".task-filters select option" in components_css
+    assert "background-color: var(--panel-strong)" in components_css
+    assert "color: var(--text)" in components_css
+    assert "select option:checked" in components_css
+    assert "select option:hover" in components_css
+
+
 def test_dashboard_skill_management_mentions_zip_upload_flow():
     dashboard_root = Path(__file__).resolve().parents[2] / "dashboard"
     skill_editor = dashboard_root / "src" / "features" / "skills" / "SkillEditorSheet.tsx"
@@ -372,5 +389,8 @@ def test_agents_document_shared_ui_primitives_and_app_shell_rules():
 
     assert "同类页面头部、统计卡、键值信息块、表单标签必须优先抽成共享组件" in content
     assert "Dashboard 必须统一提供 `:focus-visible` 与 `prefers-reduced-motion` 兜底" in content
+    assert "新增或修改 `select`、下拉菜单、PopupMenu 或 Dropdown 后" in content
+    assert "必须检查展开态的选项面板在当前主题下是否清晰可读" in content
+    assert "禁止出现选项文字与背景混色、透明叠底或 hover / selected 态不可辨认的问题" in content
     assert "App 端聊天首页只保留一个一等壳层实现" in content
     assert "`home_screen.dart` 仅保留入口包装职责" in content

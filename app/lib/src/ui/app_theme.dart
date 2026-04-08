@@ -302,7 +302,7 @@ class JarvisAppTheme {
     return base.copyWith(
       extensions: [tokens],
       scaffoldBackgroundColor: tokens.pageBottom,
-      canvasColor: Colors.transparent,
+      canvasColor: tokens.shellRaised,
       cardColor: tokens.shell,
       shadowColor: tokens.shadow,
       dividerColor: tokens.border,

@@ -2,6 +2,7 @@ import 'package:app/src/models/task_record.dart';
 import 'package:app/src/state/task_controller.dart';
 import 'package:app/src/ui/app_theme.dart';
 import 'package:app/src/ui/components/glass_card.dart';
+import 'package:app/src/ui/components/jarvis_dropdown_field.dart';
 import 'package:app/src/ui/components/metric_chip.dart';
 import 'package:app/src/ui/components/status_pill.dart';
 import 'package:app/src/ui/helpers.dart';
@@ -110,11 +111,10 @@ class ThreadRail extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
+                JarvisDropdownField<String>(
                   key: ValueKey<String?>(selectedDeviceId),
                   initialValue: selectedDeviceId,
-                  isExpanded: true,
-                  decoration: const InputDecoration(hintText: '选择要协作的设备'),
+                  hintText: '选择要协作的设备',
                   items: controller.devices
                       .map(
                         (device) => DropdownMenuItem<String>(
