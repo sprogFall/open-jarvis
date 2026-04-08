@@ -1,4 +1,13 @@
-import type { AICallLog, Device, Overview, Skill, SystemInfo, Task } from "./types";
+import type {
+  AICallLog,
+  Device,
+  Overview,
+  QuickDeployDraft,
+  QuickDeployModuleId,
+  Skill,
+  SystemInfo,
+  Task,
+} from "./types";
 
 function normalizeGatewayBaseUrl(raw: string): string {
   const trimmed = raw.trim().replace(/\/+$/, "");
@@ -171,6 +180,29 @@ export const dashboardApi = {
   ): Promise<{ blob: Blob; filename: string | null }> {
     return requestFile(
       "/dashboard/api/client-packages",
+      { method: "POST", body: JSON.stringify(payload) },
+      token,
+    );
+  },
+  getQuickDeployDraft(token: string): Promise<QuickDeployDraft> {
+    return request("/dashboard/api/quick-deploy/draft", {}, token);
+  },
+  downloadQuickDeployPackage(
+    token: string,
+    payload: {
+      targets: QuickDeployModuleId[];
+      modules: Record<QuickDeployModuleId, Record<string, string>>;
+      client_package: {
+        device_name: string;
+        repo_url: string;
+        repo_ref: string;
+        register_device: boolean;
+        skill_ids: string[];
+      };
+    },
+  ): Promise<{ blob: Blob; filename: string | null }> {
+    return requestFile(
+      "/dashboard/api/quick-deploy/package",
       { method: "POST", body: JSON.stringify(payload) },
       token,
     );

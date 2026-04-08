@@ -103,3 +103,31 @@ export type AICallLog = {
   error: string | null;
   created_at: string;
 };
+
+export type QuickDeployModuleId = "client" | "gateway" | "dashboard";
+
+export type QuickDeployField = {
+  key: string;
+  label: string;
+  description: string;
+  required: boolean;
+  secret: boolean;
+  input_type: "text" | "url" | "password" | "select";
+  value: string;
+};
+
+export type QuickDeployModule = {
+  title: string;
+  description: string;
+  artifact_label: string;
+  fields: QuickDeployField[];
+};
+
+export type QuickDeployDraft = {
+  modules: Record<QuickDeployModuleId, QuickDeployModule>;
+  client_package: {
+    repo_url: string;
+    repo_ref: string;
+    register_device: boolean;
+  };
+};

@@ -51,6 +51,7 @@ def test_dashboard_frontend_is_split_into_feature_modules():
         root / "components" / "SideSheet.tsx",
         root / "components" / "StatusPill.tsx",
         root / "features" / "auth" / "LoginScreen.tsx",
+        root / "features" / "deploy" / "QuickDeployTab.tsx",
         root / "features" / "devices" / "DevicesTab.tsx",
         root / "features" / "skills" / "SkillsTab.tsx",
         root / "features" / "tasks" / "TasksTab.tsx",
@@ -156,26 +157,31 @@ def test_dashboard_skill_management_mentions_zip_upload_flow():
     assert "zip" in readme_content.lower()
 
 
-def test_dashboard_devices_workspace_exposes_client_package_download_flow():
+def test_dashboard_exposes_independent_quick_deploy_workspace():
     dashboard_root = Path(__file__).resolve().parents[2] / "dashboard"
-    devices_tab = dashboard_root / "src" / "features" / "devices" / "DevicesTab.tsx"
-    deployment_sheet = (
-        dashboard_root / "src" / "features" / "devices" / "ClientBootstrapSheet.tsx"
-    )
+    deploy_tab = dashboard_root / "src" / "features" / "deploy" / "QuickDeployTab.tsx"
+    app_model = dashboard_root / "src" / "app" / "model.ts"
+    app_shell = dashboard_root / "src" / "app" / "AppShell.tsx"
     controller = dashboard_root / "src" / "app" / "useDashboardController.ts"
     api = dashboard_root / "src" / "api.ts"
     readme = dashboard_root / "README.md"
 
-    devices_tab_content = devices_tab.read_text(encoding="utf-8")
+    deploy_tab_content = deploy_tab.read_text(encoding="utf-8")
+    app_model_content = app_model.read_text(encoding="utf-8")
+    app_shell_content = app_shell.read_text(encoding="utf-8")
     controller_content = controller.read_text(encoding="utf-8")
     api_content = api.read_text(encoding="utf-8")
     readme_content = readme.read_text(encoding="utf-8")
 
-    assert deployment_sheet.exists()
-    assert "生成部署包" in devices_tab_content
-    assert "downloadClientPackage" in controller_content
-    assert "downloadClientPackage" in api_content
-    assert "部署包" in readme_content
+    assert deploy_tab.exists()
+    assert 'label: "快速部署"' in app_model_content
+    assert "QuickDeployTab" in app_shell_content
+    assert "Gateway / Client / Dashboard" in deploy_tab_content
+    assert "quickDeployDraft" in controller_content
+    assert "downloadQuickDeployPackage" in controller_content
+    assert "getQuickDeployDraft" in api_content
+    assert "downloadQuickDeployPackage" in api_content
+    assert "快速部署" in readme_content
 
 
 def test_dashboard_visible_copy_stays_focused_on_business_workflows():

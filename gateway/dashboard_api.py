@@ -6,10 +6,19 @@ from urllib.parse import urlsplit, urlunsplit
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request
 from fastapi.responses import Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from client.ai import AIModelConfig, StructuredModelClient, resolve_model_endpoint
 from gateway.client_package import ClientPackageSpec, PackageSkill, build_client_package
+from gateway.quick_deploy import (
+    QUICK_DEPLOY_MODULES,
+    build_package_skills,
+    build_quick_deploy_archive,
+    build_quick_deploy_draft,
+    normalize_module_env,
+    render_module_env,
+    required_field_label,
+)
 from gateway.security import verify_access_token
 from gateway.store import GatewayStore
 from gateway.settings import GatewaySettings
@@ -92,6 +101,61 @@ class ClientPackageCreate(BaseModel):
             normalized.append(candidate)
             seen.add(candidate)
         return normalized
+
+
+class QuickDeployClientPackage(BaseModel):
+    device_name: str = Field(min_length=1)
+    repo_url: str = Field(min_length=1)
+    repo_ref: str = Field(default="main", min_length=1)
+    register_device: bool = True
+    skill_ids: list[str] = Field(default_factory=list)
+
+    @field_validator("device_name", "repo_url", "repo_ref")
+    @classmethod
+    def strip_required_fields(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("字段不能为空")
+        return trimmed
+
+    @field_validator("skill_ids")
+    @classmethod
+    def normalize_skill_ids(cls, value: list[str]) -> list[str]:
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for skill_id in value:
+            candidate = str(skill_id).strip()
+            if not candidate or candidate in seen:
+                continue
+            normalized.append(candidate)
+            seen.add(candidate)
+        return normalized
+
+
+class QuickDeployPackageCreate(BaseModel):
+    targets: list[str] = Field(default_factory=lambda: ["client"])
+    modules: dict[str, dict[str, str]] = Field(default_factory=dict)
+    client_package: QuickDeployClientPackage | None = None
+
+    @field_validator("targets")
+    @classmethod
+    def normalize_targets(cls, value: list[str]) -> list[str]:
+        normalized: list[str] = []
+        for target in value:
+            candidate = str(target).strip()
+            if candidate not in QUICK_DEPLOY_MODULES:
+                raise ValueError("存在不支持的部署目标")
+            if candidate not in normalized:
+                normalized.append(candidate)
+        if not normalized:
+            raise ValueError("至少选择一个部署目标")
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_client_target(self) -> "QuickDeployPackageCreate":
+        if "client" in self.targets and self.client_package is None:
+            raise ValueError("选择 Client 时必须提供客户端部署信息")
+        return self
 
 
 _bearer = HTTPBearer(auto_error=False)
@@ -267,6 +331,18 @@ def _sanitize_url_for_dashboard(raw_url: str | None) -> str | None:
     return urlunsplit((parsed.scheme, f"{hostname}{port}", parsed.path, "", ""))
 
 
+def _resolve_package_skills(store: GatewayStore, skill_ids: list[str]) -> list[dict]:
+    selected_skills: list[dict] = []
+    for skill_id in skill_ids:
+        skill = store.get_skill(skill_id)
+        if not skill:
+            raise HTTPException(404, "Skill 不存在")
+        if not skill.get("archive_ready"):
+            raise HTTPException(400, "Skill 尚未就绪，不能写入部署包")
+        selected_skills.append(skill)
+    return selected_skills
+
+
 def _serialize_device(
     device: dict,
     *,
@@ -406,14 +482,7 @@ def create_client_package(
     if store.get_device(body.device_id):
         raise HTTPException(400, "设备ID已存在")
 
-    selected_skills: list[dict] = []
-    for skill_id in body.skill_ids:
-        skill = store.get_skill(skill_id)
-        if not skill:
-            raise HTTPException(404, "Skill 不存在")
-        if not skill.get("archive_ready"):
-            raise HTTPException(400, "Skill 尚未就绪，不能写入部署包")
-        selected_skills.append(skill)
+    selected_skills = _resolve_package_skills(store, body.skill_ids)
 
     device_key = str(body.device_key or "").strip() or secrets.token_hex(16)
     filename, archive = build_client_package(
@@ -445,6 +514,97 @@ def create_client_package(
         store.delete_device(body.device_id)
         request.app.state.settings.device_keys.pop(body.device_id, None)
         raise
+
+    return Response(
+        content=archive,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
+
+
+@dashboard_api.get("/quick-deploy/draft")
+def get_quick_deploy_draft() -> dict:
+    return build_quick_deploy_draft()
+
+
+@dashboard_api.post("/quick-deploy/package")
+def create_quick_deploy_package(
+    body: QuickDeployPackageCreate,
+    request: Request,
+    store: GatewayStore = Depends(_get_store),
+) -> Response:
+    targets = tuple(body.targets)
+    rendered_envs: dict = {}
+    client_values: dict[str, str] | None = None
+    selected_skills: list[dict] = []
+    client_spec: ClientPackageSpec | None = None
+
+    if "client" in targets:
+        client_values = normalize_module_env("client", body.modules.get("client"))
+        missing_label = required_field_label("client", client_values)
+        if missing_label:
+            raise HTTPException(400, f"{missing_label}不能为空")
+
+        assert body.client_package is not None
+        device_id = client_values["OMNI_AGENT_DEVICE_ID"]
+        device_key = client_values["OMNI_AGENT_DEVICE_KEY"] or secrets.token_hex(16)
+        client_values["OMNI_AGENT_DEVICE_KEY"] = device_key
+
+        if body.client_package.register_device and store.get_device(device_id):
+            raise HTTPException(400, "设备ID已存在")
+
+        selected_skills = _resolve_package_skills(store, body.client_package.skill_ids)
+        client_spec = ClientPackageSpec(
+            device_id=device_id,
+            device_name=body.client_package.device_name,
+            device_key=device_key,
+            gateway_url=client_values["OMNI_AGENT_GATEWAY_URL"],
+            repo_url=body.client_package.repo_url,
+            repo_ref=body.client_package.repo_ref,
+            network_profile=client_values["DEPLOY_NETWORK_PROFILE"],
+            skills=build_package_skills(selected_skills),
+        )
+        rendered_envs["client"] = render_module_env("client", client_values)
+
+    if "gateway" in targets:
+        gateway_values = normalize_module_env("gateway", body.modules.get("gateway"))
+        missing_label = required_field_label("gateway", gateway_values)
+        if missing_label:
+            raise HTTPException(400, f"{missing_label}不能为空")
+        if client_values is not None and body.client_package and body.client_package.register_device:
+            gateway_values["OMNI_AGENT_DEVICE_KEYS"] = (
+                f"{client_values['OMNI_AGENT_DEVICE_ID']}="
+                f"{client_values['OMNI_AGENT_DEVICE_KEY']}"
+            )
+        rendered_envs["gateway"] = render_module_env("gateway", gateway_values)
+
+    if "dashboard" in targets:
+        dashboard_values = normalize_module_env("dashboard", body.modules.get("dashboard"))
+        missing_label = required_field_label("dashboard", dashboard_values)
+        if missing_label:
+            raise HTTPException(400, f"{missing_label}不能为空")
+        rendered_envs["dashboard"] = render_module_env("dashboard", dashboard_values)
+
+    filename, archive = build_quick_deploy_archive(
+        targets=targets,
+        rendered_envs=rendered_envs,
+        client_spec=client_spec,
+    )
+
+    if client_values is not None and body.client_package and body.client_package.register_device:
+        device_id = client_values["OMNI_AGENT_DEVICE_ID"]
+        device_key = client_values["OMNI_AGENT_DEVICE_KEY"]
+        try:
+            store.create_device(device_id, body.client_package.device_name, "cli", device_key)
+            request.app.state.settings.device_keys[device_id] = device_key
+            for skill in selected_skills:
+                store.assign_skill(device_id, str(skill["skill_id"]), {})
+        except Exception:
+            store.delete_device(device_id)
+            request.app.state.settings.device_keys.pop(device_id, None)
+            raise
 
     return Response(
         content=archive,

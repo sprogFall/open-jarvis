@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import zipfile
 
 from fastapi.testclient import TestClient
@@ -250,6 +251,176 @@ def test_generate_client_package_rejects_unknown_skill_without_creating_device(t
 
     assert response.status_code == 404
     assert client.app.state.store.get_device("broken-box") is None
+
+
+def test_quick_deploy_draft_returns_split_module_forms_without_sensitive_defaults(tmp_path):
+    client, headers = _setup(tmp_path)
+
+    response = client.get("/dashboard/api/quick-deploy/draft", headers=headers)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert set(payload["modules"]) == {"client", "gateway", "dashboard"}
+    assert payload["client_package"] == {
+        "repo_url": "",
+        "repo_ref": "main",
+        "register_device": True,
+    }
+
+    client_fields = payload["modules"]["client"]["fields"]
+    gateway_fields = payload["modules"]["gateway"]["fields"]
+    dashboard_fields = payload["modules"]["dashboard"]["fields"]
+
+    assert [field["key"] for field in client_fields[:3]] == [
+        "OMNI_AGENT_GATEWAY_URL",
+        "OMNI_AGENT_DEVICE_ID",
+        "OMNI_AGENT_DEVICE_KEY",
+    ]
+    assert client_fields[0]["label"] == "Gateway 连接地址"
+    assert client_fields[0]["required"] is True
+    assert client_fields[0]["value"] == ""
+    assert client_fields[2]["secret"] is True
+    assert client_fields[2]["value"] == ""
+
+    assert [field["key"] for field in gateway_fields[:3]] == [
+        "DATABASE_URL",
+        "OMNI_AGENT_JWT_SECRET",
+        "OMNI_AGENT_ADMIN_USERNAME",
+    ]
+    assert "OMNI_AGENT_DEVICE_KEYS" not in {field["key"] for field in gateway_fields}
+    assert "OMNI_AGENT_GATEWAY_LOCAL_CHECKPOINT_DB" not in {
+        field["key"] for field in gateway_fields
+    }
+
+    assert [field["key"] for field in dashboard_fields[:2]] == [
+        "VITE_GATEWAY_BASE_URL",
+        "DASHBOARD_PORT",
+    ]
+
+    serialized = json.dumps(payload, ensure_ascii=False)
+    assert "device-secret" not in serialized
+    assert "passw0rd" not in serialized
+    assert "local-client.db" not in serialized
+
+
+def test_quick_deploy_package_can_register_device_and_emit_split_module_envs(tmp_path):
+    client, headers = _setup(tmp_path)
+
+    response = client.post(
+        "/dashboard/api/quick-deploy/package",
+        headers=headers,
+        json={
+            "targets": ["client", "gateway", "dashboard"],
+            "client_package": {
+                "device_name": "边缘一号",
+                "repo_url": "https://github.com/example/open-jarvis.git",
+                "repo_ref": "release",
+                "register_device": True,
+                "skill_ids": ["builtin-docker"],
+            },
+            "modules": {
+                "client": {
+                    "DEPLOY_NETWORK_PROFILE": "cn",
+                    "CLIENT_DOCKERFILE": "client/Dockerfile.cn",
+                    "APT_MIRROR_HOST": "mirrors.tuna.tsinghua.edu.cn",
+                    "PIP_INDEX_URL": "https://pypi.tuna.tsinghua.edu.cn/simple",
+                    "PIP_TRUSTED_HOST": "pypi.tuna.tsinghua.edu.cn",
+                    "OMNI_AGENT_GATEWAY_URL": "https://gw.example.com/jarvis/api",
+                    "OMNI_AGENT_DEVICE_ID": "edge-sync",
+                    "OMNI_AGENT_DEVICE_KEY": "edge-secret-001",
+                },
+                "gateway": {
+                    "DEPLOY_NETWORK_PROFILE": "cn",
+                    "DATABASE_URL": "postgresql://jarvis:pg-secret@db.example.com:5432/jarvis",
+                    "GATEWAY_PORT": "8000",
+                    "GATEWAY_DOCKERFILE": "gateway/Dockerfile.cn",
+                    "APT_MIRROR_HOST": "mirrors.tuna.tsinghua.edu.cn",
+                    "PIP_INDEX_URL": "https://pypi.tuna.tsinghua.edu.cn/simple",
+                    "PIP_TRUSTED_HOST": "pypi.tuna.tsinghua.edu.cn",
+                    "OMNI_AGENT_JWT_SECRET": "jwt-secret-001",
+                    "OMNI_AGENT_ADMIN_USERNAME": "operator",
+                    "OMNI_AGENT_ADMIN_PASSWORD": "admin-secret-001",
+                },
+                "dashboard": {
+                    "DEPLOY_NETWORK_PROFILE": "cn",
+                    "DASHBOARD_PORT": "8080",
+                    "DASHBOARD_DOCKERFILE": "dashboard/Dockerfile.cn",
+                    "DASHBOARD_NPM_REGISTRY": "https://registry.npmmirror.com",
+                    "VITE_GATEWAY_BASE_URL": "https://gw.example.com/jarvis/api",
+                },
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/zip")
+
+    client_env_text = _read_zip_text(response.content, "client/.env")
+    gateway_env_text = _read_zip_text(response.content, "gateway/.env")
+    dashboard_env_text = _read_zip_text(response.content, "dashboard/.env")
+    script_text = _read_zip_text(response.content, "client/deploy-client.sh")
+
+    assert "OMNI_AGENT_DEVICE_ID=edge-sync" in client_env_text
+    assert "OMNI_AGENT_GATEWAY_URL=https://gw.example.com/jarvis/api" in client_env_text
+    assert "CLIENT_DOCKERFILE=client/Dockerfile.cn" in client_env_text
+    assert "OMNI_AGENT_DEVICE_KEYS=edge-sync=edge-secret-001" in gateway_env_text
+    assert "DATABASE_URL=postgresql://jarvis:pg-secret@db.example.com:5432/jarvis" in gateway_env_text
+    assert "VITE_GATEWAY_BASE_URL=https://gw.example.com/jarvis/api" in dashboard_env_text
+    assert "./jarvisctl deploy client" in script_text
+
+    stored = client.app.state.store.get_device("edge-sync")
+    assert stored is not None
+    assert stored["name"] == "边缘一号"
+    assert client.app.state.settings.device_keys["edge-sync"] == "edge-secret-001"
+
+
+def test_quick_deploy_package_can_skip_gateway_device_registration(tmp_path):
+    client, headers = _setup(tmp_path)
+
+    response = client.post(
+        "/dashboard/api/quick-deploy/package",
+        headers=headers,
+        json={
+            "targets": ["client", "gateway"],
+            "client_package": {
+                "device_name": "草稿节点",
+                "repo_url": "https://github.com/example/open-jarvis.git",
+                "repo_ref": "main",
+                "register_device": False,
+                "skill_ids": ["builtin-filesystem"],
+            },
+            "modules": {
+                "client": {
+                    "DEPLOY_NETWORK_PROFILE": "global",
+                    "CLIENT_DOCKERFILE": "client/Dockerfile",
+                    "APT_MIRROR_HOST": "",
+                    "PIP_INDEX_URL": "",
+                    "PIP_TRUSTED_HOST": "",
+                    "OMNI_AGENT_GATEWAY_URL": "https://gw.example.com/jarvis/api",
+                    "OMNI_AGENT_DEVICE_ID": "edge-draft",
+                    "OMNI_AGENT_DEVICE_KEY": "edge-secret-002",
+                },
+                "gateway": {
+                    "DEPLOY_NETWORK_PROFILE": "global",
+                    "DATABASE_URL": "postgresql://jarvis:pg-secret@db.example.com:5432/jarvis",
+                    "GATEWAY_PORT": "8000",
+                    "GATEWAY_DOCKERFILE": "gateway/Dockerfile",
+                    "APT_MIRROR_HOST": "",
+                    "PIP_INDEX_URL": "",
+                    "PIP_TRUSTED_HOST": "",
+                    "OMNI_AGENT_JWT_SECRET": "jwt-secret-002",
+                    "OMNI_AGENT_ADMIN_USERNAME": "operator",
+                    "OMNI_AGENT_ADMIN_PASSWORD": "admin-secret-002",
+                },
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    gateway_env_text = _read_zip_text(response.content, "gateway/.env")
+
+    assert "OMNI_AGENT_DEVICE_KEYS=edge-draft=edge-secret-002" not in gateway_env_text
+    assert client.app.state.store.get_device("edge-draft") is None
 
 
 def test_create_list_delete_skill(tmp_path):

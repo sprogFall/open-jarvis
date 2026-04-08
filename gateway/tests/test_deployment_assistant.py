@@ -478,6 +478,27 @@ def test_fastapi_requirement_uses_mirror_friendly_lower_bound():
     assert "fastapi>=0.135,<1" not in _read("gateway/requirements.txt")
 
 
+def test_quick_deploy_env_examples_are_split_by_module():
+    client_example = _read("client/.env.example")
+    gateway_example = _read("gateway/.env.example")
+    dashboard_example = _read("dashboard/.env.example")
+
+    assert "OMNI_AGENT_GATEWAY_URL=" in client_example
+    assert "OMNI_AGENT_DEVICE_ID=" in client_example
+    assert "CLIENT_DOCKERFILE=" in client_example
+    assert "DATABASE_URL=" not in client_example
+
+    assert "DATABASE_URL=" in gateway_example
+    assert "OMNI_AGENT_JWT_SECRET=" in gateway_example
+    assert "GATEWAY_DOCKERFILE=" in gateway_example
+    assert "OMNI_AGENT_DEVICE_ID=" not in gateway_example
+
+    assert "VITE_GATEWAY_BASE_URL=" in dashboard_example
+    assert "DASHBOARD_PORT=" in dashboard_example
+    assert "DASHBOARD_DOCKERFILE=" in dashboard_example
+    assert "OMNI_AGENT_JWT_SECRET=" not in dashboard_example
+
+
 
 def test_deployment_assistant_scripts_and_docs_exist():
     assert (PROJECT_ROOT / "jarvisctl").exists()

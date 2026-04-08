@@ -54,33 +54,33 @@ class MountPlan:
         return int(self.needs_workspace) + int(self.needs_docker_socket)
 
 
-def build_client_package(spec: ClientPackageSpec) -> tuple[str, bytes]:
-    package_root = _package_root(spec.device_id)
+def build_client_package_entries(
+    spec: ClientPackageSpec,
+    *,
+    env_text: str | None = None,
+    package_root: str | None = None,
+) -> dict[str, str]:
+    resolved_root = package_root or _package_root(spec.device_id)
     mount_plan = build_mount_plan(skill.skill_id for skill in spec.skills)
+    entries = {
+        f"{resolved_root}/deploy-client.sh": _render_deploy_script(spec),
+        f"{resolved_root}/client-package.env": env_text or _render_env_file(spec, mount_plan),
+        f"{resolved_root}/docker-compose.client.generated.yml": _render_client_compose(mount_plan),
+        f"{resolved_root}/README.md": _render_readme(spec, mount_plan),
+    }
+    if mount_plan.needs_workspace:
+        entries[f"{resolved_root}/workspace/README.md"] = _render_workspace_readme(spec)
+    return entries
+
+
+def build_client_package(spec: ClientPackageSpec, *, env_text: str | None = None) -> tuple[str, bytes]:
+    package_root = _package_root(spec.device_id)
+    entries = build_client_package_entries(spec, env_text=env_text, package_root=package_root)
 
     payload = io.BytesIO()
     with zipfile.ZipFile(payload, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
-        bundle.writestr(
-            f"{package_root}/deploy-client.sh",
-            _render_deploy_script(spec),
-        )
-        bundle.writestr(
-            f"{package_root}/client-package.env",
-            _render_env_file(spec, mount_plan),
-        )
-        bundle.writestr(
-            f"{package_root}/docker-compose.client.generated.yml",
-            _render_client_compose(mount_plan),
-        )
-        bundle.writestr(
-            f"{package_root}/README.md",
-            _render_readme(spec, mount_plan),
-        )
-        if mount_plan.needs_workspace:
-            bundle.writestr(
-                f"{package_root}/workspace/README.md",
-                _render_workspace_readme(spec),
-            )
+        for path, content in entries.items():
+            bundle.writestr(path, content)
     return f"{package_root}.zip", payload.getvalue()
 
 

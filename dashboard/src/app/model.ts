@@ -1,8 +1,9 @@
-import type { TaskStatus } from "../types";
+import type { QuickDeployDraft, QuickDeployModuleId, TaskStatus } from "../types";
 
 export type TabId =
   | "overview"
   | "chat"
+  | "quick-deploy"
   | "devices"
   | "skills"
   | "tasks"
@@ -59,9 +60,22 @@ export type ClientDeploymentForm = {
   skill_ids: string[];
 };
 
+export type QuickDeployForm = {
+  targets: QuickDeployModuleId[];
+  modules: Record<QuickDeployModuleId, Record<string, string>>;
+  client_package: {
+    device_name: string;
+    repo_url: string;
+    repo_ref: string;
+    register_device: boolean;
+    skill_ids: string[];
+  };
+};
+
 export const tabs: Array<{ id: TabId; label: string; hint: string }> = [
   { id: "overview", label: "概览", hint: "任务与连接状态" },
   { id: "chat", label: "聊天", hint: "下发任务、审批、日志" },
+  { id: "quick-deploy", label: "快速部署", hint: "Gateway / Client / Dashboard" },
   { id: "devices", label: "设备", hint: "注册、轮换、分配 Skill" },
   { id: "skills", label: "Skills", hint: "能力目录与配置" },
   { id: "tasks", label: "任务", hint: "任务状态与日志" },
@@ -133,6 +147,43 @@ export function createEmptyClientDeploymentForm(
     repo_ref: "main",
     network_profile: "global",
     skill_ids: [],
+  };
+}
+
+export function createEmptyQuickDeployForm(
+  draft: QuickDeployDraft | null = null,
+  suggestedGatewayUrl: string = "",
+  dashboardGatewayBaseUrl: string = "",
+): QuickDeployForm {
+  const moduleIds: QuickDeployModuleId[] = ["client", "gateway", "dashboard"];
+  const modules = Object.fromEntries(
+    moduleIds.map((moduleId) => {
+      const fields = draft?.modules[moduleId]?.fields ?? [];
+      const values = Object.fromEntries(
+        fields.map((field) => [field.key, field.value]),
+      ) as Record<string, string>;
+
+      if (moduleId === "client" && suggestedGatewayUrl && !values.OMNI_AGENT_GATEWAY_URL) {
+        values.OMNI_AGENT_GATEWAY_URL = suggestedGatewayUrl;
+      }
+      if (moduleId === "dashboard" && dashboardGatewayBaseUrl && !values.VITE_GATEWAY_BASE_URL) {
+        values.VITE_GATEWAY_BASE_URL = dashboardGatewayBaseUrl;
+      }
+
+      return [moduleId, values];
+    }),
+  ) as Record<QuickDeployModuleId, Record<string, string>>;
+
+  return {
+    targets: ["client"],
+    modules,
+    client_package: {
+      device_name: "",
+      repo_url: draft?.client_package.repo_url ?? "",
+      repo_ref: draft?.client_package.repo_ref ?? "main",
+      register_device: draft?.client_package.register_device ?? true,
+      skill_ids: [],
+    },
   };
 }
 

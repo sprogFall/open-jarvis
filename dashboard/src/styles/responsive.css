@@ -35,7 +35,9 @@
   .inline-metadata,
   .key-value-grid,
   .ai-calls-layout,
-  .chat-layout {
+  .chat-layout,
+  .quick-target-row,
+  .quick-deploy-layout {
     grid-template-columns: 1fr 1fr;
   }
 
@@ -52,7 +54,9 @@
   .inline-metadata,
   .key-value-grid,
   .ai-calls-layout,
-  .chat-layout {
+  .chat-layout,
+  .quick-target-row,
+  .quick-deploy-layout {
     grid-template-columns: 1fr;
   }
 
@@ -113,5 +117,12 @@
   .ai-call-detail {
     position: static;
     top: auto;
+  }
+
+  .quick-deploy-side,
+  .quick-deploy-actions {
+    position: static;
+    top: auto;
+    bottom: auto;
   }
 }

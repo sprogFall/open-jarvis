@@ -5,7 +5,7 @@ import { useDashboardController } from "./useDashboardController";
 import { AssignmentSheet } from "../features/devices/AssignmentSheet";
 import { AiCallsTab } from "../features/ai-logs/AiCallsTab";
 import { ChatTab } from "../features/chat/ChatTab";
-import { ClientBootstrapSheet } from "../features/devices/ClientBootstrapSheet";
+import { QuickDeployTab } from "../features/deploy/QuickDeployTab";
 import { DeviceEditorSheet } from "../features/devices/DeviceEditorSheet";
 import { DevicesTab } from "../features/devices/DevicesTab";
 import { OverviewTab } from "../features/overview/OverviewTab";
@@ -131,10 +131,25 @@ export function AppShell({
               devices={controller.devices}
               skills={controller.skills}
               onCreate={controller.openDeviceCreate}
-              onGeneratePackage={controller.openClientBootstrap}
               onEdit={controller.openDeviceEdit}
               onAssign={controller.openAssignment}
               onDelete={controller.removeDevice}
+            />
+          ) : null}
+
+          {controller.activeTab === "quick-deploy" && controller.quickDeployDraft ? (
+            <QuickDeployTab
+              draft={controller.quickDeployDraft}
+              form={controller.quickDeployForm}
+              skills={controller.skills}
+              devices={controller.devices}
+              busy={controller.quickDeployBusy}
+              error={controller.quickDeployError}
+              onToggleTarget={controller.toggleQuickDeployTarget}
+              onFieldChange={controller.patchQuickDeployModuleValue}
+              onClientPackageChange={controller.patchQuickDeployClientPackage}
+              onToggleSkill={controller.toggleQuickDeploySkill}
+              onSubmit={controller.downloadQuickDeployPackage}
             />
           ) : null}
 
@@ -228,19 +243,6 @@ export function AppShell({
           onSubmit={controller.submitAssignment}
           onChange={controller.patchAssignmentForm}
           onRemove={controller.removeAssignment}
-        />
-      ) : null}
-
-      {controller.clientBootstrapOpen ? (
-        <ClientBootstrapSheet
-          busy={controller.clientBootstrapBusy}
-          error={controller.clientBootstrapError}
-          form={controller.clientBootstrapForm}
-          skills={controller.skills}
-          onClose={controller.closeClientBootstrap}
-          onSubmit={controller.downloadClientPackage}
-          onChange={controller.patchClientBootstrapForm}
-          onToggleSkill={controller.toggleClientBootstrapSkill}
         />
       ) : null}
 

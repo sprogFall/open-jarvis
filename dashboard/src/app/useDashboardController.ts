@@ -8,12 +8,14 @@ import {
   createEmptyAssignmentForm,
   createEmptyDeviceForm,
   createEmptyGatewayAiForm,
+  createEmptyQuickDeployForm,
   createEmptySkillForm,
   type AssignmentForm,
   type ClientDeploymentForm,
   type DeviceAiForm,
   type DeviceForm,
   type GatewayAiForm,
+  type QuickDeployForm,
   type SkillForm,
   type TabId,
 } from "./model";
@@ -25,6 +27,8 @@ import type {
   Device,
   DeviceSkill,
   Overview,
+  QuickDeployDraft,
+  QuickDeployModuleId,
   Skill,
   SystemInfo,
   Task,
@@ -152,6 +156,10 @@ function suggestGatewayUrl(): string {
   }
 }
 
+function suggestDashboardGatewayBaseUrl(): string {
+  return dashboardApi.gatewayBaseUrl || "";
+}
+
 function triggerFileDownload(blob: Blob, filename: string) {
   const objectUrl = window.URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -212,6 +220,16 @@ export function useDashboardController({
     createEmptyClientDeploymentForm(suggestGatewayUrl()),
   );
   const [clientBootstrapError, setClientBootstrapError] = useState<string | null>(null);
+  const [quickDeployDraft, setQuickDeployDraft] = useState<QuickDeployDraft | null>(null);
+  const [quickDeployForm, setQuickDeployForm] = useState<QuickDeployForm>(
+    createEmptyQuickDeployForm(
+      null,
+      suggestGatewayUrl(),
+      suggestDashboardGatewayBaseUrl(),
+    ),
+  );
+  const [quickDeployBusy, setQuickDeployBusy] = useState(false);
+  const [quickDeployError, setQuickDeployError] = useState<string | null>(null);
 
   const [taskDetail, setTaskDetail] = useState<Task | null>(null);
 
@@ -245,6 +263,21 @@ export function useDashboardController({
     setSelectedAiCallId((current) => pickAiCallId(nextCalls, current));
   }
 
+  async function refreshQuickDeployDraft(resetForm: boolean = false) {
+    const nextDraft = await dashboardApi.getQuickDeployDraft(token);
+    setQuickDeployDraft(nextDraft);
+    if (resetForm) {
+      setQuickDeployForm(
+        createEmptyQuickDeployForm(
+          nextDraft,
+          suggestGatewayUrl(),
+          suggestDashboardGatewayBaseUrl(),
+        ),
+      );
+      setQuickDeployError(null);
+    }
+  }
+
   async function refreshChatData() {
     const [nextDevices, nextTasks, nextSystemInfo] = await Promise.all([
       dashboardApi.listDevices(token),
@@ -266,13 +299,21 @@ export function useDashboardController({
     async function bootstrap() {
       setRefreshing(true);
       try {
-        const [nextOverview, nextDevices, nextSkills, nextTasks, nextSystemInfo] =
+        const [
+          nextOverview,
+          nextDevices,
+          nextSkills,
+          nextTasks,
+          nextSystemInfo,
+          nextQuickDeployDraft,
+        ] =
           await Promise.all([
             dashboardApi.getOverview(activeToken),
             dashboardApi.listDevices(activeToken),
             dashboardApi.listSkills(activeToken),
             dashboardApi.listTasks(activeToken, {}),
             dashboardApi.getSystemInfo(activeToken),
+            dashboardApi.getQuickDeployDraft(activeToken),
           ]);
         if (cancelled) {
           return;
@@ -282,6 +323,14 @@ export function useDashboardController({
         setSkills(nextSkills);
         setTasks((current) => replaceTasks(current, nextTasks));
         setSystemInfo(nextSystemInfo);
+        setQuickDeployDraft(nextQuickDeployDraft);
+        setQuickDeployForm(
+          createEmptyQuickDeployForm(
+            nextQuickDeployDraft,
+            suggestGatewayUrl(),
+            suggestDashboardGatewayBaseUrl(),
+          ),
+        );
         const nextTargets = buildChatTargets(nextDevices);
         setChatTaskId((current) => pickChatTaskId(nextTasks, current));
         setChatDeviceId((current) => pickChatDeviceId(nextTargets, current));
@@ -348,6 +397,10 @@ export function useDashboardController({
             setAiCalls(nextCalls);
             setSelectedAiCallId((current) => pickAiCallId(nextCalls, current));
           }
+        }
+
+        if (activeTab === "quick-deploy") {
+          return;
         }
 
         if (activeTab === "settings") {
@@ -496,6 +549,9 @@ export function useDashboardController({
         const nextTargets = buildChatTargets(nextDevices);
         setChatDeviceId((current) => pickChatDeviceId(nextTargets, current));
       }
+      if (tab === "quick-deploy") {
+        await refreshQuickDeployDraft(true);
+      }
       if (tab === "skills") {
         setSkills(await dashboardApi.listSkills(token));
       }
@@ -550,6 +606,80 @@ export function useDashboardController({
   function patchClientDeploymentForm(patch: Partial<ClientDeploymentForm>) {
     setClientBootstrapError(null);
     setClientBootstrapForm((current) => ({ ...current, ...patch }));
+  }
+
+  function patchQuickDeployModuleValue(
+    moduleId: QuickDeployModuleId,
+    key: string,
+    value: string,
+  ) {
+    setQuickDeployError(null);
+    setQuickDeployForm((current) => {
+      const nextForm: QuickDeployForm = {
+        ...current,
+        modules: {
+          ...current.modules,
+          [moduleId]: {
+            ...current.modules[moduleId],
+            [key]: value,
+          },
+        },
+      };
+
+      if (
+        moduleId === "client"
+        && key === "OMNI_AGENT_DEVICE_ID"
+        && !current.client_package.device_name.trim()
+      ) {
+        nextForm.client_package = {
+          ...nextForm.client_package,
+          device_name: value,
+        };
+      }
+
+      return nextForm;
+    });
+  }
+
+  function patchQuickDeployClientPackage(patch: Partial<QuickDeployForm["client_package"]>) {
+    setQuickDeployError(null);
+    setQuickDeployForm((current) => ({
+      ...current,
+      client_package: {
+        ...current.client_package,
+        ...patch,
+      },
+    }));
+  }
+
+  function toggleQuickDeployTarget(moduleId: QuickDeployModuleId) {
+    setQuickDeployError(null);
+    setQuickDeployForm((current) => {
+      const selected = current.targets.includes(moduleId);
+      const orderedTargets: QuickDeployModuleId[] = ["gateway", "client", "dashboard"];
+      return {
+        ...current,
+        targets: selected
+          ? current.targets.filter((target) => target !== moduleId)
+          : orderedTargets.filter((target) => current.targets.includes(target) || target === moduleId),
+      };
+    });
+  }
+
+  function toggleQuickDeploySkill(skillId: string) {
+    setQuickDeployError(null);
+    setQuickDeployForm((current) => {
+      const selected = current.client_package.skill_ids.includes(skillId);
+      return {
+        ...current,
+        client_package: {
+          ...current.client_package,
+          skill_ids: selected
+            ? current.client_package.skill_ids.filter((item) => item !== skillId)
+            : [...current.client_package.skill_ids, skillId],
+        },
+      };
+    });
   }
 
   function openDeviceCreate() {
@@ -675,6 +805,61 @@ export function useDashboardController({
       setClientBootstrapError(message);
     } finally {
       setClientBootstrapBusy(false);
+    }
+  }
+
+  async function downloadQuickDeployPackage() {
+    setQuickDeployError(null);
+
+    if (!quickDeployForm.targets.length) {
+      setQuickDeployError("请至少选择一个部署目标");
+      return;
+    }
+
+    const clientSelected = quickDeployForm.targets.includes("client");
+    const clientDeviceId = quickDeployForm.modules.client.OMNI_AGENT_DEVICE_ID?.trim() || "";
+    const deviceName = quickDeployForm.client_package.device_name.trim() || clientDeviceId;
+
+    if (clientSelected && !deviceName) {
+      setQuickDeployError("请填写 Client 设备名称或设备 ID");
+      return;
+    }
+
+    if (clientSelected && !quickDeployForm.client_package.repo_url.trim()) {
+      setQuickDeployError("请填写 Client 代码仓库地址");
+      return;
+    }
+
+    setQuickDeployBusy(true);
+    try {
+      const result = await dashboardApi.downloadQuickDeployPackage(token, {
+        targets: quickDeployForm.targets,
+        modules: quickDeployForm.modules,
+        client_package: {
+          device_name: deviceName,
+          repo_url: quickDeployForm.client_package.repo_url.trim(),
+          repo_ref: quickDeployForm.client_package.repo_ref.trim() || "main",
+          register_device: quickDeployForm.client_package.register_device,
+          skill_ids: quickDeployForm.client_package.skill_ids,
+        },
+      });
+      triggerFileDownload(result.blob, result.filename || "open-jarvis-quick-deploy.zip");
+      if (clientSelected && quickDeployForm.client_package.register_device) {
+        await Promise.all([refreshTab("devices"), refreshTab("settings")]);
+      }
+      const targetLabel = quickDeployForm.targets
+        .map((target) => quickDeployDraft?.modules[target].title ?? target)
+        .join(" / ");
+      setBannerMessage(`已生成 ${targetLabel} 快速部署工件`);
+    } catch (error) {
+      const message = getErrorMessage(error);
+      if (isSessionExpiredMessage(message)) {
+        onSessionExpired("登录状态已失效，请重新登录");
+        return;
+      }
+      setQuickDeployError(message);
+    } finally {
+      setQuickDeployBusy(false);
     }
   }
 
@@ -1063,6 +1248,10 @@ export function useDashboardController({
     clientBootstrapBusy,
     clientBootstrapForm,
     clientBootstrapError,
+    quickDeployDraft,
+    quickDeployForm,
+    quickDeployBusy,
+    quickDeployError,
     taskDetail,
     setTaskStatusFilter,
     setTaskDeviceFilter,
@@ -1079,6 +1268,11 @@ export function useDashboardController({
     patchClientBootstrapForm: patchClientDeploymentForm,
     toggleClientBootstrapSkill: toggleClientDeploymentSkill,
     downloadClientPackage,
+    patchQuickDeployModuleValue,
+    patchQuickDeployClientPackage,
+    toggleQuickDeployTarget,
+    toggleQuickDeploySkill,
+    downloadQuickDeployPackage,
     openSkillCreate,
     openSkillEdit,
     closeSkillEditor,
