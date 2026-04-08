@@ -13,6 +13,13 @@ archive skills 仍需满足以下约束：
 - 可以直接压缩单个 skill 文件夹，也可以上传包含 skill 子目录的开源仓库片段
 - 设备收到分配后，会把 skill 解压到 `OMNI_AGENT_SKILLS_WORKSPACE/<skill_id>/`
 
+设备页也支持直接生成 Client 部署包：
+
+- 填写设备 ID、Gateway 地址、代码仓库与分支
+- 选择需要预分配的 Skill
+- 下载 zip 后执行其中的 `deploy-client.sh`
+- 脚本会先拉取最新代码，再通过官方 `jarvisctl` 脚本部署 `client`
+
 ## 开发
 
 ```bash

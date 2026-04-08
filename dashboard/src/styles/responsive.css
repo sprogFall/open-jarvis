@@ -88,6 +88,14 @@
     grid-template-columns: 1fr;
   }
 
+  .skill-option {
+    grid-template-columns: 1fr;
+  }
+
+  .skill-option-meta {
+    justify-self: start;
+  }
+
   .sheet-panel {
     width: 100vw;
     border-radius: 1.25rem 1.25rem 0 0;

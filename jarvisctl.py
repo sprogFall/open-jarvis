@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import os
 import shutil
 import subprocess
 import sys
@@ -423,23 +424,29 @@ def render_env_file(values: Mapping[str, str], template_text: str) -> str:
 
 
 def build_compose_command(
-    action: str, targets: tuple[str, ...] | list[str] | None = None
+    action: str,
+    targets: tuple[str, ...] | list[str] | None = None,
+    compose_file: str | None = None,
 ) -> list[str]:
+    compose_prefix = ["docker", "compose"]
+    if compose_file:
+        compose_prefix.extend(["--file", compose_file])
+
     if action == "deploy":
         selected_targets = resolve_deploy_services(targets)
-        command = ["docker", "compose", "up", "-d", "--build"]
+        command = [*compose_prefix, "up", "-d", "--build"]
         if should_skip_compose_dependencies(selected_targets):
             command.append("--no-deps")
         return [*command, *selected_targets]
     if action == "status":
         selected_targets = normalize_targets(targets, default_targets=FULL_STACK_SERVICES)
-        return ["docker", "compose", "ps", *selected_targets]
+        return [*compose_prefix, "ps", *selected_targets]
     if action == "logs":
         selected_targets = normalize_targets(targets, default_targets=RUNTIME_SERVICES)
-        return ["docker", "compose", "logs", "-f", *selected_targets]
+        return [*compose_prefix, "logs", "-f", *selected_targets]
     if action == "stop":
         selected_targets = normalize_targets(targets, default_targets=FULL_STACK_SERVICES)
-        return ["docker", "compose", "stop", *selected_targets]
+        return [*compose_prefix, "stop", *selected_targets]
     raise ValueError(f"Unsupported action: {action}")
 
 
@@ -572,7 +579,11 @@ def run_compose_action(
     action: str, targets: tuple[str, ...] | list[str] | None = None
 ) -> int:
     require_docker()
-    command = build_compose_command(action, targets=targets)
+    command = build_compose_command(
+        action,
+        targets=targets,
+        compose_file=(os.getenv("JARVISCTL_COMPOSE_FILE") or "").strip() or None,
+    )
     print(f"\n$ {' '.join(command)}")
     result = subprocess.run(command, cwd=ROOT, check=False)
     return result.returncode

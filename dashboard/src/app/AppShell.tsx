@@ -5,6 +5,7 @@ import { useDashboardController } from "./useDashboardController";
 import { AssignmentSheet } from "../features/devices/AssignmentSheet";
 import { AiCallsTab } from "../features/ai-logs/AiCallsTab";
 import { ChatTab } from "../features/chat/ChatTab";
+import { ClientBootstrapSheet } from "../features/devices/ClientBootstrapSheet";
 import { DeviceEditorSheet } from "../features/devices/DeviceEditorSheet";
 import { DevicesTab } from "../features/devices/DevicesTab";
 import { OverviewTab } from "../features/overview/OverviewTab";
@@ -128,7 +129,9 @@ export function AppShell({
           {controller.activeTab === "devices" ? (
             <DevicesTab
               devices={controller.devices}
+              skills={controller.skills}
               onCreate={controller.openDeviceCreate}
+              onGeneratePackage={controller.openClientBootstrap}
               onEdit={controller.openDeviceEdit}
               onAssign={controller.openAssignment}
               onDelete={controller.removeDevice}
@@ -225,6 +228,19 @@ export function AppShell({
           onSubmit={controller.submitAssignment}
           onChange={controller.patchAssignmentForm}
           onRemove={controller.removeAssignment}
+        />
+      ) : null}
+
+      {controller.clientBootstrapOpen ? (
+        <ClientBootstrapSheet
+          busy={controller.clientBootstrapBusy}
+          error={controller.clientBootstrapError}
+          form={controller.clientBootstrapForm}
+          skills={controller.skills}
+          onClose={controller.closeClientBootstrap}
+          onSubmit={controller.downloadClientPackage}
+          onChange={controller.patchClientBootstrapForm}
+          onToggleSkill={controller.toggleClientBootstrapSkill}
         />
       ) : null}
 

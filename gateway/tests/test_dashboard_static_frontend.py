@@ -139,6 +139,28 @@ def test_dashboard_skill_management_mentions_zip_upload_flow():
     assert "zip" in readme_content.lower()
 
 
+def test_dashboard_devices_workspace_exposes_client_package_download_flow():
+    dashboard_root = Path(__file__).resolve().parents[2] / "dashboard"
+    devices_tab = dashboard_root / "src" / "features" / "devices" / "DevicesTab.tsx"
+    deployment_sheet = (
+        dashboard_root / "src" / "features" / "devices" / "ClientBootstrapSheet.tsx"
+    )
+    controller = dashboard_root / "src" / "app" / "useDashboardController.ts"
+    api = dashboard_root / "src" / "api.ts"
+    readme = dashboard_root / "README.md"
+
+    devices_tab_content = devices_tab.read_text(encoding="utf-8")
+    controller_content = controller.read_text(encoding="utf-8")
+    api_content = api.read_text(encoding="utf-8")
+    readme_content = readme.read_text(encoding="utf-8")
+
+    assert deployment_sheet.exists()
+    assert "生成部署包" in devices_tab_content
+    assert "downloadClientPackage" in controller_content
+    assert "downloadClientPackage" in api_content
+    assert "部署包" in readme_content
+
+
 def test_dashboard_visible_copy_stays_focused_on_business_workflows():
     dashboard_root = Path(__file__).resolve().parents[2] / "dashboard" / "src"
     login_screen = (dashboard_root / "features" / "auth" / "LoginScreen.tsx").read_text(

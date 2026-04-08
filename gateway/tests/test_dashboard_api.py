@@ -51,6 +51,12 @@ def _build_skill_archive(
     return archive.getvalue()
 
 
+def _read_zip_text(payload: bytes, suffix: str) -> str:
+    with zipfile.ZipFile(io.BytesIO(payload)) as bundle:
+        matched = next(name for name in bundle.namelist() if name.endswith(suffix))
+        return bundle.read(matched).decode("utf-8")
+
+
 def test_dashboard_api_returns_401_without_token(tmp_path):
     settings = GatewaySettings(
         database_url=str(tmp_path / "test.db"),
@@ -148,6 +154,102 @@ def test_create_device_auto_generates_key(tmp_path):
     stored = client.app.state.store.get_device("auto-key")
     assert stored is not None
     assert stored["device_key"]
+
+
+def test_generate_client_package_registers_device_assigns_skills_and_returns_zip(tmp_path):
+    client, headers = _setup(tmp_path)
+
+    response = client.post(
+        "/dashboard/api/client-packages",
+        headers=headers,
+        json={
+            "device_id": "edge-box",
+            "name": "边缘节点",
+            "gateway_url": "https://gw.example.com/jarvis/api",
+            "repo_url": "https://github.com/example/open-jarvis.git",
+            "repo_ref": "main",
+            "network_profile": "cn",
+            "skill_ids": ["builtin-docker", "builtin-filesystem"],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/zip")
+    assert "attachment;" in response.headers["content-disposition"]
+
+    env_text = _read_zip_text(response.content, "client-package.env")
+    compose_text = _read_zip_text(response.content, "docker-compose.client.generated.yml")
+    script_text = _read_zip_text(response.content, "deploy-client.sh")
+    readme_text = _read_zip_text(response.content, "README.md")
+
+    assert "OMNI_AGENT_DEVICE_ID=edge-box" in env_text
+    assert "OMNI_AGENT_GATEWAY_URL=https://gw.example.com/jarvis/api" in env_text
+    assert "DEPLOY_NETWORK_PROFILE=cn" in env_text
+    assert "CLIENT_DOCKERFILE=client/Dockerfile.cn" in env_text
+    assert "/var/run/docker.sock:/var/run/docker.sock" in compose_text
+    assert "./client-package-workspace:/workspace:ro" in compose_text
+    assert "JARVISCTL_COMPOSE_FILE" in script_text
+    assert "./jarvisctl deploy client" in script_text
+    assert "边缘节点" in readme_text
+
+    stored = client.app.state.store.get_device("edge-box")
+    assert stored is not None
+    assert stored["name"] == "边缘节点"
+    assert stored["device_key"]
+    assert client.app.state.settings.device_keys["edge-box"] == stored["device_key"]
+
+    assignments = client.app.state.store.list_device_skills("edge-box")
+    assert {item["skill_id"] for item in assignments} == {
+        "builtin-docker",
+        "builtin-filesystem",
+    }
+
+    devices = client.get("/dashboard/api/devices", headers=headers).json()
+    assert all("device_key" not in item for item in devices)
+
+
+def test_generate_client_package_omits_optional_mounts_when_skills_do_not_need_them(tmp_path):
+    client, headers = _setup(tmp_path)
+
+    response = client.post(
+        "/dashboard/api/client-packages",
+        headers=headers,
+        json={
+            "device_id": "process-box",
+            "name": "巡检节点",
+            "gateway_url": "https://gw.example.com/jarvis/api",
+            "repo_url": "https://github.com/example/open-jarvis.git",
+            "repo_ref": "main",
+            "skill_ids": ["builtin-process"],
+        },
+    )
+
+    assert response.status_code == 200
+
+    compose_text = _read_zip_text(response.content, "docker-compose.client.generated.yml")
+
+    assert "/var/run/docker.sock:/var/run/docker.sock" not in compose_text
+    assert "./client-package-workspace:/workspace:ro" not in compose_text
+
+
+def test_generate_client_package_rejects_unknown_skill_without_creating_device(tmp_path):
+    client, headers = _setup(tmp_path)
+
+    response = client.post(
+        "/dashboard/api/client-packages",
+        headers=headers,
+        json={
+            "device_id": "broken-box",
+            "name": "异常节点",
+            "gateway_url": "https://gw.example.com/jarvis/api",
+            "repo_url": "https://github.com/example/open-jarvis.git",
+            "repo_ref": "main",
+            "skill_ids": ["missing-skill"],
+        },
+    )
+
+    assert response.status_code == 404
+    assert client.app.state.store.get_device("broken-box") is None
 
 
 def test_create_list_delete_skill(tmp_path):

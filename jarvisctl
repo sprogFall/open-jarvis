@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${JARVISCTL_ENV_FILE:-$ROOT_DIR/.env}"
 ENV_TEMPLATE_FILE="${JARVISCTL_ENV_TEMPLATE:-$ROOT_DIR/.env.example}"
+COMPOSE_FILE="${JARVISCTL_COMPOSE_FILE:-}"
 DRY_RUN="${JARVISCTL_DRY_RUN:-0}"
 
 ACTION="${1:-menu}"
@@ -741,6 +742,9 @@ build_compose_command() {
     deploy)
       resolve_deploy_services "$@"
       COMPOSE_CMD=(docker compose up -d --build)
+      if [[ -n "$COMPOSE_FILE" ]]; then
+        COMPOSE_CMD=(docker compose --file "$COMPOSE_FILE" up -d --build)
+      fi
       if should_skip_compose_dependencies "${RESOLVED_SERVICES[@]}"; then
         COMPOSE_CMD+=(--no-deps)
       fi
@@ -749,14 +753,23 @@ build_compose_command() {
     status)
       normalize_targets full "$@"
       COMPOSE_CMD=(docker compose ps "${TARGETS[@]}")
+      if [[ -n "$COMPOSE_FILE" ]]; then
+        COMPOSE_CMD=(docker compose --file "$COMPOSE_FILE" ps "${TARGETS[@]}")
+      fi
       ;;
     logs)
       normalize_targets runtime "$@"
       COMPOSE_CMD=(docker compose logs -f "${TARGETS[@]}")
+      if [[ -n "$COMPOSE_FILE" ]]; then
+        COMPOSE_CMD=(docker compose --file "$COMPOSE_FILE" logs -f "${TARGETS[@]}")
+      fi
       ;;
     stop)
       normalize_targets full "$@"
       COMPOSE_CMD=(docker compose stop "${TARGETS[@]}")
+      if [[ -n "$COMPOSE_FILE" ]]; then
+        COMPOSE_CMD=(docker compose --file "$COMPOSE_FILE" stop "${TARGETS[@]}")
+      fi
       ;;
     *)
       echo "不支持的动作: $action" >&2

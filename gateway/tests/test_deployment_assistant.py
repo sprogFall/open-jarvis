@@ -252,12 +252,31 @@ def test_build_compose_command_can_target_selected_services():
     ]
 
 
+def test_build_compose_command_supports_custom_compose_file_for_client_package():
+    assert build_compose_command(
+        "deploy",
+        ("client",),
+        compose_file="docker-compose.client.generated.yml",
+    ) == [
+        "docker",
+        "compose",
+        "--file",
+        "docker-compose.client.generated.yml",
+        "up",
+        "-d",
+        "--build",
+        "--no-deps",
+        "client",
+    ]
+
+
 def test_shell_script_is_linux_friendly_and_contains_compose_actions():
     script = JARVISCTL_PATH.read_text(encoding="utf-8")
 
     assert script.startswith("#!/usr/bin/env bash")
     assert "COMPOSE_CMD=(docker compose up -d --build" in script
     assert "usage: ./jarvisctl [menu|config|deploy|status|logs|stop] [targets...]" in script
+    assert "JARVISCTL_COMPOSE_FILE" in script
     assert "postgres" in script
     assert "DEPLOY_NETWORK_PROFILE" in script
     assert "dashboard/Dockerfile.cn" in script

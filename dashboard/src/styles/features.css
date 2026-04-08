@@ -62,6 +62,119 @@
   margin-bottom: 1.25rem;
 }
 
+.deployment-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 0;
+}
+
+.deployment-launcher {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding: 1.1rem 1.2rem;
+  border-radius: 1.35rem;
+  border: 1px solid rgba(246, 195, 91, 0.18);
+  background: linear-gradient(
+    135deg,
+    rgba(246, 195, 91, 0.08),
+    rgba(25, 137, 255, 0.08)
+  );
+}
+
+.deployment-launcher-copy p:last-child {
+  margin: 0.45rem 0 0;
+  max-width: 44rem;
+}
+
+.deployment-callout {
+  border-color: rgba(246, 195, 91, 0.2);
+  background: linear-gradient(
+    135deg,
+    rgba(246, 195, 91, 0.08),
+    rgba(125, 245, 180, 0.08)
+  );
+}
+
+.deployment-form-grid {
+  align-items: start;
+}
+
+.deployment-form-span {
+  grid-column: 1 / -1;
+}
+
+.skill-option-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.skill-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.9rem;
+  padding: 0.95rem 1rem;
+  border-radius: 1.15rem;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    opacity 160ms ease;
+}
+
+.skill-option:hover {
+  transform: translateY(-1px);
+  border-color: rgba(125, 245, 180, 0.2);
+}
+
+.skill-option.selected {
+  border-color: rgba(125, 245, 180, 0.28);
+  background: rgba(125, 245, 180, 0.08);
+}
+
+.skill-option.disabled {
+  opacity: 0.58;
+}
+
+.skill-option input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.2rem;
+  accent-color: var(--accent);
+}
+
+.skill-option-copy {
+  min-width: 0;
+}
+
+.skill-option-copy strong,
+.skill-option-copy span,
+.skill-option-copy small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.skill-option-copy span,
+.skill-option-copy small {
+  color: var(--muted);
+}
+
+.skill-option-copy span {
+  margin-top: 0.3rem;
+  font-size: 0.82rem;
+}
+
+.skill-option-copy small {
+  margin-top: 0.45rem;
+  line-height: 1.5;
+}
+
+.skill-option-meta {
+  justify-self: end;
+}
+
 .metric-strip strong {
   font-size: clamp(1.6rem, 2.8vw, 2.4rem);
 }

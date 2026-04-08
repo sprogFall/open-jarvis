@@ -4,10 +4,12 @@ import secrets
 from urllib.parse import urlsplit, urlunsplit
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request
+from fastapi.responses import Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from client.ai import AIModelConfig, StructuredModelClient, resolve_model_endpoint
+from gateway.client_package import ClientPackageSpec, PackageSkill, build_client_package
 from gateway.security import verify_access_token
 from gateway.store import GatewayStore
 from gateway.settings import GatewaySettings
@@ -49,6 +51,47 @@ class AIConfigUpdate(BaseModel):
     model: str = Field(min_length=1)
     api_key: str = Field(min_length=1)
     base_url: str | None = None
+
+
+class ClientPackageCreate(BaseModel):
+    device_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    device_key: str = Field(default="")
+    gateway_url: str = Field(min_length=1)
+    repo_url: str = Field(min_length=1)
+    repo_ref: str = Field(default="main", min_length=1)
+    network_profile: str = Field(default="global", pattern="^(global|cn)$")
+    skill_ids: list[str] = Field(default_factory=list)
+
+    @field_validator("gateway_url")
+    @classmethod
+    def validate_gateway_url(cls, value: str) -> str:
+        trimmed = value.strip().rstrip("/")
+        parsed = urlsplit(trimmed)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("Gateway 地址必须是可访问的 http(s) 绝对地址")
+        return trimmed
+
+    @field_validator("repo_url", "repo_ref", "device_id", "name")
+    @classmethod
+    def strip_non_empty_value(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("字段不能为空")
+        return trimmed
+
+    @field_validator("skill_ids")
+    @classmethod
+    def normalize_skill_ids(cls, value: list[str]) -> list[str]:
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for skill_id in value:
+            candidate = str(skill_id).strip()
+            if not candidate or candidate in seen:
+                continue
+            normalized.append(candidate)
+            seen.add(candidate)
+        return normalized
 
 
 _bearer = HTTPBearer(auto_error=False)
@@ -351,6 +394,64 @@ def create_device(
     return _serialize_device(
         device,
         connected=body.device_id in conn_info["connected_devices"],
+    )
+
+
+@dashboard_api.post("/client-packages")
+def create_client_package(
+    body: ClientPackageCreate,
+    request: Request,
+    store: GatewayStore = Depends(_get_store),
+) -> Response:
+    if store.get_device(body.device_id):
+        raise HTTPException(400, "设备ID已存在")
+
+    selected_skills: list[dict] = []
+    for skill_id in body.skill_ids:
+        skill = store.get_skill(skill_id)
+        if not skill:
+            raise HTTPException(404, "Skill 不存在")
+        if not skill.get("archive_ready"):
+            raise HTTPException(400, "Skill 尚未就绪，不能写入部署包")
+        selected_skills.append(skill)
+
+    device_key = str(body.device_key or "").strip() or secrets.token_hex(16)
+    filename, archive = build_client_package(
+        ClientPackageSpec(
+            device_id=body.device_id,
+            device_name=body.name,
+            device_key=device_key,
+            gateway_url=body.gateway_url,
+            repo_url=body.repo_url,
+            repo_ref=body.repo_ref,
+            network_profile=body.network_profile,
+            skills=tuple(
+                PackageSkill(
+                    skill_id=str(skill["skill_id"]),
+                    name=str(skill["name"]),
+                    source=str(skill["source"]),
+                )
+                for skill in selected_skills
+            ),
+        )
+    )
+
+    try:
+        store.create_device(body.device_id, body.name, "cli", device_key)
+        request.app.state.settings.device_keys[body.device_id] = device_key
+        for skill in selected_skills:
+            store.assign_skill(body.device_id, str(skill["skill_id"]), {})
+    except Exception:
+        store.delete_device(body.device_id)
+        request.app.state.settings.device_keys.pop(body.device_id, None)
+        raise
+
+    return Response(
+        content=archive,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
     )
 
 

@@ -65,6 +65,44 @@ async function request<T>(
   return response.json() as Promise<T>;
 }
 
+function parseDownloadFilename(headerValue: string | null): string | null {
+  if (!headerValue) {
+    return null;
+  }
+  const matched = headerValue.match(/filename="([^"]+)"/i);
+  return matched?.[1] ?? null;
+}
+
+async function requestFile(
+  path: string,
+  init: RequestInit = {},
+  token?: string,
+): Promise<{ blob: Blob; filename: string | null }> {
+  const headers = new Headers(init.headers);
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  const response = await fetch(buildUrl(path), {
+    ...init,
+    headers,
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const detail =
+      typeof payload.detail === "string"
+        ? payload.detail
+        : `Request failed with status ${response.status}`;
+    throw new Error(detail);
+  }
+  return {
+    blob: await response.blob(),
+    filename: parseDownloadFilename(response.headers.get("content-disposition")),
+  };
+}
+
 export const dashboardApi = {
   gatewayBaseUrl,
   buildWebSocketUrl(path: string, query: Record<string, string> = {}): string {
@@ -117,6 +155,25 @@ export const dashboardApi = {
   },
   deleteDevice(token: string, deviceId: string): Promise<void> {
     return request(`/dashboard/api/devices/${deviceId}`, { method: "DELETE" }, token);
+  },
+  downloadClientPackage(
+    token: string,
+    payload: {
+      device_id: string;
+      name: string;
+      device_key?: string;
+      gateway_url: string;
+      repo_url: string;
+      repo_ref: string;
+      network_profile: "global" | "cn";
+      skill_ids: string[];
+    },
+  ): Promise<{ blob: Blob; filename: string | null }> {
+    return requestFile(
+      "/dashboard/api/client-packages",
+      { method: "POST", body: JSON.stringify(payload) },
+      token,
+    );
   },
   listSkills(token: string): Promise<Skill[]> {
     return request("/dashboard/api/skills", {}, token);

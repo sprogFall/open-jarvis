@@ -48,6 +48,17 @@ export type DeviceAiForm = {
   base_url: string;
 };
 
+export type ClientDeploymentForm = {
+  device_id: string;
+  name: string;
+  device_key: string;
+  gateway_url: string;
+  repo_url: string;
+  repo_ref: string;
+  network_profile: "global" | "cn";
+  skill_ids: string[];
+};
+
 export const tabs: Array<{ id: TabId; label: string; hint: string }> = [
   { id: "overview", label: "概览", hint: "任务与连接状态" },
   { id: "chat", label: "聊天", hint: "下发任务、审批、日志" },
@@ -107,6 +118,21 @@ export function createEmptyDeviceAiForm(): DeviceAiForm {
     model: "",
     api_key: "",
     base_url: "",
+  };
+}
+
+export function createEmptyClientDeploymentForm(
+  gatewayUrl: string = "",
+): ClientDeploymentForm {
+  return {
+    device_id: "",
+    name: "",
+    device_key: "",
+    gateway_url: gatewayUrl,
+    repo_url: "",
+    repo_ref: "main",
+    network_profile: "global",
+    skill_ids: [],
   };
 }
 

@@ -3,12 +3,14 @@ import type { FormEvent } from "react";
 
 import { dashboardApi } from "../api";
 import {
+  createEmptyClientDeploymentForm,
   createEmptyDeviceAiForm,
   createEmptyAssignmentForm,
   createEmptyDeviceForm,
   createEmptyGatewayAiForm,
   createEmptySkillForm,
   type AssignmentForm,
+  type ClientDeploymentForm,
   type DeviceAiForm,
   type DeviceForm,
   type GatewayAiForm,
@@ -131,6 +133,36 @@ function summarizeAiTestResponse(response: Record<string, unknown>): string {
   return JSON.stringify(response, null, 2);
 }
 
+function isSessionExpiredMessage(message: string): boolean {
+  return (
+    message.includes("401")
+    || message.includes("未登录")
+    || message.includes("登录已过期")
+  );
+}
+
+function suggestGatewayUrl(): string {
+  try {
+    if (!dashboardApi.gatewayBaseUrl) {
+      return "";
+    }
+    return new URL(dashboardApi.gatewayBaseUrl, window.location.origin).toString().replace(/\/+$/, "");
+  } catch {
+    return "";
+  }
+}
+
+function triggerFileDownload(blob: Blob, filename: string) {
+  const objectUrl = window.URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(objectUrl);
+}
+
 export function useDashboardController({
   token,
   onSessionExpired,
@@ -174,6 +206,12 @@ export function useDashboardController({
   const [deviceAiForm, setDeviceAiForm] = useState<DeviceAiForm>(createEmptyDeviceAiForm());
   const [deviceAiError, setDeviceAiError] = useState<string | null>(null);
   const [deviceAiTestMessage, setDeviceAiTestMessage] = useState<string | null>(null);
+  const [clientBootstrapOpen, setClientBootstrapOpen] = useState(false);
+  const [clientBootstrapBusy, setClientBootstrapBusy] = useState(false);
+  const [clientBootstrapForm, setClientBootstrapForm] = useState<ClientDeploymentForm>(
+    createEmptyClientDeploymentForm(suggestGatewayUrl()),
+  );
+  const [clientBootstrapError, setClientBootstrapError] = useState<string | null>(null);
 
   const [taskDetail, setTaskDetail] = useState<Task | null>(null);
 
@@ -189,11 +227,7 @@ export function useDashboardController({
 
   function handleApiError(error: unknown) {
     const message = getErrorMessage(error);
-    if (
-      message.includes("401") ||
-      message.includes("未登录") ||
-      message.includes("登录已过期")
-    ) {
+    if (isSessionExpiredMessage(message)) {
       onSessionExpired("登录状态已失效，请重新登录");
       return;
     }
@@ -513,6 +547,11 @@ export function useDashboardController({
     setDeviceAiForm((current) => ({ ...current, ...patch }));
   }
 
+  function patchClientDeploymentForm(patch: Partial<ClientDeploymentForm>) {
+    setClientBootstrapError(null);
+    setClientBootstrapForm((current) => ({ ...current, ...patch }));
+  }
+
   function openDeviceCreate() {
     setDeviceEditorMode("create");
     setDeviceForm(createEmptyDeviceForm());
@@ -533,6 +572,32 @@ export function useDashboardController({
   function closeDeviceEditor() {
     setDeviceEditorMode(null);
     setDeviceFormError(null);
+  }
+
+  function openClientDeployment() {
+    setClientBootstrapOpen(true);
+    setClientBootstrapBusy(false);
+    setClientBootstrapError(null);
+    setClientBootstrapForm(createEmptyClientDeploymentForm(suggestGatewayUrl()));
+  }
+
+  function closeClientDeployment() {
+    setClientBootstrapOpen(false);
+    setClientBootstrapBusy(false);
+    setClientBootstrapError(null);
+  }
+
+  function toggleClientDeploymentSkill(skillId: string) {
+    setClientBootstrapError(null);
+    setClientBootstrapForm((current) => {
+      const selected = current.skill_ids.includes(skillId);
+      return {
+        ...current,
+        skill_ids: selected
+          ? current.skill_ids.filter((item) => item !== skillId)
+          : [...current.skill_ids, skillId],
+      };
+    });
   }
 
   async function saveDevice(event: FormEvent<HTMLFormElement>) {
@@ -568,6 +633,48 @@ export function useDashboardController({
       await Promise.all([refreshTab("devices"), refreshTab("settings"), refreshTab("tasks")]);
     } catch (error) {
       handleApiError(error);
+    }
+  }
+
+  async function downloadClientPackage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setClientBootstrapError(null);
+
+    const payload = {
+      device_id: clientBootstrapForm.device_id.trim(),
+      name: clientBootstrapForm.name.trim(),
+      device_key: clientBootstrapForm.device_key.trim() || undefined,
+      gateway_url: clientBootstrapForm.gateway_url.trim(),
+      repo_url: clientBootstrapForm.repo_url.trim(),
+      repo_ref: clientBootstrapForm.repo_ref.trim() || "main",
+      network_profile: clientBootstrapForm.network_profile,
+      skill_ids: clientBootstrapForm.skill_ids,
+    };
+
+    if (!payload.device_id || !payload.name || !payload.gateway_url || !payload.repo_url) {
+      setClientBootstrapError("请先填写设备、Gateway 和代码仓库信息");
+      return;
+    }
+
+    setClientBootstrapBusy(true);
+    try {
+      const result = await dashboardApi.downloadClientPackage(token, payload);
+      triggerFileDownload(
+        result.blob,
+        result.filename || `open-jarvis-client-${payload.device_id}.zip`,
+      );
+      closeClientDeployment();
+      await Promise.all([refreshTab("devices"), refreshTab("settings")]);
+      setBannerMessage(`设备 ${payload.device_id} 的部署包已生成`);
+    } catch (error) {
+      const message = getErrorMessage(error);
+      if (isSessionExpiredMessage(message)) {
+        onSessionExpired("登录状态已失效，请重新登录");
+        return;
+      }
+      setClientBootstrapError(message);
+    } finally {
+      setClientBootstrapBusy(false);
     }
   }
 
@@ -952,6 +1059,10 @@ export function useDashboardController({
     deviceAiForm,
     deviceAiError,
     deviceAiTestMessage,
+    clientBootstrapOpen,
+    clientBootstrapBusy,
+    clientBootstrapForm,
+    clientBootstrapError,
     taskDetail,
     setTaskStatusFilter,
     setTaskDeviceFilter,
@@ -963,6 +1074,11 @@ export function useDashboardController({
     patchDeviceForm,
     saveDevice,
     removeDevice,
+    openClientBootstrap: openClientDeployment,
+    closeClientBootstrap: closeClientDeployment,
+    patchClientBootstrapForm: patchClientDeploymentForm,
+    toggleClientBootstrapSkill: toggleClientDeploymentSkill,
+    downloadClientPackage,
     openSkillCreate,
     openSkillEdit,
     closeSkillEditor,
