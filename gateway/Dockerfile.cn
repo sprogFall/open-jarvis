@@ -23,6 +23,8 @@ RUN pip install -r /tmp/gateway-requirements.txt -r /tmp/client-requirements.txt
 
 COPY gateway /app/gateway
 COPY client /app/client
+COPY dashboard/.env.example /app/dashboard/.env.example
+COPY jarvisctl.py /app/jarvisctl.py
 COPY skill_catalog.py /app/skill_catalog.py
 
 RUN mkdir -p /data/gateway /workspace

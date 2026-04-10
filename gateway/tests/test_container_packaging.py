@@ -17,7 +17,9 @@ def test_gateway_and_client_dockerfiles_bundle_runtime_dependencies():
 
     assert "COPY gateway /app/gateway" in gateway_dockerfile
     assert "COPY client /app/client" in gateway_dockerfile
+    assert "COPY dashboard/.env.example /app/dashboard/.env.example" in gateway_dockerfile
     assert "COPY skill_catalog.py /app/skill_catalog.py" in gateway_dockerfile
+    assert "COPY jarvisctl.py /app/jarvisctl.py" in gateway_dockerfile
     assert "gateway/requirements.txt" in gateway_dockerfile
     assert "client/requirements.txt" in gateway_dockerfile
     assert "docker.io" in gateway_dockerfile
@@ -60,6 +62,8 @@ def test_gateway_china_dockerfile_uses_cn_mirrors():
     assert "ARG PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn" in gateway_dockerfile
     assert "/etc/apt/sources.list.d/debian.sources" in gateway_dockerfile
     assert "pip install -r /tmp/gateway-requirements.txt -r /tmp/client-requirements.txt" in gateway_dockerfile
+    assert "COPY dashboard/.env.example /app/dashboard/.env.example" in gateway_dockerfile
+    assert "COPY jarvisctl.py /app/jarvisctl.py" in gateway_dockerfile
     assert "gateway/Dockerfile.cn" in root_readme
     assert "${GATEWAY_DOCKERFILE:-gateway/Dockerfile}" in compose
     assert "GATEWAY_DOCKERFILE=gateway/Dockerfile" in env_example
