@@ -216,10 +216,10 @@ class _ConnectionSummary extends StatelessWidget {
         Container(
           key: const Key('settingsConnectionSummary'),
           width: double.infinity,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: tokens.surface,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(24),
             border: Border.all(color: tokens.border),
           ),
           child: Column(

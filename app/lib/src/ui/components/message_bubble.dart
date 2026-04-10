@@ -51,7 +51,7 @@ class MessageBubble extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 640),
         child: GlassCard(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(20),
           backgroundColor: background,
           borderColor: border,
           child: Column(

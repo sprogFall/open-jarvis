@@ -32,7 +32,7 @@ class JarvisDropdownField<T> extends StatelessWidget {
       dropdownColor: tokens.shellRaised,
       iconEnabledColor: tokens.textMuted,
       iconDisabledColor: tokens.textMuted.withValues(alpha: 0.72),
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(24),
       menuMaxHeight: 320,
       items: items,
       onChanged: onChanged,

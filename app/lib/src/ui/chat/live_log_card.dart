@@ -59,7 +59,7 @@ class _LiveLogCardState extends State<LiveLogCard> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: tokens.surfaceMuted,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
                   '${widget.logs.length} 行',
@@ -87,10 +87,10 @@ class _LiveLogCardState extends State<LiveLogCard> {
           Container(
             width: double.infinity,
             constraints: const BoxConstraints(maxHeight: 300),
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: tokens.terminal,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(24),
               border: Border.all(color: tokens.terminalBorder),
             ),
             child: SingleChildScrollView(

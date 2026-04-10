@@ -28,7 +28,7 @@ class StatusHero extends StatelessWidget {
             height: 48,
             decoration: BoxDecoration(
               color: accent.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(20),
             ),
             child: Icon(taskIcon(task.status), color: accent),
           ),
@@ -66,10 +66,10 @@ class StatusHero extends StatelessWidget {
                   const SizedBox(height: 14),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(14),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: tokens.terminal,
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: tokens.terminalBorder),
                     ),
                     child: Column(

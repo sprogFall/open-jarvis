@@ -64,7 +64,7 @@ class _WelcomeViewState extends State<WelcomeView>
                         height: 56,
                         decoration: BoxDecoration(
                           color: tokens.accentSoft,
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(24),
                         ),
                         child: Icon(
                           Icons.chat_bubble_outline_rounded,
