@@ -10,11 +10,12 @@ class MetricChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = JarvisThemeTokens.of(context);
+    final shapes = JarvisShapeTokens.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: tokens.shellRaised,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: shapes.full,
         border: Border.all(color: tokens.border),
       ),
       child: Row(

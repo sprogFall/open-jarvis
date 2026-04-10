@@ -25,6 +25,7 @@ class JarvisAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = JarvisThemeTokens.of(context);
+    final shapes = JarvisShapeTokens.of(context);
     final onlineCount = controller.devices
         .where((device) => device.connected)
         .length;
@@ -45,9 +46,7 @@ class JarvisAppBar extends StatelessWidget implements PreferredSizeWidget {
           Text('OpenJarvis', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 2),
           Text(
-            selectedDeviceId == null
-                ? 'AI 任务控制台'
-                : '当前设备 $selectedDeviceId',
+            selectedDeviceId == null ? 'AI 任务控制台' : '当前设备 $selectedDeviceId',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
@@ -60,7 +59,7 @@ class JarvisAppBar extends StatelessWidget implements PreferredSizeWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
                 color: tokens.surface,
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: shapes.full,
                 border: Border.all(color: tokens.border),
               ),
               child: Text(

@@ -10,11 +10,7 @@ import 'package:flutter_highlight/themes/atom-one-dark.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class ApprovalCard extends StatefulWidget {
-  const ApprovalCard({
-    required this.controller,
-    required this.task,
-    super.key,
-  });
+  const ApprovalCard({required this.controller, required this.task, super.key});
 
   final TaskController controller;
   final TaskRecord task;
@@ -29,6 +25,7 @@ class _ApprovalCardState extends State<ApprovalCard> {
   @override
   Widget build(BuildContext context) {
     final tokens = JarvisThemeTokens.of(context);
+    final shapes = JarvisShapeTokens.of(context);
     return GlassCard(
       padding: const EdgeInsets.all(20),
       backgroundColor: tokens.warningSoft,
@@ -43,7 +40,7 @@ class _ApprovalCardState extends State<ApprovalCard> {
                 height: 40,
                 decoration: BoxDecoration(
                   color: tokens.warning.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: shapes.sm,
                 ),
                 child: Icon(Icons.lock_outline_rounded, color: tokens.warning),
               ),
@@ -80,11 +77,11 @@ class _ApprovalCardState extends State<ApprovalCard> {
             Container(
               decoration: BoxDecoration(
                 color: tokens.terminal,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: shapes.lg,
                 border: Border.all(color: tokens.terminalBorder),
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: shapes.lg,
                 child: HighlightView(
                   command,
                   language: 'bash',
@@ -122,9 +119,7 @@ class _ApprovalCardState extends State<ApprovalCard> {
                       setState(() => _confirmedApproval = true);
                     }
                   },
-                  child: Text(
-                    _confirmedApproval ? '确认批准?' : '批准继续',
-                  ),
+                  child: Text(_confirmedApproval ? '确认批准?' : '批准继续'),
                 ),
                 OutlinedButton(
                   onPressed: () => widget.controller.submitDecision(false),

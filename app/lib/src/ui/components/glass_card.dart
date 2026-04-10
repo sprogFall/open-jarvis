@@ -20,21 +20,22 @@ class GlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = JarvisThemeTokens.of(context);
+    final shapes = JarvisShapeTokens.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
         color: backgroundColor ?? tokens.shell.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: shapes.lg,
         border: Border.all(color: borderColor ?? tokens.border),
         boxShadow: [
           BoxShadow(
             color: tokens.shadow,
-            blurRadius: 28,
-            offset: const Offset(0, 18),
+            blurRadius: 32,
+            offset: const Offset(0, 20),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: shapes.lg,
         clipBehavior: clipBehavior,
         child: Padding(padding: padding, child: child),
       ),

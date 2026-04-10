@@ -38,6 +38,7 @@ class _WelcomeViewState extends State<WelcomeView>
   @override
   Widget build(BuildContext context) {
     final tokens = JarvisThemeTokens.of(context);
+    final shapes = JarvisShapeTokens.of(context);
     final pendingCount = widget.controller.pendingTasks.length;
 
     return LayoutBuilder(
@@ -64,7 +65,7 @@ class _WelcomeViewState extends State<WelcomeView>
                         height: 56,
                         decoration: BoxDecoration(
                           color: tokens.accentSoft,
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: shapes.md,
                         ),
                         child: Icon(
                           Icons.chat_bubble_outline_rounded,

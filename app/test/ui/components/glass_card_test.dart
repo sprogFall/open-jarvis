@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Future<void> pumpWidget(WidgetTester tester, Widget child) async {
-  await tester.pumpWidget(MaterialApp(
-    theme: JarvisAppTheme.light(),
-    home: Scaffold(body: child),
-  ));
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: JarvisAppTheme.light(),
+      home: Scaffold(body: child),
+    ),
+  );
   await tester.pumpAndSettle();
 }
 
@@ -24,10 +26,7 @@ void main() {
 
       await pumpWidget(
         tester,
-        const GlassCard(
-          backgroundColor: customColor,
-          child: Text('Colored'),
-        ),
+        const GlassCard(backgroundColor: customColor, child: Text('Colored')),
       );
 
       final decoratedBox = tester.widget<DecoratedBox>(
@@ -45,10 +44,7 @@ void main() {
 
       await pumpWidget(
         tester,
-        const GlassCard(
-          borderColor: customBorder,
-          child: Text('Bordered'),
-        ),
+        const GlassCard(borderColor: customBorder, child: Text('Bordered')),
       );
 
       final decoratedBox = tester.widget<DecoratedBox>(
@@ -63,7 +59,7 @@ void main() {
       expect(border.top.color, customBorder);
     });
 
-    testWidgets('has rounded corners with 28px radius', (tester) async {
+    testWidgets('has rounded corners with 32px radius', (tester) async {
       await pumpWidget(tester, const GlassCard(child: SizedBox.shrink()));
 
       final decoratedBox = tester.widget<DecoratedBox>(
@@ -73,10 +69,7 @@ void main() {
         ),
       );
       final decoration = decoratedBox.decoration as BoxDecoration;
-      expect(
-        decoration.borderRadius,
-        BorderRadius.circular(28),
-      );
+      expect(decoration.borderRadius, BorderRadius.circular(32));
     });
   });
 }

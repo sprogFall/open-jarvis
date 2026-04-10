@@ -18,6 +18,7 @@ class InlineNoticeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final shapes = JarvisShapeTokens.of(context);
     return GlassCard(
       padding: const EdgeInsets.all(18),
       backgroundColor: JarvisThemeTokens.of(context).surface,
@@ -30,7 +31,7 @@ class InlineNoticeCard extends StatelessWidget {
             height: 40,
             decoration: BoxDecoration(
               color: accent.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: shapes.sm,
             ),
             child: Icon(icon, color: accent),
           ),

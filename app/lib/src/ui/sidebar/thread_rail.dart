@@ -29,6 +29,7 @@ class ThreadRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = JarvisThemeTokens.of(context);
+    final shapes = JarvisShapeTokens.of(context);
     final pendingTasks = controller.tasks
         .where((task) => task.status == TaskStatus.awaitingApproval)
         .toList(growable: false);
@@ -51,7 +52,7 @@ class ThreadRail extends StatelessWidget {
                 height: 44,
                 decoration: BoxDecoration(
                   color: tokens.accentSoft,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: shapes.sm,
                 ),
                 child: Icon(Icons.auto_awesome_rounded, color: tokens.accent),
               ),

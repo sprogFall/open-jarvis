@@ -21,6 +21,7 @@ class ComposerBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = JarvisThemeTokens.of(context);
+    final shapes = JarvisShapeTokens.of(context);
     final canSend =
         controller.status == ConnectionStatus.connected &&
         selectedDeviceId != null;
@@ -35,8 +36,8 @@ class ComposerBar extends StatelessWidget {
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: tokens.shell.withValues(alpha: 0.92),
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: tokens.border),
+                  borderRadius: shapes.xl,
+                  border: Border.all(color: tokens.borderStrong),
                 ),
                 child: TextField(
                   key: const Key('chatComposerField'),
@@ -72,9 +73,9 @@ class ComposerBar extends StatelessWidget {
               child: Material(
                 key: const Key('chatSendButton'),
                 color: canSend ? tokens.accent : tokens.surfaceMuted,
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: shapes.full,
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: shapes.full,
                   onTap: canSend ? onSend : null,
                   child: Icon(
                     Icons.arrow_upward_rounded,

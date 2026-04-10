@@ -16,6 +16,7 @@ class StatusHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = JarvisThemeTokens.of(context);
+    final shapes = JarvisShapeTokens.of(context);
     final accent = taskStatusColor(task.status, tokens);
     return GlassCard(
       padding: const EdgeInsets.all(20),
@@ -28,7 +29,7 @@ class StatusHero extends StatelessWidget {
             height: 48,
             decoration: BoxDecoration(
               color: accent.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: shapes.sm,
             ),
             child: Icon(taskIcon(task.status), color: accent),
           ),
@@ -69,7 +70,7 @@ class StatusHero extends StatelessWidget {
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: tokens.terminal,
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: shapes.lg,
                       border: Border.all(color: tokens.terminalBorder),
                     ),
                     child: Column(
@@ -108,10 +109,7 @@ class StatusHero extends StatelessWidget {
               key: const Key('deleteTaskButton'),
               tooltip: '删除记录',
               onPressed: () => unawaited(onDelete!()),
-              icon: Icon(
-                Icons.delete_outline_rounded,
-                color: tokens.danger,
-              ),
+              icon: Icon(Icons.delete_outline_rounded, color: tokens.danger),
             ),
           ],
         ],

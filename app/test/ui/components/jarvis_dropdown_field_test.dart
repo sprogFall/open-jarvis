@@ -47,7 +47,7 @@ void main() {
     expect(field.dropdownColor, JarvisThemeTokens.light.shellRaised);
     expect(field.style?.color, JarvisThemeTokens.light.textPrimary);
     expect(field.iconEnabledColor, JarvisThemeTokens.light.textMuted);
-    expect(field.borderRadius, BorderRadius.circular(22));
+    expect(field.borderRadius, BorderRadius.circular(24));
     expect(field.menuMaxHeight, 320);
   });
 
@@ -61,7 +61,7 @@ void main() {
     expect(field.dropdownColor, JarvisThemeTokens.dark.shellRaised);
     expect(field.style?.color, JarvisThemeTokens.dark.textPrimary);
     expect(field.iconEnabledColor, JarvisThemeTokens.dark.textMuted);
-    expect(field.borderRadius, BorderRadius.circular(22));
+    expect(field.borderRadius, BorderRadius.circular(24));
     expect(field.menuMaxHeight, 320);
   });
 

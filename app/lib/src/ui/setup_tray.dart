@@ -27,6 +27,7 @@ class SetupTray extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = JarvisThemeTokens.of(context);
+    final shapes = JarvisShapeTokens.of(context);
     final onlineCount = controller.devices
         .where((device) => device.connected)
         .length;
@@ -43,10 +44,10 @@ class SetupTray extends StatelessWidget {
     return AnimatedContainer(
       duration: motionDuration(context),
       curve: Curves.easeOutCubic,
-      padding: EdgeInsets.fromLTRB(18, 16, 18, expanded ? 18 : 16),
+      padding: EdgeInsets.fromLTRB(20, 18, 20, expanded ? 20 : 18),
       decoration: BoxDecoration(
         color: tokens.shell.withValues(alpha: 0.84),
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: shapes.xl,
         border: Border.all(
           color: expanded ? tokens.borderStrong : tokens.border,
         ),
@@ -56,7 +57,7 @@ class SetupTray extends StatelessWidget {
         children: [
           InkWell(
             key: const Key('setupToggleButton'),
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: shapes.md,
             onTap: onToggle,
             child: Row(
               children: [
@@ -83,7 +84,7 @@ class SetupTray extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: tokens.surface,
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: shapes.full,
                     border: Border.all(color: tokens.border),
                   ),
                   child: Text(

@@ -1,4 +1,3 @@
-```
 # Logs and temp files
 *.log
 *.tmp
@@ -8,15 +7,18 @@
 .env
 .env.local
 *.env.*
+!.env.example
+!**/.env.example
 
 # Editors
 .vscode/
 .idea/
 
-# Dependencies
+# Dependencies and local environments
 node_modules/
 venv/
 .venv/
+.venv-sys/
 __pycache__/
 .mypy_cache/
 .pytest_cache/
@@ -24,6 +26,15 @@ dist/
 build/
 target/
 .gradle/
+
+# Runtime databases
+*.db
+*.db-shm
+*.db-wal
+
+# Flutter build output
+app/.dart_tool/
+app/build/
 
 # OS generated files
 .DS_Store
@@ -68,4 +79,3 @@ htmlcov/
 *.tar.bz2
 *.tar.xz
 *.tar.zst
-```

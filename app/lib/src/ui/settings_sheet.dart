@@ -209,6 +209,7 @@ class _ConnectionSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = JarvisThemeTokens.of(context);
+    final shapes = JarvisShapeTokens.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -219,7 +220,7 @@ class _ConnectionSummary extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: tokens.surface,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: shapes.lg,
             border: Border.all(color: tokens.border),
           ),
           child: Column(

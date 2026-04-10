@@ -45,6 +45,7 @@ class _LiveLogCardState extends State<LiveLogCard> {
   @override
   Widget build(BuildContext context) {
     final tokens = JarvisThemeTokens.of(context);
+    final shapes = JarvisShapeTokens.of(context);
     return GlassCard(
       padding: const EdgeInsets.all(20),
       backgroundColor: tokens.shellRaised,
@@ -59,7 +60,7 @@ class _LiveLogCardState extends State<LiveLogCard> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: tokens.surfaceMuted,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: shapes.sm,
                 ),
                 child: Text(
                   '${widget.logs.length} 行',
@@ -90,7 +91,7 @@ class _LiveLogCardState extends State<LiveLogCard> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: tokens.terminal,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: shapes.lg,
               border: Border.all(color: tokens.terminalBorder),
             ),
             child: SingleChildScrollView(

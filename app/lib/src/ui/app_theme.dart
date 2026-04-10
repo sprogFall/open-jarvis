@@ -102,7 +102,7 @@ class JarvisThemeTokens extends ThemeExtension<JarvisThemeTokens> {
     border: Color(0xFF22324A),
     borderStrong: Color(0xFF31435F),
     textPrimary: Color(0xFFF8FAFC),
-    textMuted: Color(0xFF93A4BD),
+    textMuted: Color(0xFFA3B4D0),
     accent: Color(0xFF36D399),
     accentSoft: Color(0xFF113227),
     accentSecondary: Color(0xFF60A5FA),
@@ -220,6 +220,78 @@ class JarvisThemeTokens extends ThemeExtension<JarvisThemeTokens> {
   }
 }
 
+@immutable
+class JarvisShapeTokens extends ThemeExtension<JarvisShapeTokens> {
+  const JarvisShapeTokens({
+    required this.radiusSm,
+    required this.radiusMd,
+    required this.radiusLg,
+    required this.radiusXl,
+    required this.radiusXxl,
+    this.radiusFull = 9999,
+  });
+
+  final double radiusSm;
+  final double radiusMd;
+  final double radiusLg;
+  final double radiusXl;
+  final double radiusXxl;
+  final double radiusFull;
+
+  static const standard = JarvisShapeTokens(
+    radiusSm: 18,
+    radiusMd: 24,
+    radiusLg: 32,
+    radiusXl: 40,
+    radiusXxl: 48,
+  );
+
+  static JarvisShapeTokens of(BuildContext context) {
+    return Theme.of(context).extension<JarvisShapeTokens>()!;
+  }
+
+  BorderRadius get sm => BorderRadius.circular(radiusSm);
+  BorderRadius get md => BorderRadius.circular(radiusMd);
+  BorderRadius get lg => BorderRadius.circular(radiusLg);
+  BorderRadius get xl => BorderRadius.circular(radiusXl);
+  BorderRadius get xxl => BorderRadius.circular(radiusXxl);
+  BorderRadius get full => BorderRadius.circular(radiusFull);
+
+  @override
+  JarvisShapeTokens copyWith({
+    double? radiusSm,
+    double? radiusMd,
+    double? radiusLg,
+    double? radiusXl,
+    double? radiusXxl,
+    double? radiusFull,
+  }) {
+    return JarvisShapeTokens(
+      radiusSm: radiusSm ?? this.radiusSm,
+      radiusMd: radiusMd ?? this.radiusMd,
+      radiusLg: radiusLg ?? this.radiusLg,
+      radiusXl: radiusXl ?? this.radiusXl,
+      radiusXxl: radiusXxl ?? this.radiusXxl,
+      radiusFull: radiusFull ?? this.radiusFull,
+    );
+  }
+
+  @override
+  JarvisShapeTokens lerp(ThemeExtension<JarvisShapeTokens>? other, double t) {
+    if (other is! JarvisShapeTokens) {
+      return this;
+    }
+    return JarvisShapeTokens(
+      radiusSm: radiusSm + (other.radiusSm - radiusSm) * t,
+      radiusMd: radiusMd + (other.radiusMd - radiusMd) * t,
+      radiusLg: radiusLg + (other.radiusLg - radiusLg) * t,
+      radiusXl: radiusXl + (other.radiusXl - radiusXl) * t,
+      radiusXxl: radiusXxl + (other.radiusXxl - radiusXxl) * t,
+      radiusFull: radiusFull + (other.radiusFull - radiusFull) * t,
+    );
+  }
+}
+
 class JarvisAppTheme {
   static ThemeData light() => _buildTheme(
     brightness: Brightness.light,
@@ -233,6 +305,7 @@ class JarvisAppTheme {
     required Brightness brightness,
     required JarvisThemeTokens tokens,
   }) {
+    const shapes = JarvisShapeTokens.standard;
     final base = ThemeData(
       useMaterial3: true,
       brightness: brightness,
@@ -300,7 +373,7 @@ class JarvisAppTheme {
     );
 
     return base.copyWith(
-      extensions: [tokens],
+      extensions: [tokens, shapes],
       scaffoldBackgroundColor: tokens.pageBottom,
       canvasColor: tokens.shellRaised,
       cardColor: tokens.shell,
@@ -326,8 +399,10 @@ class JarvisAppTheme {
         backgroundColor: tokens.shellRaised,
         surfaceTintColor: Colors.transparent,
         modalBackgroundColor: tokens.shellRaised,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(shapes.radiusXl),
+          ),
         ),
       ),
       dividerTheme: DividerThemeData(color: tokens.border, space: 1),
@@ -338,6 +413,7 @@ class JarvisAppTheme {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         labelStyle: textTheme.labelLarge,
         secondaryLabelStyle: textTheme.labelLarge,
+        shape: RoundedRectangleBorder(borderRadius: shapes.sm),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -348,16 +424,16 @@ class JarvisAppTheme {
           vertical: 16,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: shapes.md,
           borderSide: BorderSide(color: tokens.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: shapes.md,
           borderSide: BorderSide(color: tokens.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(22),
-          borderSide: BorderSide(color: tokens.accent, width: 1.4),
+          borderRadius: shapes.md,
+          borderSide: BorderSide(color: tokens.accent, width: 1.6),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -367,10 +443,9 @@ class JarvisAppTheme {
           disabledBackgroundColor: tokens.surfaceMuted,
           disabledForegroundColor: tokens.textMuted,
           elevation: 0,
+          minimumSize: const Size(0, 48),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: shapes.full),
           textStyle: textTheme.labelLarge,
         ),
       ),
@@ -378,16 +453,17 @@ class JarvisAppTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: tokens.textPrimary,
           side: BorderSide(color: tokens.borderStrong),
+          minimumSize: const Size(0, 48),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: shapes.full),
           textStyle: textTheme.labelLarge,
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: tokens.accentSecondary,
+          minimumSize: const Size(0, 44),
+          shape: RoundedRectangleBorder(borderRadius: shapes.full),
           textStyle: textTheme.labelLarge,
         ),
       ),

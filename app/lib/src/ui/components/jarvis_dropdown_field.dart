@@ -18,6 +18,7 @@ class JarvisDropdownField<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = JarvisThemeTokens.of(context);
+    final shapes = JarvisShapeTokens.of(context);
     final textStyle =
         Theme.of(
           context,
@@ -32,7 +33,7 @@ class JarvisDropdownField<T> extends StatelessWidget {
       dropdownColor: tokens.shellRaised,
       iconEnabledColor: tokens.textMuted,
       iconDisabledColor: tokens.textMuted.withValues(alpha: 0.72),
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: shapes.md,
       menuMaxHeight: 320,
       items: items,
       onChanged: onChanged,

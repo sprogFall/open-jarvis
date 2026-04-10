@@ -18,12 +18,13 @@ class ThreadTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = JarvisThemeTokens.of(context);
+    final shapes = JarvisShapeTokens.of(context);
     final accent = taskStatusColor(task.status, tokens);
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: shapes.md,
         child: AnimatedContainer(
           duration: motionDuration(context),
           curve: Curves.easeOutCubic,
@@ -32,7 +33,7 @@ class ThreadTile extends StatelessWidget {
             color: selected
                 ? accent.withValues(alpha: 0.14)
                 : tokens.shellRaised,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: shapes.md,
             border: Border.all(
               color: selected ? accent.withValues(alpha: 0.5) : tokens.border,
             ),
@@ -47,17 +48,16 @@ class ThreadTile extends StatelessWidget {
                     height: 8,
                     decoration: BoxDecoration(
                       color: accent,
-                      borderRadius: BorderRadius.circular(999),
+                      borderRadius: shapes.full,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       task.status.label,
-                      style: Theme.of(context)
-                          .textTheme
-                          .labelLarge
-                          ?.copyWith(color: accent),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelLarge?.copyWith(color: accent),
                     ),
                   ),
                   Text(
