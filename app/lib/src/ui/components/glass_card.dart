@@ -23,7 +23,7 @@ class GlassCard extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: backgroundColor ?? tokens.shell.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(color: borderColor ?? tokens.border),
         boxShadow: [
           BoxShadow(
@@ -34,7 +34,7 @@ class GlassCard extends StatelessWidget {
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(28),
         clipBehavior: clipBehavior,
         child: Padding(padding: padding, child: child),
       ),
