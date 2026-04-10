@@ -1,16 +1,53 @@
 :root {
   color-scheme: dark;
-  --bg: #06111a;
-  --bg-soft: #0f1c26;
-  --panel: rgba(13, 24, 34, 0.88);
-  --panel-border: rgba(120, 155, 184, 0.18);
-  --panel-strong: rgba(20, 35, 48, 0.96);
-  --text: #f2f5f7;
-  --muted: #95a7b6;
-  --accent: #7df5b4;
-  --accent-strong: #3bcf88;
-  --warning: #f6c35b;
-  --danger: #ff7f7f;
-  --line: rgba(162, 186, 204, 0.12);
-  --shadow: 0 28px 60px rgba(0, 0, 0, 0.35);
+  
+  /* ===== 背景色 (统一 Flutter #07111F) ===== */
+  --bg: #07111F;
+  --bg-soft: #0C1628;
+  --panel: rgba(15, 23, 42, 0.92);
+  --panel-border: rgba(34, 50, 74, 0.18);
+  --panel-strong: rgba(19, 32, 53, 0.96);
+  
+  /* ===== 文字色 (增强对比度至 WCAG AA) ===== */
+  --text: #F8FAFC;
+  --muted: #A3B4D0;
+  
+  /* ===== 强调色 (统一 Flutter #36D399) ===== */
+  --accent: #36D399;
+  --accent-strong: #2DB885;
+  --accent-soft: rgba(54, 211, 153, 0.12);
+  
+  /* ===== 次要强调色 (统一 Flutter #60A5FA) ===== */
+  --accent-secondary: #60A5FA;
+  --accent-secondary-soft: rgba(96, 165, 250, 0.12);
+  
+  /* ===== 状态色 (统一 Flutter 色值) ===== */
+  --warning: #F5C451;
+  --warning-soft: rgba(245, 196, 81, 0.12);
+  --danger: #FB7185;
+  --danger-soft: rgba(251, 113, 133, 0.12);
+  --success: #34D399;
+  --success-soft: rgba(52, 211, 153, 0.12);
+  
+  /* ===== 边框与分割线 ===== */
+  --line: rgba(34, 50, 74, 0.12);
+  --border: rgba(34, 50, 74, 0.6);
+  --border-strong: rgba(49, 67, 95, 0.8);
+  
+  /* ===== 输入框 ===== */
+  --input: #0B1324;
+  
+  /* ===== 阴影系统 (统一层级) ===== */
+  --shadow-sm: 0 4px 12px rgba(2, 5, 16, 0.08);
+  --shadow-md: 0 12px 28px rgba(2, 5, 16, 0.16);
+  --shadow-lg: 0 28px 60px rgba(2, 5, 16, 0.32);
+  --shadow: var(--shadow-lg);
+  
+  /* ===== 圆角系统 (iOS 风格大圆角) ===== */
+  --radius-sm: 18px;   /* 小组件、chip */
+  --radius-md: 24px;   /* 输入框、按钮 */
+  --radius-lg: 32px;   /* 卡片、面板 - iOS 风格 */
+  --radius-xl: 40px;   /* 大容器、海报 */
+  --radius-xxl: 48px;  /* 超大元素 */
+  --radius-full: 9999px; /* 圆形 */
 }
