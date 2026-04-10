@@ -1,45 +1,84 @@
-```
-# Flutter/Dart specific
-.dart_tool/
-.build/
-packages/
-*.nib
-local.properties
-.keycloak/
-.credo/
-.dart_tool/
-.firebaserc
-.metadata
-**/android/**
-**/ios/**
-**/linux/**
-**/macos/**
-**/windows/**
-.flutter-plugins
-.flutter-plugin-dependencies
-.packages
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+*.o
+*.obj
+*.class
+*.exe
+*.dll
+*.so
+*.a
+*.out
 
-# IDE
-.idea/
+# Dependencies
+node_modules/
+venv/
+.venv/
+.env
+.env.local
+*.env.*
+
+# Build outputs
+dist/
+build/
+target/
+.gradle/
+
+# Python specific
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+*.so
+.coverage
+coverage/
+htmlcov/
+.mypy_cache/
+.pytest_cache/
+.tox/
+.nox/
+
+# Dart/Flutter specific
+.dart_tool/
+.packages
+.pub-cache/
+pubspec.lock
+
+# Editors
 .vscode/
+.idea/
 *.swp
 *.swo
 *.tmp
 
 # Logs
 *.log
-**/logs
 
-# Environment
-.env
-.env.local
-*.env.*
+# OS generated
+.DS_Store
+Thumbs.db
 
-# Dependencies
-pubspec.lock
-**/node_modules/
-
-# Build outputs
-/build/
-/dist/
-```
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
