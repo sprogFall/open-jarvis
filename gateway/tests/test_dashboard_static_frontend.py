@@ -176,12 +176,37 @@ def test_dashboard_exposes_independent_quick_deploy_workspace():
     assert deploy_tab.exists()
     assert 'label: "快速部署"' in app_model_content
     assert "QuickDeployTab" in app_shell_content
-    assert "Gateway / Client / Dashboard" in deploy_tab_content
+    assert "CLI 快速部署" in deploy_tab_content
     assert "quickDeployDraft" in controller_content
     assert "downloadQuickDeployPackage" in controller_content
     assert "getQuickDeployDraft" in api_content
     assert "downloadQuickDeployPackage" in api_content
     assert "快速部署" in readme_content
+
+
+def test_dashboard_quick_deploy_copy_stays_focused_on_cli_delivery():
+    dashboard_root = Path(__file__).resolve().parents[2] / "dashboard"
+    deploy_tab = (dashboard_root / "src" / "features" / "deploy" / "QuickDeployTab.tsx").read_text(
+        encoding="utf-8"
+    )
+    app_model = (dashboard_root / "src" / "app" / "model.ts").read_text(encoding="utf-8")
+    readme = (dashboard_root / "README.md").read_text(encoding="utf-8")
+
+    assert 'label: "快速部署"' in app_model
+    assert 'hint: "CLI 部署包与接入配置"' in app_model
+
+    assert "CLI 快速部署" in deploy_tab
+    assert "Client 部署包" in deploy_tab
+    assert "Gateway / Client / Dashboard" not in deploy_tab
+    assert "quick-target-row" not in deploy_tab
+    assert "onToggleTarget" not in deploy_tab
+    assert "目标模块" not in deploy_tab
+    assert "Gateway 端口" not in deploy_tab
+    assert "Dashboard 端口" not in deploy_tab
+
+    assert "CLI 快速部署" in readme
+    assert "按 `Gateway / Client / Dashboard` 勾选目标模块" not in readme
+    assert "下载 zip 后可分别进入 `gateway/`、`client/`、`dashboard/` 目录独立部署" not in readme
 
 
 def test_dashboard_visible_copy_stays_focused_on_business_workflows():

@@ -75,7 +75,7 @@ export type QuickDeployForm = {
 export const tabs: Array<{ id: TabId; label: string; hint: string }> = [
   { id: "overview", label: "概览", hint: "任务与连接状态" },
   { id: "chat", label: "聊天", hint: "下发任务、审批、日志" },
-  { id: "quick-deploy", label: "快速部署", hint: "Gateway / Client / Dashboard" },
+  { id: "quick-deploy", label: "快速部署", hint: "CLI 部署包与接入配置" },
   { id: "devices", label: "设备", hint: "注册、轮换、分配 Skill" },
   { id: "skills", label: "Skills", hint: "能力目录与配置" },
   { id: "tasks", label: "任务", hint: "任务状态与日志" },

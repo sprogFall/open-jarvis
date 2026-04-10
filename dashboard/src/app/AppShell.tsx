@@ -142,10 +142,8 @@ export function AppShell({
               draft={controller.quickDeployDraft}
               form={controller.quickDeployForm}
               skills={controller.skills}
-              devices={controller.devices}
               busy={controller.quickDeployBusy}
               error={controller.quickDeployError}
-              onToggleTarget={controller.toggleQuickDeployTarget}
               onFieldChange={controller.patchQuickDeployModuleValue}
               onClientPackageChange={controller.patchQuickDeployClientPackage}
               onToggleSkill={controller.toggleQuickDeploySkill}

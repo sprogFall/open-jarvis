@@ -13,12 +13,12 @@ archive skills 仍需满足以下约束：
 - 可以直接压缩单个 skill 文件夹，也可以上传包含 skill 子目录的开源仓库片段
 - 设备收到分配后，会把 skill 解压到 `OMNI_AGENT_SKILLS_WORKSPACE/<skill_id>/`
 
-Dashboard 现在提供独立的“快速部署”工作区：
+Dashboard 现在提供独立的“CLI 快速部署”工作区：
 
-- 按 `Gateway / Client / Dashboard` 勾选目标模块
-- 直接在页面里填写各模块白名单 `.env` 字段，并带中文解释
-- Client 区会额外生成独立部署包、`deploy-client.sh` 与可选的设备同步登记
-- 下载 zip 后可分别进入 `gateway/`、`client/`、`dashboard/` 目录独立部署
+- 只保留 CLI 接入所需字段：Gateway 地址、设备标识、设备密钥、网络档位
+- 可补充代码仓库、分支与随包下发的 Skill
+- 下载后直接得到 Client 部署包、`deploy-client.sh` 与独立 Compose 文件
+- 可选在生成阶段同步向 Gateway 登记设备并预分配 Skill
 
 ## 开发
 

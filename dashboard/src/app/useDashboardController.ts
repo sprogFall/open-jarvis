@@ -652,20 +652,6 @@ export function useDashboardController({
     }));
   }
 
-  function toggleQuickDeployTarget(moduleId: QuickDeployModuleId) {
-    setQuickDeployError(null);
-    setQuickDeployForm((current) => {
-      const selected = current.targets.includes(moduleId);
-      const orderedTargets: QuickDeployModuleId[] = ["gateway", "client", "dashboard"];
-      return {
-        ...current,
-        targets: selected
-          ? current.targets.filter((target) => target !== moduleId)
-          : orderedTargets.filter((target) => current.targets.includes(target) || target === moduleId),
-      };
-    });
-  }
-
   function toggleQuickDeploySkill(skillId: string) {
     setQuickDeployError(null);
     setQuickDeployForm((current) => {
@@ -811,21 +797,15 @@ export function useDashboardController({
   async function downloadQuickDeployPackage() {
     setQuickDeployError(null);
 
-    if (!quickDeployForm.targets.length) {
-      setQuickDeployError("请至少选择一个部署目标");
-      return;
-    }
-
-    const clientSelected = quickDeployForm.targets.includes("client");
     const clientDeviceId = quickDeployForm.modules.client.OMNI_AGENT_DEVICE_ID?.trim() || "";
     const deviceName = quickDeployForm.client_package.device_name.trim() || clientDeviceId;
 
-    if (clientSelected && !deviceName) {
+    if (!deviceName) {
       setQuickDeployError("请填写 Client 设备名称或设备 ID");
       return;
     }
 
-    if (clientSelected && !quickDeployForm.client_package.repo_url.trim()) {
+    if (!quickDeployForm.client_package.repo_url.trim()) {
       setQuickDeployError("请填写 Client 代码仓库地址");
       return;
     }
@@ -833,7 +813,7 @@ export function useDashboardController({
     setQuickDeployBusy(true);
     try {
       const result = await dashboardApi.downloadQuickDeployPackage(token, {
-        targets: quickDeployForm.targets,
+        targets: ["client"],
         modules: quickDeployForm.modules,
         client_package: {
           device_name: deviceName,
@@ -844,13 +824,10 @@ export function useDashboardController({
         },
       });
       triggerFileDownload(result.blob, result.filename || "open-jarvis-quick-deploy.zip");
-      if (clientSelected && quickDeployForm.client_package.register_device) {
+      if (quickDeployForm.client_package.register_device) {
         await Promise.all([refreshTab("devices"), refreshTab("settings")]);
       }
-      const targetLabel = quickDeployForm.targets
-        .map((target) => quickDeployDraft?.modules[target].title ?? target)
-        .join(" / ");
-      setBannerMessage(`已生成 ${targetLabel} 快速部署工件`);
+      setBannerMessage("已生成 CLI 快速部署包");
     } catch (error) {
       const message = getErrorMessage(error);
       if (isSessionExpiredMessage(message)) {
@@ -1270,7 +1247,6 @@ export function useDashboardController({
     downloadClientPackage,
     patchQuickDeployModuleValue,
     patchQuickDeployClientPackage,
-    toggleQuickDeployTarget,
     toggleQuickDeploySkill,
     downloadQuickDeployPackage,
     openSkillCreate,
