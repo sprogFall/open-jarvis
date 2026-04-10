@@ -327,7 +327,7 @@ class JarvisAppTheme {
         surfaceTintColor: Colors.transparent,
         modalBackgroundColor: tokens.shellRaised,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
         ),
       ),
       dividerTheme: DividerThemeData(color: tokens.border, space: 1),
@@ -344,19 +344,19 @@ class JarvisAppTheme {
         fillColor: tokens.input,
         hintStyle: textTheme.bodyMedium?.copyWith(color: tokens.textMuted),
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 18,
-          vertical: 16,
+          horizontal: 20,
+          vertical: 18,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(24),
           borderSide: BorderSide(color: tokens.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(24),
           borderSide: BorderSide(color: tokens.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(24),
           borderSide: BorderSide(color: tokens.accent, width: 1.4),
         ),
       ),
@@ -367,9 +367,9 @@ class JarvisAppTheme {
           disabledBackgroundColor: tokens.surfaceMuted,
           disabledForegroundColor: tokens.textMuted,
           elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(24),
           ),
           textStyle: textTheme.labelLarge,
         ),
@@ -378,9 +378,9 @@ class JarvisAppTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: tokens.textPrimary,
           side: BorderSide(color: tokens.borderStrong),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(24),
           ),
           textStyle: textTheme.labelLarge,
         ),

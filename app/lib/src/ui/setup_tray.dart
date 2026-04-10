@@ -43,10 +43,10 @@ class SetupTray extends StatelessWidget {
     return AnimatedContainer(
       duration: motionDuration(context),
       curve: Curves.easeOutCubic,
-      padding: EdgeInsets.fromLTRB(18, 16, 18, expanded ? 18 : 16),
+      padding: EdgeInsets.fromLTRB(20, 18, 20, expanded ? 20 : 18),
       decoration: BoxDecoration(
         color: tokens.shell.withValues(alpha: 0.84),
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(32),
         border: Border.all(
           color: expanded ? tokens.borderStrong : tokens.border,
         ),
@@ -56,7 +56,7 @@ class SetupTray extends StatelessWidget {
         children: [
           InkWell(
             key: const Key('setupToggleButton'),
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(24),
             onTap: onToggle,
             child: Row(
               children: [

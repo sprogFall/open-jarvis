@@ -35,7 +35,7 @@ class ComposerBar extends StatelessWidget {
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: tokens.shell.withValues(alpha: 0.92),
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.circular(32),
                   border: Border.all(color: tokens.border),
                 ),
                 child: TextField(
@@ -58,8 +58,8 @@ class ComposerBar extends StatelessWidget {
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 16,
+                      horizontal: 20,
+                      vertical: 18,
                     ),
                   ),
                 ),

@@ -43,7 +43,7 @@ class _ApprovalCardState extends State<ApprovalCard> {
                 height: 40,
                 decoration: BoxDecoration(
                   color: tokens.warning.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(18),
                 ),
                 child: Icon(Icons.lock_outline_rounded, color: tokens.warning),
               ),
@@ -80,11 +80,11 @@ class _ApprovalCardState extends State<ApprovalCard> {
             Container(
               decoration: BoxDecoration(
                 color: tokens.terminal,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(24),
                 border: Border.all(color: tokens.terminalBorder),
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(24),
                 child: HighlightView(
                   command,
                   language: 'bash',

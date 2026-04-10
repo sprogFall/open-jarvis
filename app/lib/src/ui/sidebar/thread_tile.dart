@@ -23,16 +23,16 @@ class ThreadTile extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(24),
         child: AnimatedContainer(
           duration: motionDuration(context),
           curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: selected
                 ? accent.withValues(alpha: 0.14)
                 : tokens.shellRaised,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(24),
             border: Border.all(
               color: selected ? accent.withValues(alpha: 0.5) : tokens.border,
             ),
