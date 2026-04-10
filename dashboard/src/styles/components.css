@@ -28,13 +28,20 @@
 .field textarea,
 .task-filters select {
   width: 100%;
-  padding: 0.85rem 1rem;
-  border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.04);
+  padding: 0.95rem 1.1rem;
+  border-radius: var(--radius-md);
+  background: var(--input);
   color: var(--text);
   color-scheme: dark;
-  border: 1px solid transparent;
-  transition: border-color 120ms ease, background 120ms ease;
+  border: 1px solid var(--border);
+  transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+  font-size: 0.95rem;
+}
+
+.field input::placeholder,
+.field textarea::placeholder {
+  color: var(--muted);
+  opacity: 0.7;
 }
 
 .field select option,
@@ -64,34 +71,56 @@
 .field select:focus,
 .field textarea:focus,
 .task-filters select:focus {
-  border-color: rgba(125, 245, 180, 0.4);
-  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--accent);
+  background: var(--input);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  outline: none;
+}
+
+/* 增强焦点可见性 - WCAG 可访问性 */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.tab-chip:focus-visible,
+.chat-thread:focus-visible,
+.chat-quick-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px var(--accent-soft);
 }
 
 .primary-button,
 .ghost-button,
 .danger-button {
-  border-radius: 999px;
-  padding: 0.75rem 1.1rem;
-  transition: transform 160ms ease, opacity 160ms ease, background 160ms ease;
+  border-radius: var(--radius-full);
+  padding: 0.85rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: transform 160ms ease, opacity 160ms ease, background 160ms ease, box-shadow 160ms ease;
+  min-height: 48px; /* 触摸目标最小尺寸 */
 }
 
 .primary-button {
   background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
   color: #052414;
-  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+}
+
+.primary-button:hover {
+  box-shadow: var(--shadow-md);
 }
 
 .ghost-button {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--panel);
   color: var(--text);
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
 }
 
 .danger-button {
-  background: rgba(255, 127, 127, 0.1);
+  background: var(--danger-soft);
   color: var(--danger);
-  border: 1px solid rgba(255, 127, 127, 0.28);
+  border: 1px solid rgba(251, 113, 133, 0.32);
 }
 
 .primary-button:hover,
@@ -122,23 +151,24 @@ textarea:focus-visible,
 
 .error-text,
 .banner-error {
-  color: #ffd4d4;
-  background: rgba(120, 18, 18, 0.34);
-  border: 1px solid rgba(255, 127, 127, 0.24);
-  border-radius: 1rem;
-  padding: 0.85rem 1rem;
+  color: #FFD7DC;
+  background: var(--danger-soft);
+  border: 1px solid rgba(251, 113, 133, 0.28);
+  border-radius: var(--radius-md);
+  padding: 0.9rem 1.1rem;
 }
 
 .tab-chip {
   display: grid;
   gap: 0.1rem;
-  padding: 0.7rem 0.85rem;
+  padding: 0.75rem 0.95rem;
   text-align: left;
   color: var(--text);
-  border-radius: 0.75rem;
+  border-radius: var(--radius-sm);
   background: transparent;
   border: 1px solid transparent;
   transition: background 120ms ease, border-color 120ms ease;
+  min-height: 44px; /* 触摸目标尺寸 */
 }
 
 .tab-chip small {
@@ -149,19 +179,19 @@ textarea:focus-visible,
 .tab-chip.active {
   background: linear-gradient(
     135deg,
-    rgba(125, 245, 180, 0.14),
-    rgba(25, 137, 255, 0.12)
+    var(--accent-soft),
+    var(--accent-secondary-soft)
   );
-  border-color: rgba(125, 245, 180, 0.22);
+  border-color: rgba(54, 211, 153, 0.28);
 }
 
 .live-dot {
   width: 0.72rem;
   height: 0.72rem;
   display: inline-block;
-  border-radius: 999px;
-  background: rgba(125, 245, 180, 0.45);
-  box-shadow: 0 0 0 0 rgba(125, 245, 180, 0.48);
+  border-radius: var(--radius-full);
+  background: rgba(54, 211, 153, 0.45);
+  box-shadow: 0 0 0 0 rgba(54, 211, 153, 0.48);
   animation: pulse 2.2s infinite;
 }
 
@@ -172,8 +202,8 @@ textarea:focus-visible,
 
 .table-shell {
   overflow-x: auto;
-  border-radius: 1.25rem;
-  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
 }
 
 table {
@@ -215,22 +245,22 @@ td strong {
 .package-pill {
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
-  padding: 0.3rem 0.65rem;
-  font-size: 0.76rem;
+  border-radius: var(--radius-full);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
   border: 1px solid transparent;
 }
 
 .package-pill.ready {
-  background: rgba(59, 207, 136, 0.16);
-  border-color: rgba(59, 207, 136, 0.26);
-  color: #93ffc8;
+  background: var(--success-soft);
+  border-color: rgba(52, 211, 153, 0.32);
+  color: #A7F3D0;
 }
 
 .package-pill.pending {
-  background: rgba(246, 195, 91, 0.12);
-  border-color: rgba(246, 195, 91, 0.24);
-  color: var(--warning);
+  background: var(--warning-soft);
+  border-color: rgba(245, 196, 81, 0.32);
+  color: #FDE68A;
 }
 
 .status-pill {
@@ -239,9 +269,10 @@ td strong {
   justify-content: center;
   min-width: 5.15rem;
   max-width: 100%;
-  padding: 0.4rem 0.72rem;
-  border-radius: 999px;
-  font-size: 0.8rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--radius-full);
+  font-size: 0.82rem;
+  font-weight: 500;
   line-height: 1.2;
   white-space: nowrap;
   border: 1px solid transparent;
@@ -249,51 +280,51 @@ td strong {
 
 .status-pending-dispatch,
 .status-approved {
-  background: rgba(125, 245, 180, 0.14);
-  border-color: rgba(125, 245, 180, 0.28);
+  background: var(--accent-soft);
+  border-color: rgba(54, 211, 153, 0.35);
   color: var(--accent);
 }
 
 .status-running,
 .status-connected,
 .status-active {
-  background: rgba(59, 207, 136, 0.18);
-  border-color: rgba(59, 207, 136, 0.28);
-  color: #93ffc8;
+  background: var(--success-soft);
+  border-color: rgba(52, 211, 153, 0.35);
+  color: #A7F3D0;
 }
 
 .status-awaiting-approval {
-  background: rgba(246, 195, 91, 0.12);
-  border-color: rgba(246, 195, 91, 0.24);
-  color: var(--warning);
+  background: var(--warning-soft);
+  border-color: rgba(245, 196, 81, 0.32);
+  color: #FDE68A;
 }
 
 .status-rejected,
 .status-failed,
 .status-offline {
-  background: rgba(255, 127, 127, 0.1);
-  border-color: rgba(255, 127, 127, 0.22);
-  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: rgba(251, 113, 133, 0.32);
+  color: #FDA4AF;
 }
 
 .status-completed {
-  background: rgba(25, 137, 255, 0.14);
-  border-color: rgba(25, 137, 255, 0.2);
-  color: #7fc4ff;
+  background: var(--accent-secondary-soft);
+  border-color: rgba(96, 165, 250, 0.28);
+  color: #BFDBFE;
 }
 
 .log-panel {
-  padding: 1rem;
-  border-radius: 1.25rem;
-  background: rgba(0, 0, 0, 0.24);
-  border: 1px solid var(--line);
+  padding: 1.1rem;
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  border: 1px solid var(--border);
 }
 
 .log-panel pre {
   margin: 0;
   overflow-x: auto;
   white-space: pre-wrap;
-  color: #dce6ed;
+  color: #E2E8F0;
   font-family: "IBM Plex Mono", monospace;
   font-size: 0.86rem;
   line-height: 1.6;

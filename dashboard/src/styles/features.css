@@ -11,7 +11,7 @@
 .system-grid article,
 .key-value-card {
   padding: 1rem 1.1rem;
-  border-radius: 1.25rem;
+  border-radius: var(--radius-lg);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--line);
 }
@@ -72,7 +72,7 @@
   gap: 1rem;
   margin-bottom: 1.25rem;
   padding: 1.1rem 1.2rem;
-  border-radius: 1.35rem;
+  border-radius: var(--radius-xl);
   border: 1px solid rgba(246, 195, 91, 0.18);
   background: linear-gradient(
     135deg,
@@ -112,7 +112,7 @@
   display: grid;
   gap: 1rem;
   padding: 1.2rem;
-  border-radius: 1.5rem;
+  border-radius: var(--radius-xxl);
   border: 1px solid rgba(125, 245, 180, 0.18);
   background:
     radial-gradient(circle at top right, rgba(246, 195, 91, 0.18), transparent 24rem),
@@ -142,7 +142,7 @@
   align-items: center;
   gap: 0.8rem;
   padding: 0.95rem 1rem;
-  border-radius: 1.2rem;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.03);
   transition:
@@ -224,7 +224,7 @@
   align-items: flex-start;
   gap: 0.8rem;
   padding: 0.95rem 1rem;
-  border-radius: 1.15rem;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.03);
   transition: border-color 160ms ease, background 160ms ease;
@@ -249,7 +249,7 @@
   position: sticky;
   bottom: 1rem;
   padding: 0.85rem;
-  border-radius: 1.2rem;
+  border-radius: var(--radius-xl);
   border: 1px solid var(--line);
   background: rgba(8, 18, 28, 0.92);
   backdrop-filter: blur(18px);
@@ -270,7 +270,7 @@
   align-items: start;
   gap: 0.9rem;
   padding: 0.95rem 1rem;
-  border-radius: 1.15rem;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.03);
   transition:
@@ -378,7 +378,7 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 0.95rem 1rem;
-  border-radius: 1.15rem;
+  border-radius: var(--radius-lg);
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--line);
 }
@@ -410,7 +410,7 @@
 
 .callout {
   padding: 1.2rem;
-  border-radius: 1.3rem;
+  border-radius: var(--radius-xl);
   border: 1px solid rgba(125, 245, 180, 0.2);
   background: linear-gradient(
     135deg,
@@ -445,7 +445,7 @@
   padding: 0.95rem 1rem;
   max-height: 18rem;
   overflow: auto;
-  border-radius: 1rem;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.03);
   white-space: pre-wrap;
@@ -477,7 +477,7 @@
 .chat-composer,
 .chat-welcome-hero,
 .chat-quick-action {
-  border-radius: 1.15rem;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.03);
 }
@@ -505,7 +505,7 @@
   padding: 0.95rem 1rem;
   text-align: left;
   cursor: pointer;
-  border-radius: 1.15rem;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.03);
   transition:
@@ -716,7 +716,7 @@
   display: grid;
   gap: 0.35rem;
   padding: 1rem;
-  border-radius: 1.15rem;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.035);
 }
