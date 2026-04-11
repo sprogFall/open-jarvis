@@ -28,14 +28,14 @@ class WorkspaceSummary extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            selectedTask == null ? '移动端 AI 工作台' : '当前线程概览',
+            selectedTask == null ? '任务总览' : '当前任务',
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 8),
           Text(
             selectedTask == null
-                ? '对话、审批、恢复和实时日志都收敛在同一条消息流里。'
-                : '当前线程状态：${selectedTask.status.label}。后续日志、审批和恢复都会继续写回这里。',
+                ? '查看设备、待审批和挂起任务。'
+                : '当前状态：${selectedTask.status.label}',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 16),

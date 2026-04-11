@@ -66,9 +66,7 @@ export function SettingsTab({
       <div className="callout">
         <p className="eyebrow">Operations</p>
         <h4>业务配置与账号范围</h4>
-        <p>
-          Gateway 配置会作为 CLI 的默认模型来源，只有在设备存在特殊要求时，才需要单独覆盖。
-        </p>
+        <p>维护默认 AI 与设备专用 AI 设置。</p>
       </div>
 
       <section className="panel panel-stack">

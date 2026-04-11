@@ -32,7 +32,7 @@ export function SkillsTab({
             添加 Skill
           </button>
         }
-        description="内建 Skills 可直接分配给设备，自定义 Skills 通过 zip 归档上传后同步。"
+        description="维护内建与自定义 Skill。"
         eyebrow="Catalog"
         title="Skill 目录"
       />
@@ -69,7 +69,7 @@ export function SkillsTab({
                           ? skill.action_names.join(" · ")
                           : "系统预置能力"}
                       </span>
-                      <span className="cell-subtle">分配后可直接被 AI 调用</span>
+                      <span className="cell-subtle">分配后可直接使用</span>
                     </>
                   ) : (
                     <>
@@ -82,7 +82,7 @@ export function SkillsTab({
                       <span className="cell-subtle">
                         {skill.archive_ready
                           ? `${formatBytes(skill.archive_size)} · ${skill.archive_sha256?.slice(0, 10)}...`
-                          : "上传后才可分配给设备"}
+                          : "上传后可分配"}
                       </span>
                     </>
                   )}

@@ -69,7 +69,7 @@ void main() {
 
     await pumpWidget(tester, StatusHero(task: task));
 
-    expect(find.text('实时日志'), findsOneWidget);
+    expect(find.text('执行日志'), findsOneWidget);
     // StatusHero shows only the first 2 log lines.
     expect(find.text('log line 1'), findsOneWidget);
     expect(find.text('log line 2'), findsOneWidget);

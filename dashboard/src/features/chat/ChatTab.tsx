@@ -5,7 +5,6 @@ import { SectionHeader } from "../../components/SectionHeader";
 import { StatusPill } from "../../components/StatusPill";
 import {
   describeTaskNarrative,
-  formatAiSource,
   formatTaskStatus,
   summarizeTask,
 } from "../../lib/format";
@@ -144,7 +143,7 @@ export function ChatTab({
           <span className="live-dot" />
           <div>
             <strong>手动同步</strong>
-            <small>新对话时不会自动切走当前输入。</small>
+            <small>查看最新任务进展</small>
           </div>
         </div>
 
@@ -282,7 +281,7 @@ export function ChatTab({
                 <p className="eyebrow">快速开始</p>
                 <h4>像聊天一样下发任务</h4>
                 <p>
-                  在同一条线程里查看审批、恢复状态和执行日志；需要特殊模型时再为 CLI 单独覆盖。
+                  下发任务并查看审批、恢复和结果。
                 </p>
               </div>
               <div className="chat-prompt-list">
@@ -318,18 +317,16 @@ export function ChatTab({
               </select>
             </FormField>
             <div className="chat-effective-ai">
-              <span>当前生效配置</span>
+              <span>当前模型</span>
               <strong>
                 {effectiveAi
                   ? `${effectiveAi.provider} · ${effectiveAi.model}`
                   : "尚未配置 AI"}
               </strong>
               {effectiveAi ? (
-                <small>
-                  {formatAiSource(effectiveAi.source)} · API Key（掩码）{effectiveAi.api_key_masked}
-                </small>
+                <small>用于当前任务</small>
               ) : (
-                <small>请先在系统页配置 Gateway 默认 AI，或为特定 CLI 设置覆盖。</small>
+                <small>请先完成 AI 设置。</small>
               )}
             </div>
           </div>
@@ -345,7 +342,7 @@ export function ChatTab({
           <div className="panel-head compact">
             <div className="muted">
               {selectedTarget
-                ? `消息会发往 ${selectedTarget.name}，发送后可手动同步查看审批、恢复状态和执行日志。`
+                ? `消息将发往 ${selectedTarget.name}。`
                 : "请选择执行目标后再发送任务。"}
             </div>
             <button

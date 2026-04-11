@@ -82,8 +82,8 @@ class _WelcomeViewState extends State<WelcomeView>
                     const SizedBox(height: 12),
                     Text(
                       widget.controller.status == ConnectionStatus.connected
-                          ? '任务下发、审批、恢复和实时日志都会留在这条对话里。顶部可展开会话设置。'
-                          : '先完成网关连接，然后在这里开始一条任务线程。',
+                          ? '选择设备后即可开始任务，审批与结果会显示在当前会话。'
+                          : '先连接网关，再开始任务。',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),

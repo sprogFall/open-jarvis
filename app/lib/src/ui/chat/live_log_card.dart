@@ -54,7 +54,7 @@ class _LiveLogCardState extends State<LiveLogCard> {
         children: [
           Row(
             children: [
-              Text('日志流', style: Theme.of(context).textTheme.titleLarge),
+              Text('执行日志', style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -81,7 +81,7 @@ class _LiveLogCardState extends State<LiveLogCard> {
           ),
           const SizedBox(height: 6),
           Text(
-            '客户端 stdout 与恢复信息会不断追加到这里。',
+            '查看执行输出和处理记录。',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 16),

@@ -14,7 +14,7 @@ Future<void> pumpWidget(WidgetTester tester, Widget child) async {
 void main() {
   testWidgets('renders title text', (tester) async {
     await pumpWidget(tester, const LiveLogCard(logs: ['line 1']));
-    expect(find.text('日志流'), findsOneWidget);
+    expect(find.text('执行日志'), findsOneWidget);
   });
 
   testWidgets('renders all log lines', (tester) async {
@@ -31,7 +31,7 @@ void main() {
     // rounded-corner terminal styling. Verify the text is present and the
     // description text beneath the title is rendered.
     expect(
-      find.text('客户端 stdout 与恢复信息会不断追加到这里。'),
+      find.text('查看执行输出和处理记录。'),
       findsOneWidget,
     );
   });

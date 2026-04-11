@@ -97,7 +97,7 @@ export function QuickDeployTab({
       <SectionHeader
         eyebrow="Quick Deploy"
         title="CLI 快速部署"
-        description="只保留 CLI 设备接入、代码拉取和可选 Skill 同步，生成 Client 部署包。"
+        description="生成 CLI 设备部署包，可选登记设备与 Skill。"
         actions={(
           <button className="primary-button" disabled={busy} onClick={() => void onSubmit()} type="button">
             {busy ? "正在生成…" : "生成 Client 部署包"}
@@ -109,17 +109,14 @@ export function QuickDeployTab({
         <div className="quick-deploy-hero-copy">
           <p className="eyebrow">Client 部署包</p>
           <h4>生成可直接下发到 CLI 设备的部署包。</h4>
-          <p className="muted">
-            下载包内会包含 <code>client/.env</code>、<code>deploy-client.sh</code> 和独立
-            Compose 文件。
-          </p>
+          <p className="muted">按当前设置生成部署包。</p>
         </div>
         <div className="metric-strip compact-strip deployment-strip">
           <MetricCard label="CLI 设备" value={deviceId} detail={deviceName} />
           <MetricCard
             label="同步登记"
             value={syncEnabled ? "开启" : "关闭"}
-            detail={syncEnabled ? "生成时写入 Gateway 设备表" : "仅下载本地部署包"}
+            detail={syncEnabled ? "同时登记设备" : "仅生成部署包"}
           />
           <MetricCard label="随包 Skill" value={selectedSkills.length} detail={selectedSkillLabel} />
         </div>
@@ -130,7 +127,7 @@ export function QuickDeployTab({
           compact
           eyebrow="CLI"
           title="CLI 接入信息"
-          description="填写设备标识、Gateway 地址和代码来源后即可生成 Client 部署包。"
+          description="填写设备信息后即可生成部署包。"
           titleAs="h4"
         />
 
@@ -139,7 +136,7 @@ export function QuickDeployTab({
             <FormField
               htmlFor="quick-client-device-name"
               label="设备显示名"
-              note="用于部署包说明和可选的 Gateway 设备登记。"
+              note="用于设备显示。"
             >
               <input
                 id="quick-client-device-name"
@@ -151,7 +148,7 @@ export function QuickDeployTab({
               className="deployment-form-span"
               htmlFor="quick-client-repo-url"
               label="代码仓库"
-              note="部署脚本会先拉取这份代码，再执行 Client Compose。"
+              note="部署时拉取该仓库。"
             >
               <input
                 id="quick-client-repo-url"
@@ -193,8 +190,8 @@ export function QuickDeployTab({
               type="checkbox"
             />
             <div>
-              <strong>同步在 Gateway 创建设备</strong>
-              <small>勾选后会在生成时登记设备，并把已选 Skill 一并预分配。</small>
+              <strong>同时登记设备</strong>
+              <small>登记设备并分配已选 Skill。</small>
             </div>
           </label>
 

@@ -90,8 +90,8 @@ class ComposerBar extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           selectedDeviceId == null
-              ? '请先在顶部展开会话设置并选择设备。'
-              : '发送到 $selectedDeviceId，后续审批与日志会继续写回这里。',
+              ? '请先选择设备。'
+              : '发送到 $selectedDeviceId',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],

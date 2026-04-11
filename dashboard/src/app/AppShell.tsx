@@ -94,7 +94,7 @@ export function AppShell({
                   </strong>
                   <small>
                     {controller.activeTab === "chat"
-                      ? "聊天页改为手动同步，避免打断当前输入。"
+                      ? "需要最新进展时手动同步。"
                       : "继续操作前，可随时手动刷新当前页。"}
                   </small>
                 </div>

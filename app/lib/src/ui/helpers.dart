@@ -74,14 +74,14 @@ IconData taskIcon(TaskStatus status) {
 
 String taskNarrative(TaskRecord task) {
   return switch (task.status) {
-    TaskStatus.pendingDispatch => '网关已经接收任务，正在等待客户端拉取并开始执行。',
-    TaskStatus.running => '执行链路已经启动，新的日志会实时回到当前会话。',
-    TaskStatus.awaitingApproval => 'AI 命中了敏感操作，已经在执行前自动挂起。',
-    TaskStatus.approved => '敏感操作已经放行，客户端会从恢复点继续执行。',
-    TaskStatus.rejected => '这次敏感操作被拒绝，线程会保留上下文等待新的指令。',
-    TaskStatus.resuming => '客户端正在从检查点恢复，后续过程会继续写回当前线程。',
-    TaskStatus.completed => '任务已经完成，最终结果和日志都保留在这里。',
+    TaskStatus.pendingDispatch => '任务已受理，等待开始执行。',
+    TaskStatus.running => '任务执行中，可继续关注日志和审批。',
+    TaskStatus.awaitingApproval => '任务包含敏感操作，等待你的决定。',
+    TaskStatus.approved => '已批准，任务继续执行。',
+    TaskStatus.rejected => '已拒绝本次操作，可修改后重新下发。',
+    TaskStatus.resuming => '任务正在恢复，请稍候。',
+    TaskStatus.completed => '任务已完成，可查看结果和日志。',
     TaskStatus.failed => '任务执行出现错误，建议结合日志继续排查。',
-    TaskStatus.unknown => '网关返回了未知状态，建议同步任务或检查事件流。',
+    TaskStatus.unknown => '状态暂不可识别，请稍后重试。',
   };
 }

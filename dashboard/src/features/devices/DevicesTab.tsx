@@ -36,12 +36,12 @@ export function DevicesTab({
         }
         eyebrow="Registry"
         title="设备清单"
-        description="维护设备注册、在线状态与 Skill 分配。快速部署入口已收敛到独立菜单。"
+        description="维护设备注册、在线状态与 Skill 分配。"
       />
       <div className="metric-strip compact-strip deployment-strip">
         <MetricCard label="已登记设备" value={devices.length} detail="包含 CLI 与 App 终端" />
-        <MetricCard label="在线设备" value={onlineCount} detail="当前已和 Gateway 建立连接" />
-        <MetricCard label="可分配 Skill" value={readySkillCount} detail="内建或已准备好的归档 Skill" />
+        <MetricCard label="在线设备" value={onlineCount} detail="当前可接收任务" />
+        <MetricCard label="可分配 Skill" value={readySkillCount} detail="当前可立即分配" />
       </div>
       <div className="table-shell">
         <table>

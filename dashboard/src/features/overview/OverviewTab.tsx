@@ -53,7 +53,7 @@ export function OverviewTab({ overview }: OverviewTabProps) {
               <article className="presence-row" key={deviceId}>
                 <div>
                   <strong>{deviceId}</strong>
-                  <span>WebSocket 已连接</span>
+                  <span>当前在线</span>
                 </div>
                 <span className="live-dot solid" />
               </article>

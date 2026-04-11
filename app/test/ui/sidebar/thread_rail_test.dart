@@ -72,7 +72,7 @@ void main() {
       ),
     );
 
-    expect(find.text('当前路由'), findsOneWidget);
+    expect(find.text('执行目标'), findsOneWidget);
     expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
   });
 }

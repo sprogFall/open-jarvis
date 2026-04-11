@@ -24,7 +24,7 @@ export function DeviceEditorSheet({
   return (
     <SideSheet
       title={mode === "create" ? "添加设备" : `编辑 ${form.device_id}`}
-      subtitle="设备注册信息会直接写入网关持久化存储。"
+      subtitle="填写设备基本信息。"
       onClose={onClose}
     >
       <form className="stack" onSubmit={onSubmit}>

@@ -36,7 +36,7 @@ export function AssignmentSheet({
   return (
     <SideSheet
       title={`分配 Skill · ${device.device_id}`}
-      subtitle="已分配的内建 Skill 会直接暴露给 AI；归档 Skill 会通过 Gateway 同步并在设备侧解压。"
+      subtitle="选择 Skill 并填写分配参数。"
       onClose={onClose}
     >
       <div className="stack">
@@ -62,7 +62,7 @@ export function AssignmentSheet({
             </select>
           </FormField>
           {!readySkills.length ? (
-            <p className="error-text">当前没有可分配的 Skill。请先启用内建 Skill 或上传 zip 归档。</p>
+            <p className="error-text">当前没有可分配的 Skill。</p>
           ) : null}
           <FormField htmlFor="assignment-config" label="分配配置 JSON">
             <textarea
@@ -92,7 +92,7 @@ export function AssignmentSheet({
                         ? skill.action_names?.join(" · ") || "内建能力"
                         : skill.archive_filename
                           ? `${skill.archive_filename} · ${formatBytes(skill.archive_size)}`
-                          : "等待同步归档"}
+                          : "待准备"}
                     </span>
                   </div>
                   <button

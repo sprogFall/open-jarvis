@@ -46,7 +46,7 @@ void main() {
     );
 
     expect(
-      find.textContaining('任务下发、审批、恢复和实时日志都会留在这条对话里'),
+      find.textContaining('选择设备后即可开始任务'),
       findsOneWidget,
     );
   });

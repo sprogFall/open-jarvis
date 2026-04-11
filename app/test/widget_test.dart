@@ -266,7 +266,7 @@ void main() {
     expect(find.text('需要审批后继续'), findsOneWidget);
     expect(find.text('docker restart api-service'), findsOneWidget);
     expect(find.textContaining('恢复检查点 cp_001'), findsOneWidget);
-    expect(find.text('实时日志'), findsOneWidget);
+    expect(find.text('执行日志'), findsOneWidget);
     expect(find.text('load1=0.42'), findsOneWidget);
     expect(find.text('批准继续'), findsOneWidget);
     expect(find.text('拒绝执行'), findsOneWidget);

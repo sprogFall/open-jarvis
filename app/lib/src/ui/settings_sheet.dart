@@ -69,8 +69,8 @@ class _SettingsSheetState extends State<SettingsSheet> {
                             const SizedBox(height: 6),
                             Text(
                               showEditForm
-                                  ? '修改服务器、账号或密码后，会立即使用新的连接配置。'
-                                  : '任务下发、审批恢复和实时日志都会继续沿用这条连接。',
+                                  ? '填写服务器、账号和密码。'
+                                  : '查看当前连接并同步任务。',
                               style: Theme.of(context).textTheme.bodyMedium,
                             ),
                           ],

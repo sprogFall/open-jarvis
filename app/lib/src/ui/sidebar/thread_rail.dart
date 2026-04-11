@@ -87,15 +87,15 @@ class ThreadRail extends StatelessWidget {
           GlassCard(
             padding: const EdgeInsets.all(16),
             backgroundColor: tokens.surface,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('当前路由', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
-                Text(
-                  '任务会发送到这里选中的执行端。',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('执行目标', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Text(
+                    '选择本次任务的执行设备。',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 const SizedBox(height: 16),
                 Wrap(
                   spacing: 8,

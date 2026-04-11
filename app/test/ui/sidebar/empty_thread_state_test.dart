@@ -20,7 +20,7 @@ void main() {
   testWidgets('shows description text', (tester) async {
     await pumpWidget(tester, const EmptyThreadState());
     expect(
-      find.textContaining('连接网关后发出第一条任务'),
+      find.text('连接后开始第一条任务。'),
       findsOneWidget,
     );
   });

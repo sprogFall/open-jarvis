@@ -117,7 +117,7 @@ class SetupTray extends StatelessWidget {
                         Divider(color: tokens.border, height: 1),
                         const SizedBox(height: 16),
                         Text(
-                          '任务会发往选中的执行端，常用提示词可直接回填到底部输入框。',
+                          '选择设备并快速填写常用任务。',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                         const SizedBox(height: 14),

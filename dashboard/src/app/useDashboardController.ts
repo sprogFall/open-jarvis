@@ -1004,7 +1004,7 @@ export function useDashboardController({
       });
       setGatewayAiForm(createEmptyGatewayAiForm());
       await refreshSystemInfo();
-      setBannerMessage("Gateway AI 默认配置已保存，CLI 将自动继承");
+      setBannerMessage("Gateway AI 设置已保存");
     } catch (error) {
       setGatewayAiError(getErrorMessage(error));
     }
@@ -1017,7 +1017,7 @@ export function useDashboardController({
       setGatewayAiError(null);
       setGatewayAiTestMessage(null);
       await refreshSystemInfo();
-      setBannerMessage("Gateway AI 默认配置已清除");
+      setBannerMessage("Gateway AI 设置已清除");
     } catch (error) {
       handleApiError(error);
     }
@@ -1041,7 +1041,7 @@ export function useDashboardController({
       const selectedDeviceId = deviceAiForm.device_id;
       setDeviceAiForm({ ...createEmptyDeviceAiForm(), device_id: selectedDeviceId });
       await refreshSystemInfo();
-      setBannerMessage(`CLI 设备 ${selectedDeviceId} 的特殊覆盖已保存`);
+      setBannerMessage(`CLI 设备 ${selectedDeviceId} 的 AI 设置已保存`);
     } catch (error) {
       setDeviceAiError(getErrorMessage(error));
     }
@@ -1059,7 +1059,7 @@ export function useDashboardController({
       setDeviceAiError(null);
       setDeviceAiTestMessage(null);
       await refreshSystemInfo();
-      setBannerMessage(`CLI 设备 ${selectedDeviceId} 的特殊覆盖已清除`);
+      setBannerMessage(`CLI 设备 ${selectedDeviceId} 的 AI 设置已清除`);
     } catch (error) {
       handleApiError(error);
     }

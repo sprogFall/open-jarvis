@@ -58,13 +58,8 @@ class StatusHero extends StatelessWidget {
                     ).textTheme.titleMedium?.copyWith(color: accent),
                   ),
                 ],
-                const SizedBox(height: 8),
-                Text(
-                  '所有状态流转都会在这条线程里持续展开。',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
                 if (task.logs.isNotEmpty) ...[
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
@@ -77,7 +72,7 @@ class StatusHero extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '实时日志',
+                          '执行日志',
                           style: Theme.of(context).textTheme.labelLarge
                               ?.copyWith(color: tokens.textPrimary),
                         ),

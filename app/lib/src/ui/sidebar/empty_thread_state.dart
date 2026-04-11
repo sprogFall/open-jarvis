@@ -16,7 +16,7 @@ class EmptyThreadState extends StatelessWidget {
           Text('还没有历史线程', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Text(
-            '连接网关后发出第一条任务，这里会自动形成可恢复的聊天线程。',
+            '连接后开始第一条任务。',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],

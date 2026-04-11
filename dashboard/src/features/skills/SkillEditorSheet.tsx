@@ -37,24 +37,20 @@ export function SkillEditorSheet({
       title={mode === "create" ? "添加 Skill" : `编辑 ${form.skill_id}`}
       subtitle={
         isBuiltin
-          ? "内建 Skill 由系统预置，分配后会直接暴露给 AI 规划器。"
-          : "上传 zip 后，Gateway 会把归档下发给已分配设备，并在本地工作目录解压成技能文件夹。"
+          ? "维护内建 Skill 信息。"
+          : "上传归档并维护 Skill 信息。"
       }
       onClose={onClose}
     >
       <form className="stack" onSubmit={onSubmit}>
         <section className="callout">
-          <h4>{isBuiltin ? "内建能力" : "归档约束"}</h4>
+          <h4>{isBuiltin ? "使用方式" : "上传要求"}</h4>
           {isBuiltin ? (
-            <p>内建 Skill 不需要上传归档，分配后即可被当前设备上的 AI 规划器发现与调用。</p>
+            <p>内建 Skill 无需上传归档，可直接分配给设备。</p>
           ) : (
             <>
-              <p>zip 内必须包含 `SKILL.md`，可以直接位于根目录，也可以包在单个 Skill 文件夹内。</p>
-              <p>
-                设备收到分配后会将其解压到
-                <code> &lt;workspace&gt;/{form.skill_id || "skill-id"}/ </code>
-                。
-              </p>
+              <p>zip 内需包含 `SKILL.md`。</p>
+              <p>上传完成后即可分配到设备。</p>
             </>
           )}
         </section>
@@ -112,7 +108,7 @@ export function SkillEditorSheet({
               {
                 label: isBuiltin ? "分配方式" : "当前大小",
                 value: isBuiltin
-                  ? "直接同步到 AI 能力目录"
+                  ? "分配后可用"
                   : form.archive_file
                     ? formatBytes(form.archive_file.size)
                     : formatBytes(form.existing_archive_size),
