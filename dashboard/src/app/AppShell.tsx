@@ -79,12 +79,22 @@ export function AppShell({
             </div>
             <div className="header-actions">
               <div className="workspace-sync" aria-live="polite">
-                <span className={`live-dot${controller.refreshing ? "" : " solid"}`} />
+                <span
+                  className={`live-dot${
+                    !controller.refreshing && controller.activeTab !== "chat" ? " solid" : ""
+                  }`}
+                />
                 <div>
-                  <strong>{controller.refreshing ? "正在同步数据" : "已同步最新状态"}</strong>
+                  <strong>
+                    {controller.refreshing
+                      ? "正在同步数据"
+                      : controller.activeTab === "chat"
+                        ? "等待手动同步"
+                        : "已同步最新状态"}
+                  </strong>
                   <small>
                     {controller.activeTab === "chat"
-                      ? "线程、审批与日志会持续回收到同一工作区。"
+                      ? "聊天页改为手动同步，避免打断当前输入。"
                       : "继续操作前，可随时手动刷新当前页。"}
                   </small>
                 </div>
@@ -114,7 +124,6 @@ export function AppShell({
               selectedTaskId={controller.chatTaskId}
               targets={controller.chatTargets}
               selectedDeviceId={controller.chatDeviceId}
-              socketState={controller.chatSocketState}
               gatewayAi={controller.systemInfo?.gateway_ai ?? null}
               clientAi={controller.systemInfo?.client_ai ?? []}
               onSelectTask={controller.selectChatTask}

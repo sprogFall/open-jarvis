@@ -25,7 +25,6 @@ type ChatTabProps = {
   selectedTaskId: string | null;
   targets: ChatTarget[];
   selectedDeviceId: string;
-  socketState: "connecting" | "connected" | "offline";
   gatewayAi: AIConfigSummary | null;
   clientAi: AIConfigSummary[];
   onSelectTask: (taskId: string | null) => void;
@@ -48,7 +47,6 @@ export function ChatTab({
   selectedTaskId,
   targets,
   selectedDeviceId,
-  socketState,
   gatewayAi,
   clientAi,
   onSelectTask,
@@ -143,8 +141,11 @@ export function ChatTab({
         />
 
         <div className="chat-rail-status">
-          <span className={`live-dot${socketState === "connected" ? " solid" : ""}`} />
-          <strong>{socketState === "connected" ? "实时同步中" : socketState === "connecting" ? "正在连接" : "实时连接已断开"}</strong>
+          <span className="live-dot" />
+          <div>
+            <strong>手动同步</strong>
+            <small>新对话时不会自动切走当前输入。</small>
+          </div>
         </div>
 
         <div className="chat-thread-list">
@@ -185,7 +186,7 @@ export function ChatTab({
                 </button>
               ) : null}
               <button className="ghost-button" onClick={() => void onRefresh()} type="button">
-                刷新线程
+                手动同步
               </button>
             </div>
           }
@@ -254,7 +255,7 @@ export function ChatTab({
 
               {selectedTask.logs.length ? (
                 <section className="chat-card log-panel">
-                  <SectionHeader compact eyebrow="日志" title="实时日志" titleAs="h4" />
+                  <SectionHeader compact eyebrow="日志" title="执行日志" titleAs="h4" />
                   <pre>{selectedTask.logs.join("\n")}</pre>
                 </section>
               ) : null}
@@ -344,7 +345,7 @@ export function ChatTab({
           <div className="panel-head compact">
             <div className="muted">
               {selectedTarget
-                ? `消息会发往 ${selectedTarget.name}，后续审批与日志会继续回收到当前线程。`
+                ? `消息会发往 ${selectedTarget.name}，发送后可手动同步查看审批、恢复状态和执行日志。`
                 : "请选择执行目标后再发送任务。"}
             </div>
             <button

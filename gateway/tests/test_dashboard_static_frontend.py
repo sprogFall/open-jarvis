@@ -351,9 +351,11 @@ def test_dashboard_workspace_header_shows_tab_hint_and_sync_context():
     assert "workspace-title-group" in app_shell
     assert "activeTab?.hint" in app_shell
     assert "workspace-sync" in app_shell
+    assert "线程、审批与日志会持续回收到同一工作区。" not in app_shell
+    assert "聊天页改为手动同步，避免打断当前输入。" in app_shell
 
 
-def test_dashboard_chat_supports_manual_delete_and_stream_recovery():
+def test_dashboard_chat_supports_manual_delete_and_manual_sync():
     dashboard_root = Path(__file__).resolve().parents[2] / "dashboard" / "src"
     chat_tab = (dashboard_root / "features" / "chat" / "ChatTab.tsx").read_text(
         encoding="utf-8"
@@ -365,8 +367,12 @@ def test_dashboard_chat_supports_manual_delete_and_stream_recovery():
 
     assert "删除记录" in chat_tab
     assert "onDeleteTask" in chat_tab
-    assert "TASK_HISTORY_SYNC" in controller
-    assert "TASK_DELETED" in controller
+    assert "实时同步中" not in chat_tab
+    assert "手动同步" in chat_tab
+    assert "new WebSocket" not in controller
+    assert "TASK_HISTORY_SYNC" not in controller
+    assert "TASK_SNAPSHOT" not in controller
+    assert "TASK_LOG" not in controller
     assert "deleteTask(" in api
     assert "/tasks/${taskId}" in api
 

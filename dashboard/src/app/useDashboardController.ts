@@ -107,9 +107,16 @@ function buildChatTargets(devices: Device[]): ChatTarget[] {
   ];
 }
 
-function pickChatTaskId(tasks: Task[], current: string | null): string | null {
+function pickChatTaskId(
+  tasks: Task[],
+  current: string | null,
+  preserveEmptySelection: boolean = false,
+): string | null {
   if (current && tasks.some((task) => task.task_id === current)) {
     return current;
+  }
+  if (!current && preserveEmptySelection) {
+    return null;
   }
   const awaiting = tasks.find((task) => task.status === "AWAITING_APPROVAL");
   return awaiting?.task_id ?? tasks[0]?.task_id ?? null;
@@ -189,11 +196,9 @@ export function useDashboardController({
   const [taskStatusFilter, setTaskStatusFilter] = useState("");
   const [taskDeviceFilter, setTaskDeviceFilter] = useState("");
   const [chatTaskId, setChatTaskId] = useState<string | null>(null);
+  const [preserveFreshChatSelection, setPreserveFreshChatSelection] = useState(false);
   const [selectedAiCallId, setSelectedAiCallId] = useState<string | null>(null);
   const [chatDeviceId, setChatDeviceId] = useState<string>(GATEWAY_LOCAL_DEVICE_ID);
-  const [chatSocketState, setChatSocketState] = useState<"connecting" | "connected" | "offline">(
-    "offline",
-  );
 
   const [deviceEditorMode, setDeviceEditorMode] = useState<"create" | "edit" | null>(null);
   const [deviceForm, setDeviceForm] = useState<DeviceForm>(createEmptyDeviceForm());
@@ -289,7 +294,11 @@ export function useDashboardController({
     setSystemInfo(nextSystemInfo);
     const nextTargets = buildChatTargets(nextDevices);
     setChatDeviceId((current) => pickChatDeviceId(nextTargets, current));
-    setChatTaskId((current) => pickChatTaskId(nextTasks, current));
+    setChatTaskId((current) => pickChatTaskId(
+      nextTasks,
+      current,
+      preserveFreshChatSelection,
+    ));
   }
 
   useEffect(() => {
@@ -332,7 +341,11 @@ export function useDashboardController({
           ),
         );
         const nextTargets = buildChatTargets(nextDevices);
-        setChatTaskId((current) => pickChatTaskId(nextTasks, current));
+        setChatTaskId((current) => pickChatTaskId(
+          nextTasks,
+          current,
+          preserveFreshChatSelection,
+        ));
         setChatDeviceId((current) => pickChatDeviceId(nextTargets, current));
         setBannerMessage(null);
       } catch (error) {
@@ -353,6 +366,10 @@ export function useDashboardController({
   }, [onSessionExpired, token]);
 
   useEffect(() => {
+    if (activeTab === "chat") {
+      return undefined;
+    }
+
     let cancelled = false;
 
     async function refreshCurrentTab() {
@@ -425,114 +442,6 @@ export function useDashboardController({
       window.clearInterval(intervalId);
     };
   }, [activeTab, taskDeviceFilter, taskStatusFilter, token]);
-
-  useEffect(() => {
-    let socket: WebSocket | null = null;
-    let heartbeatTimer: number | null = null;
-    let reconnectTimer: number | null = null;
-    let disposed = false;
-
-    const connect = () => {
-      setChatSocketState("connecting");
-      socket = new WebSocket(dashboardApi.buildWebSocketUrl("/ws/app", { token }));
-
-      socket.onopen = () => {
-        if (!disposed) {
-          setChatSocketState("connected");
-          heartbeatTimer = window.setInterval(() => {
-            if (socket?.readyState === WebSocket.OPEN) {
-              socket.send("ping");
-            }
-          }, 15000);
-        }
-      };
-
-      socket.onmessage = (event) => {
-        const payload = JSON.parse(String(event.data)) as {
-          type?: string;
-          tasks?: Task[];
-          task?: Task;
-          task_id?: string;
-          message?: string;
-        };
-
-        if (payload.type === "TASK_HISTORY_SYNC" && payload.tasks) {
-          const incoming = payload.tasks;
-          setTasks((current) => replaceTasks(current, incoming));
-          setTaskDetail((current) => {
-            if (!current) {
-              return current;
-            }
-            const matched = incoming.find((task) => task.task_id === current.task_id);
-            return matched ? mergeTask(current, matched) : null;
-          });
-          setChatTaskId((current) => pickChatTaskId(incoming, current ?? null));
-        }
-
-        if (payload.type === "TASK_SNAPSHOT" && payload.task) {
-          const incoming = payload.task;
-          setTasks((current) => upsertTask(current, incoming));
-          setTaskDetail((current) => (
-            current?.task_id === incoming.task_id ? mergeTask(current, incoming) : current
-          ));
-          setChatTaskId((current) => current ?? incoming.task_id);
-        }
-
-        if (payload.type === "TASK_LOG" && payload.task_id && payload.message) {
-          setTasks((current) => appendTaskLog(current, payload.task_id!, payload.message!));
-          setTaskDetail((current) => {
-            if (!current || current.task_id !== payload.task_id) {
-              return current;
-            }
-            return { ...current, logs: [...current.logs, payload.message!] };
-          });
-        }
-
-        if (payload.type === "TASK_DELETED" && payload.task_id) {
-          setTasks((current) => {
-            const nextTasks = removeTask(current, payload.task_id!);
-            setChatTaskId((currentTaskId) => pickChatTaskId(
-              nextTasks,
-              currentTaskId === payload.task_id ? null : currentTaskId,
-            ));
-            return nextTasks;
-          });
-          setTaskDetail((current) => (
-            current?.task_id === payload.task_id ? null : current
-          ));
-        }
-      };
-
-      socket.onerror = () => {
-        socket?.close();
-      };
-
-      socket.onclose = () => {
-        if (disposed) {
-          return;
-        }
-        if (heartbeatTimer) {
-          window.clearInterval(heartbeatTimer);
-          heartbeatTimer = null;
-        }
-        setChatSocketState("offline");
-        reconnectTimer = window.setTimeout(connect, 3000);
-      };
-    };
-
-    connect();
-
-    return () => {
-      disposed = true;
-      if (heartbeatTimer) {
-        window.clearInterval(heartbeatTimer);
-      }
-      if (reconnectTimer) {
-        window.clearTimeout(reconnectTimer);
-      }
-      socket?.close();
-    };
-  }, [token]);
 
   async function refreshTab(tab: TabId = activeTab) {
     setRefreshing(true);
@@ -1009,6 +918,7 @@ export function useDashboardController({
   }
 
   function selectChatTask(taskId: string | null) {
+    setPreserveFreshChatSelection(taskId === null);
     setChatTaskId(taskId);
   }
 
@@ -1027,6 +937,7 @@ export function useDashboardController({
         instruction,
       });
       setTasks((current) => upsertTask(current, nextTask));
+      setPreserveFreshChatSelection(false);
       setChatTaskId(nextTask.task_id);
       setBannerMessage(null);
     } catch (error) {
@@ -1061,6 +972,7 @@ export function useDashboardController({
     }
     try {
       await dashboardApi.deleteTask(token, taskId);
+      setPreserveFreshChatSelection(false);
       setTasks((current) => {
         const nextTasks = removeTask(current, taskId);
         setChatTaskId((currentTaskId) => pickChatTaskId(
@@ -1201,7 +1113,6 @@ export function useDashboardController({
     selectedAiCallId,
     aiCallDetail,
     chatDeviceId,
-    chatSocketState,
     gatewayAiSummary,
     clientAiSummaries,
     taskStatusFilter,
