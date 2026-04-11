@@ -25,7 +25,7 @@
 .key-value-card span {
   display: block;
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   margin-bottom: 0.45rem;
 }
 
@@ -47,7 +47,7 @@
   display: block;
   margin-top: 0.4rem;
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.825rem;
   line-height: 1.5;
 }
 
@@ -177,7 +177,7 @@
   display: block;
   margin-top: 0.22rem;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.825rem;
 }
 
 .quick-deploy-layout {
@@ -319,7 +319,7 @@
 
 .skill-option-copy span {
   margin-top: 0.3rem;
-  font-size: 0.82rem;
+  font-size: 0.825rem;
 }
 
 .skill-option-copy small {
@@ -357,7 +357,7 @@
 .bar-track {
   height: 0.7rem;
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   overflow: hidden;
 }
 
@@ -386,7 +386,7 @@
 .presence-row span,
 .assignment-row span {
   color: var(--muted);
-  font-size: 0.86rem;
+  font-size: 0.875rem;
 }
 
 .tasks-head {
@@ -542,7 +542,7 @@
 .chat-thread small {
   display: block;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.825rem;
 }
 
 .chat-stage {
@@ -625,7 +625,7 @@
 .chat-quick-action span {
   display: block;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.825rem;
 }
 
 .chat-bubble strong,
@@ -649,9 +649,9 @@
 .chat-result pre,
 .chat-approval-card pre {
   overflow-x: auto;
-  color: #dce6ed;
+  color: var(--text);
   font-family: "IBM Plex Mono", monospace;
-  font-size: 0.84rem;
+  font-size: 0.875rem;
   line-height: 1.6;
 }
 

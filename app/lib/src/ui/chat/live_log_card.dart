@@ -88,7 +88,7 @@ class _LiveLogCardState extends State<LiveLogCard> {
           Container(
             width: double.infinity,
             constraints: const BoxConstraints(maxHeight: 300),
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: tokens.terminal,
               borderRadius: shapes.lg,
@@ -110,7 +110,7 @@ class _LiveLogCardState extends State<LiveLogCard> {
                           style: GoogleFonts.spaceMono(
                             fontSize: 13,
                             height: 1.5,
-                            color: const Color(0xFFF8FAFC),
+                            color: tokens.textPrimary,
                           ),
                         ),
                       ),

@@ -25,11 +25,11 @@ void main() {
     expect(tokens.success, const Color(0xFF34D399));
     expect(tokens.textMuted, const Color(0xFFA3B4D0));
 
-    expect(shapes.radiusSm, 18);
-    expect(shapes.radiusMd, 24);
-    expect(shapes.radiusLg, 32);
-    expect(shapes.radiusXl, 40);
-    expect(shapes.radiusXxl, 48);
+    expect(shapes.radiusSm, 20);
+    expect(shapes.radiusMd, 28);
+    expect(shapes.radiusLg, 36);
+    expect(shapes.radiusXl, 44);
+    expect(shapes.radiusXxl, 52);
     expect(
       bottomSheetShape.borderRadius,
       BorderRadius.vertical(top: Radius.circular(shapes.radiusXl)),

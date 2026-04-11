@@ -36,7 +36,7 @@
   max-width: 32rem;
   margin: 1.5rem 0 0;
   font-size: 1.08rem;
-  color: #D1E0EC;
+  color: var(--muted);
 }
 
 .login-card {
@@ -67,7 +67,7 @@
   align-self: start;
   height: 100vh;
   padding: 1.5rem;
-  border-radius: 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
   border-right: 1px solid var(--line);
   background: var(--panel);
   backdrop-filter: blur(18px);
@@ -145,6 +145,7 @@
   padding: 1.35rem;
   border-radius: var(--radius-lg);
   min-width: 0;
+  backdrop-filter: blur(18px);
 }
 
 .panel-nested {
@@ -212,7 +213,7 @@
 
 .workspace-sync small {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   margin-top: 0.2rem;
 }
 
@@ -233,7 +234,7 @@
   min-height: 100vh;
   max-height: 100vh;
   padding: 1.25rem;
-  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  border-radius: var(--radius-xl) 0 0 var(--radius-xl);
   animation: slide-in 180ms ease;
   display: flex;
   flex-direction: column;

@@ -102,7 +102,7 @@
 
   .sheet-panel {
     width: 100vw;
-    border-radius: 1.25rem 1.25rem 0 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     min-height: auto;
     max-height: calc(100vh - 1rem);
     margin-top: auto;

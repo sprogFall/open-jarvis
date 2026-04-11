@@ -16,6 +16,7 @@ body {
     linear-gradient(180deg, #07111F 0%, #0C1628 44%, #07111F 100%);
   color: var(--text);
   font-family: "Space Grotesk", "PingFang SC", "Microsoft YaHei", sans-serif;
+  line-height: 1.6;
 }
 
 button,
@@ -41,7 +42,7 @@ button {
   inset: auto;
   width: 28rem;
   height: 28rem;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   filter: blur(120px);
   opacity: 0.22;
   pointer-events: none;
@@ -50,19 +51,19 @@ button {
 .ambient-a {
   top: -10rem;
   right: -8rem;
-  background: #23d39f;
+  background: var(--accent);
 }
 
 .ambient-b {
   bottom: -12rem;
   left: -10rem;
-  background: #1989ff;
+  background: var(--accent-secondary);
 }
 
 .eyebrow {
   margin: 0 0 0.45rem;
   color: var(--accent);
-  font-size: 0.74rem;
+  font-size: 0.8rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }

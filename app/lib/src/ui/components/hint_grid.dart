@@ -35,7 +35,7 @@ class HintGrid extends StatelessWidget {
                 (card) => SizedBox(
                   width: itemWidth,
                   child: GlassCard(
-                    padding: const EdgeInsets.all(18),
+                    padding: const EdgeInsets.all(20),
                     backgroundColor: JarvisThemeTokens.of(context).surface,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

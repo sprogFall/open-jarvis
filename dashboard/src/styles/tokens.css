@@ -1,53 +1,54 @@
 :root {
   color-scheme: dark;
-  
-  /* ===== 背景色 (统一 Flutter #07111F) ===== */
+
+  /* ===== 背景色 (统一 Flutter #07111F — Liquid Glass 风格) ===== */
   --bg: #07111F;
   --bg-soft: #0C1628;
-  --panel: rgba(15, 23, 42, 0.92);
+  --panel: rgba(15, 23, 42, 0.72);
   --panel-border: rgba(34, 50, 74, 0.18);
-  --panel-strong: rgba(19, 32, 53, 0.96);
-  
+  --panel-strong: rgba(19, 32, 53, 0.88);
+
   /* ===== 文字色 (增强对比度至 WCAG AA) ===== */
   --text: #F8FAFC;
-  --muted: #A3B4D0;
-  
+  --muted: #94A3B8;
+
   /* ===== 强调色 (统一 Flutter #36D399) ===== */
   --accent: #36D399;
   --accent-strong: #2DB885;
-  --accent-soft: rgba(54, 211, 153, 0.12);
-  
+  --accent-soft: rgba(54, 211, 153, 0.14);
+
   /* ===== 次要强调色 (统一 Flutter #60A5FA) ===== */
   --accent-secondary: #60A5FA;
-  --accent-secondary-soft: rgba(96, 165, 250, 0.12);
-  
+  --accent-secondary-soft: rgba(96, 165, 250, 0.14);
+
   /* ===== 状态色 (统一 Flutter 色值) ===== */
   --warning: #F5C451;
-  --warning-soft: rgba(245, 196, 81, 0.12);
+  --warning-soft: rgba(245, 196, 81, 0.14);
   --danger: #FB7185;
-  --danger-soft: rgba(251, 113, 133, 0.12);
+  --danger-soft: rgba(251, 113, 133, 0.14);
   --success: #34D399;
-  --success-soft: rgba(52, 211, 153, 0.12);
-  
+  --success-soft: rgba(52, 211, 153, 0.14);
+
   /* ===== 边框与分割线 ===== */
   --line: rgba(34, 50, 74, 0.12);
-  --border: rgba(34, 50, 74, 0.6);
-  --border-strong: rgba(49, 67, 95, 0.8);
-  
+  --border: rgba(34, 50, 74, 0.48);
+  --border-strong: rgba(49, 67, 95, 0.72);
+
   /* ===== 输入框 ===== */
-  --input: #0B1324;
-  
+  --input: rgba(11, 19, 36, 0.72);
+
   /* ===== 阴影系统 (统一层级) ===== */
-  --shadow-sm: 0 4px 12px rgba(2, 5, 16, 0.08);
-  --shadow-md: 0 12px 28px rgba(2, 5, 16, 0.16);
-  --shadow-lg: 0 28px 60px rgba(2, 5, 16, 0.32);
+  --shadow-sm: 0 4px 12px rgba(2, 5, 16, 0.10);
+  --shadow-md: 0 12px 28px rgba(2, 5, 16, 0.18);
+  --shadow-lg: 0 28px 60px rgba(2, 5, 16, 0.34);
   --shadow: var(--shadow-lg);
-  
-  /* ===== 圆角系统 (iOS 风格大圆角) ===== */
-  --radius-sm: 18px;   /* 小组件、chip */
-  --radius-md: 24px;   /* 输入框、按钮 */
-  --radius-lg: 32px;   /* 卡片、面板 - iOS 风格 */
-  --radius-xl: 40px;   /* 大容器、海报 */
-  --radius-xxl: 48px;  /* 超大元素 */
+
+  /* ===== 圆角系统 (iOS 26 Liquid Glass 风格大圆角) ===== */
+  --radius-xs: 12px;   /* 微型组件：小badge、dot indicator */
+  --radius-sm: 20px;   /* 小组件、chip、pill */
+  --radius-md: 28px;   /* 输入框、按钮、内嵌面板 */
+  --radius-lg: 36px;   /* 卡片、面板 — Liquid Glass 核心 */
+  --radius-xl: 44px;   /* 大容器、海报、sheet */
+  --radius-xxl: 52px;  /* 超大元素、hero区域 */
   --radius-full: 9999px; /* 圆形 */
 }

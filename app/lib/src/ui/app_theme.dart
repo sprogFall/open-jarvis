@@ -239,11 +239,11 @@ class JarvisShapeTokens extends ThemeExtension<JarvisShapeTokens> {
   final double radiusFull;
 
   static const standard = JarvisShapeTokens(
-    radiusSm: 18,
-    radiusMd: 24,
-    radiusLg: 32,
-    radiusXl: 40,
-    radiusXxl: 48,
+    radiusSm: 20,
+    radiusMd: 28,
+    radiusLg: 36,
+    radiusXl: 44,
+    radiusXxl: 52,
   );
 
   static JarvisShapeTokens of(BuildContext context) {

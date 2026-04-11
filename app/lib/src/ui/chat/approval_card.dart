@@ -86,7 +86,7 @@ class _ApprovalCardState extends State<ApprovalCard> {
                   command,
                   language: 'bash',
                   theme: atomOneDarkTheme,
-                  padding: const EdgeInsets.all(18),
+                  padding: const EdgeInsets.all(16),
                   textStyle: GoogleFonts.spaceMono(fontSize: 13, height: 1.5),
                 ),
               ),

@@ -79,7 +79,7 @@ class StatusHero extends StatelessWidget {
                         Text(
                           '实时日志',
                           style: Theme.of(context).textTheme.labelLarge
-                              ?.copyWith(color: const Color(0xFFF8FAFC)),
+                              ?.copyWith(color: tokens.textPrimary),
                         ),
                         const SizedBox(height: 8),
                         for (final line in task.logs.take(2))
@@ -90,9 +90,9 @@ class StatusHero extends StatelessWidget {
                             child: Text(
                               line,
                               style: GoogleFonts.spaceMono(
-                                fontSize: 12,
+                                fontSize: 13,
                                 height: 1.5,
-                                color: const Color(0xFFF8FAFC),
+                                color: tokens.textPrimary,
                               ),
                             ),
                           ),
