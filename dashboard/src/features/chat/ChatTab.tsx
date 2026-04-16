@@ -31,7 +31,7 @@ type ChatTabProps = {
   onSendTask: (instruction: string) => Promise<void>;
   onSubmitDecision: (approved: boolean) => Promise<void>;
   onDeleteTask: (taskId: string) => Promise<void>;
-  onRefresh: () => void | Promise<void>;
+  onRefreshTasks: () => void | Promise<void>;
 };
 
 const quickPrompts = [
@@ -53,7 +53,7 @@ export function ChatTab({
   onSendTask,
   onSubmitDecision,
   onDeleteTask,
-  onRefresh,
+  onRefreshTasks,
 }: ChatTabProps) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -130,22 +130,19 @@ export function ChatTab({
       <aside className="panel chat-rail">
         <SectionHeader
           actions={
-            <button className="ghost-button" onClick={() => onSelectTask(null)} type="button">
-              新对话
-            </button>
+            <div className="header-actions">
+              <button className="ghost-button" onClick={() => void onRefreshTasks()} type="button">
+                刷新任务
+              </button>
+              <button className="ghost-button" onClick={() => onSelectTask(null)} type="button">
+                新对话
+              </button>
+            </div>
           }
           compact
           eyebrow="线程"
           title="聊天任务"
         />
-
-        <div className="chat-rail-status">
-          <span className="live-dot" />
-          <div>
-            <strong>手动同步</strong>
-            <small>查看最新任务进展</small>
-          </div>
-        </div>
 
         <div className="chat-thread-list">
           {tasks.length ? (
@@ -184,14 +181,11 @@ export function ChatTab({
                   删除记录
                 </button>
               ) : null}
-              <button className="ghost-button" onClick={() => void onRefresh()} type="button">
-                手动同步
-              </button>
             </div>
           }
           className="chat-stage-head"
           eyebrow="会话"
-          title={selectedTask ? `任务 ${selectedTask.task_id}` : "给 Jarvis 一个目标"}
+          title="会话框"
         />
 
         <div className="chat-conversation">

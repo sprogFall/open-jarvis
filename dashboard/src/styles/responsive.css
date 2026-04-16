@@ -60,7 +60,6 @@
     grid-template-columns: 1fr;
   }
 
-  .workspace-header,
   .panel-head,
   .tasks-head,
   .sidebar-footer,
@@ -72,8 +71,7 @@
   .task-filters,
   .row-actions,
   .header-actions,
-  .chat-prompt-list,
-  .workspace-sync {
+  .chat-prompt-list {
     width: 100%;
   }
 

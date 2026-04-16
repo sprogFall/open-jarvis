@@ -63,11 +63,6 @@ export function SettingsTab({
           { label: "当前焦点", value: "任务跟踪、设备管理、Skill 分配" },
         ]}
       />
-      <div className="callout">
-        <p className="eyebrow">Operations</p>
-        <h4>业务配置与账号范围</h4>
-        <p>维护默认 AI 与设备专用 AI 设置。</p>
-      </div>
 
       <section className="panel panel-stack">
         <SectionHeader eyebrow="Effective" title="当前生效配置" titleAs="h4" />

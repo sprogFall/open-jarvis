@@ -97,7 +97,6 @@ export function QuickDeployTab({
       <SectionHeader
         eyebrow="Quick Deploy"
         title="CLI 快速部署"
-        description="生成 CLI 设备部署包，可选登记设备与 Skill。"
         actions={(
           <button className="primary-button" disabled={busy} onClick={() => void onSubmit()} type="button">
             {busy ? "正在生成…" : "生成 Client 部署包"}

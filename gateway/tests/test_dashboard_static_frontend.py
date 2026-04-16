@@ -286,14 +286,16 @@ def test_dashboard_visible_copy_stays_focused_on_business_workflows():
     assert "统一查看任务、设备与技能状态" in login_screen
     assert "运行信息" in settings_tab
     assert "业务配置与账号范围" in app_model
-    assert "维护默认 AI 与设备专用 AI 设置。" in settings_tab
-    assert "查看最新任务进展" in chat_tab
-    assert "维护设备注册、在线状态与 Skill 分配。" in devices_tab
+    assert "维护默认 AI 与设备专用 AI 设置。" not in settings_tab
+    assert "查看最新任务进展" not in chat_tab
+    assert "维护设备注册、在线状态与 Skill 分配。" not in devices_tab
     assert "填写设备基本信息。" in device_editor
     assert "选择 Skill 并填写分配参数。" in assignment_sheet
-    assert "维护内建与自定义 Skill。" in skills_tab
+    assert "维护内建与自定义 Skill。" not in skills_tab
     assert "上传归档并维护 Skill 信息。" in skill_editor
-    assert "生成 CLI 设备部署包，可选登记设备与 Skill。" in quick_deploy_tab
+    assert "生成 CLI 设备部署包，可选登记设备与 Skill。" not in quick_deploy_tab
+    assert "聊天任务" in chat_tab
+    assert "会话框" in chat_tab
 
 
 def test_dashboard_settings_exposes_write_only_ai_override_entrypoints():
@@ -389,20 +391,19 @@ def test_dashboard_chat_workspace_uses_single_visual_language():
         assert selector not in features_css
 
 
-def test_dashboard_workspace_header_shows_tab_hint_and_sync_context():
+def test_dashboard_workspace_shell_removes_redundant_tab_copy_and_global_sync_actions():
     app_shell = (
         Path(__file__).resolve().parents[2] / "dashboard" / "src" / "app" / "AppShell.tsx"
     ).read_text(encoding="utf-8")
 
-    assert "workspace-title-group" in app_shell
-    assert "activeTab?.hint" in app_shell
-    assert "workspace-sync" in app_shell
-    assert "线程、审批与日志会持续回收到同一工作区。" not in app_shell
-    assert "聊天页改为手动同步，避免打断当前输入。" not in app_shell
-    assert "需要最新进展时手动同步。" in app_shell
+    assert "workspace-title-group" not in app_shell
+    assert "activeTab?.hint" not in app_shell
+    assert "workspace-sync" not in app_shell
+    assert 'controller.refreshTab()' not in app_shell
+    assert "Workspace" not in app_shell
 
 
-def test_dashboard_chat_supports_manual_delete_and_manual_sync():
+def test_dashboard_chat_supports_manual_delete_task_refresh_and_live_conversation_updates():
     dashboard_root = Path(__file__).resolve().parents[2] / "dashboard" / "src"
     chat_tab = (dashboard_root / "features" / "chat" / "ChatTab.tsx").read_text(
         encoding="utf-8"
@@ -415,13 +416,18 @@ def test_dashboard_chat_supports_manual_delete_and_manual_sync():
     assert "删除记录" in chat_tab
     assert "onDeleteTask" in chat_tab
     assert "实时同步中" not in chat_tab
-    assert "手动同步" in chat_tab
+    assert "刷新任务" in chat_tab
+    assert "手动同步" not in chat_tab
     assert "新对话时不会自动切走当前输入。" not in chat_tab
-    assert "查看最新任务进展" in chat_tab
-    assert "new WebSocket" not in controller
+    assert "查看最新任务进展" not in chat_tab
+    assert "会话框" in chat_tab
+    assert "EventSource" not in controller
+    assert "refreshChatConversation" in controller
+    assert "getTask(token, taskId)" in controller
     assert "TASK_HISTORY_SYNC" not in controller
     assert "TASK_SNAPSHOT" not in controller
     assert "TASK_LOG" not in controller
+    assert "getTask(" in api
     assert "deleteTask(" in api
     assert "/tasks/${taskId}" in api
 

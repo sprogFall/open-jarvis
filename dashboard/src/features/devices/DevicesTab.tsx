@@ -36,7 +36,6 @@ export function DevicesTab({
         }
         eyebrow="Registry"
         title="设备清单"
-        description="维护设备注册、在线状态与 Skill 分配。"
       />
       <div className="metric-strip compact-strip deployment-strip">
         <MetricCard label="已登记设备" value={devices.length} detail="包含 CLI 与 App 终端" />

@@ -287,6 +287,9 @@ export const dashboardApi = {
     const suffix = params.toString() ? `?${params.toString()}` : "";
     return request(`/dashboard/api/tasks${suffix}`, {}, token);
   },
+  getTask(token: string, taskId: string): Promise<Task> {
+    return request(`/tasks/${taskId}`, {}, token);
+  },
   submitTaskDecision(
     token: string,
     taskId: string,

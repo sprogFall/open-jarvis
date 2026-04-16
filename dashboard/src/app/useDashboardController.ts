@@ -48,6 +48,7 @@ type ChatTarget = {
 };
 
 const GATEWAY_LOCAL_DEVICE_ID = "gateway-local";
+const CHAT_CONVERSATION_POLL_MS = 4000;
 
 function mergeTask(current: Task | undefined, incoming: Task): Task {
   return {
@@ -68,6 +69,18 @@ function replaceTasks(current: Task[], incoming: Task[]): Task[] {
     current.find((existing) => existing.task_id === task.task_id),
     task,
   ));
+}
+
+function replaceTask(current: Task[], incoming: Task): Task[] {
+  let matched = false;
+  const nextTasks = current.map((task) => {
+    if (task.task_id !== incoming.task_id) {
+      return task;
+    }
+    matched = true;
+    return mergeTask(task, incoming);
+  });
+  return matched ? nextTasks : [mergeTask(undefined, incoming), ...current];
 }
 
 function appendTaskLog(tasks: Task[], taskId: string, message: string): Task[] {
@@ -301,6 +314,14 @@ export function useDashboardController({
     ));
   }
 
+  async function refreshChatConversation(taskId: string) {
+    const nextTask = await dashboardApi.getTask(token, taskId);
+    setTasks((current) => replaceTask(current, nextTask));
+    setTaskDetail((current) => (
+      current?.task_id === nextTask.task_id ? mergeTask(current, nextTask) : current
+    ));
+  }
+
   useEffect(() => {
     const activeToken = token;
     let cancelled = false;
@@ -443,6 +464,48 @@ export function useDashboardController({
     };
   }, [activeTab, taskDeviceFilter, taskStatusFilter, token]);
 
+  useEffect(() => {
+    if (activeTab !== "chat" || !chatTaskId) {
+      return undefined;
+    }
+
+    const activeChatTaskId = chatTaskId;
+    let cancelled = false;
+
+    async function pollChatConversation() {
+      try {
+        await refreshChatConversation(activeChatTaskId);
+        if (!cancelled) {
+          setBannerMessage(null);
+        }
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        const message = getErrorMessage(error);
+        if (message.includes("404") || message.includes("任务不存在")) {
+          setTasks((current) => removeTask(current, activeChatTaskId));
+          setTaskDetail((current) => (
+            current?.task_id === activeChatTaskId ? null : current
+          ));
+          setChatTaskId((current) => (current === activeChatTaskId ? null : current));
+          return;
+        }
+        handleApiError(error);
+      }
+    }
+
+    void pollChatConversation();
+    const intervalId = window.setInterval(() => {
+      void pollChatConversation();
+    }, CHAT_CONVERSATION_POLL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [activeTab, chatTaskId, token]);
+
   async function refreshTab(tab: TabId = activeTab) {
     setRefreshing(true);
     try {
@@ -488,6 +551,16 @@ export function useDashboardController({
     setActiveTab(tab);
     setBannerMessage(null);
     void refreshTab(tab);
+  }
+
+  async function refreshChatTasks() {
+    try {
+      await refreshChatData();
+      setBannerMessage(null);
+    } catch (error) {
+      handleApiError(error);
+      throw error;
+    }
   }
 
   function patchDeviceForm(patch: Partial<DeviceForm>) {
@@ -1184,6 +1257,7 @@ export function useDashboardController({
     selectChatDevice,
     selectAiCall,
     createChatTask,
+    refreshChatTasks,
     sendChatInstruction: createChatTask,
     submitChatDecision,
     deleteChatTask,

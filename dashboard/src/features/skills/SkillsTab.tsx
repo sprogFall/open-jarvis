@@ -32,7 +32,6 @@ export function SkillsTab({
             添加 Skill
           </button>
         }
-        description="维护内建与自定义 Skill。"
         eyebrow="Catalog"
         title="Skill 目录"
       />

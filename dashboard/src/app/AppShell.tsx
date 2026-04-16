@@ -27,7 +27,6 @@ export function AppShell({
   onSessionExpired,
 }: AppShellProps) {
   const controller = useDashboardController({ token, onSessionExpired });
-  const activeTab = tabs.find((tab) => tab.id === controller.activeTab);
 
   function handleTabChange(tabId: TabId) {
     startTransition(() => {
@@ -71,44 +70,6 @@ export function AppShell({
         </aside>
 
         <main className="workspace">
-          <header className="workspace-header">
-            <div className="workspace-title-group">
-              <p className="eyebrow">Workspace</p>
-              <h2>{activeTab?.label}</h2>
-              <p className="muted">{activeTab?.hint ?? "当前业务工作区"}</p>
-            </div>
-            <div className="header-actions">
-              <div className="workspace-sync" aria-live="polite">
-                <span
-                  className={`live-dot${
-                    !controller.refreshing && controller.activeTab !== "chat" ? " solid" : ""
-                  }`}
-                />
-                <div>
-                  <strong>
-                    {controller.refreshing
-                      ? "正在同步数据"
-                      : controller.activeTab === "chat"
-                        ? "等待手动同步"
-                        : "已同步最新状态"}
-                  </strong>
-                  <small>
-                    {controller.activeTab === "chat"
-                      ? "需要最新进展时手动同步。"
-                      : "继续操作前，可随时手动刷新当前页。"}
-                  </small>
-                </div>
-              </div>
-              <button
-                className="ghost-button"
-                onClick={() => void controller.refreshTab()}
-                type="button"
-              >
-                刷新
-              </button>
-            </div>
-          </header>
-
           {controller.bannerMessage ? (
             <div className="banner-error">{controller.bannerMessage}</div>
           ) : null}
@@ -131,7 +92,7 @@ export function AppShell({
               onSendTask={controller.createChatTask}
               onSubmitDecision={controller.submitChatDecision}
               onDeleteTask={controller.deleteChatTask}
-              onRefresh={() => controller.refreshTab("chat")}
+              onRefreshTasks={controller.refreshChatTasks}
             />
           ) : null}
 
