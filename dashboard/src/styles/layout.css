@@ -9,7 +9,8 @@
 .login-poster,
 .login-card,
 .panel,
-.sheet-panel {
+.sheet-panel,
+.dialog-panel {
   border: 1px solid var(--border);
   background: var(--panel);
   box-shadow: var(--shadow-md);
@@ -48,7 +49,8 @@
 .login-card h2,
 .panel h3,
 .panel h4,
-.sheet-header h2 {
+.sheet-header h2,
+.dialog-header h2 {
   margin: 0;
   font-size: 1.35rem;
 }
@@ -199,6 +201,48 @@
 }
 
 .sheet-body {
+  padding-top: 1rem;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  overflow-y: auto;
+  background: rgba(2, 7, 12, 0.62);
+  backdrop-filter: blur(10px);
+  z-index: 50;
+}
+
+.dialog-panel {
+  width: min(64rem, 100%);
+  max-height: calc(100vh - 3rem);
+  padding: 1.25rem;
+  border-radius: var(--radius-xl);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dialog-panel-wide {
+  width: min(76rem, 100%);
+}
+
+.dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.dialog-body {
   padding-top: 1rem;
   flex: 1;
   min-height: 0;

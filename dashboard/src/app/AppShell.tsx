@@ -3,6 +3,7 @@ import { startTransition } from "react";
 import { tabs, type TabId } from "./model";
 import { useDashboardController } from "./useDashboardController";
 import { AssignmentSheet } from "../features/devices/AssignmentSheet";
+import { AiCallDetailDialog } from "../features/ai-logs/AiCallDetailDialog";
 import { AiCallsTab } from "../features/ai-logs/AiCallsTab";
 import { ChatTab } from "../features/chat/ChatTab";
 import { QuickDeployTab } from "../features/deploy/QuickDeployTab";
@@ -146,8 +147,8 @@ export function AppShell({
           {controller.activeTab === "ai-calls" ? (
             <AiCallsTab
               calls={controller.aiCalls}
-              selectedCall={controller.aiCallDetail}
-              onSelectCall={controller.selectAiCall}
+              selectedCallId={controller.selectedAiCallId}
+              onOpenDetail={controller.selectAiCall}
               onRefresh={() => controller.refreshTab("ai-calls")}
             />
           ) : null}
@@ -218,6 +219,13 @@ export function AppShell({
         <TaskDetailSheet
           task={controller.taskDetail}
           onClose={controller.closeTaskDetail}
+        />
+      ) : null}
+
+      {controller.aiCallDetail ? (
+        <AiCallDetailDialog
+          call={controller.aiCallDetail}
+          onClose={() => controller.selectAiCall(null)}
         />
       ) : null}
     </>

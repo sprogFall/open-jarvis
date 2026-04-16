@@ -342,6 +342,27 @@ def test_dashboard_exposes_ai_call_log_workspace_and_ai_test_actions():
     assert "/dashboard/api/ai/test/devices/" in api
 
 
+def test_dashboard_ai_call_logs_use_modal_detail_and_skill_summary():
+    dashboard_root = Path(__file__).resolve().parents[2] / "dashboard" / "src"
+    app_shell = (dashboard_root / "app" / "AppShell.tsx").read_text(encoding="utf-8")
+    ai_calls_tab = (
+        dashboard_root / "features" / "ai-logs" / "AiCallsTab.tsx"
+    ).read_text(encoding="utf-8")
+    ai_call_detail = (
+        dashboard_root / "features" / "ai-logs" / "AiCallDetailDialog.tsx"
+    ).read_text(encoding="utf-8")
+    layout_css = (dashboard_root / "styles" / "layout.css").read_text(encoding="utf-8")
+
+    assert "AiCallDetailDialog" in app_shell
+    assert "触发 Skill" in ai_calls_tab
+    assert "triggered_actions" in ai_calls_tab
+    assert 'title="请求与响应"' not in ai_calls_tab
+    assert "请求与响应" in ai_call_detail
+    assert "triggeredActions" in ai_call_detail
+    assert ".dialog-backdrop" in layout_css
+    assert ".dialog-panel" in layout_css
+
+
 def test_dashboard_settings_guards_missing_ai_summary_fields():
     settings_tab = (
         Path(__file__).resolve().parents[2]

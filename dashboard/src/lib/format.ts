@@ -1,4 +1,9 @@
-import type { AIConfigSource, AICallSource, Task } from "../types";
+import type {
+  AIConfigSource,
+  AICallSource,
+  AICallTriggeredAction,
+  Task,
+} from "../types";
 
 export function formatDate(value: string | null | undefined): string {
   if (!value) {
@@ -97,4 +102,28 @@ export function formatAiCallSource(source: AICallSource): string {
     return "Client 规划";
   }
   return "配置测试";
+}
+
+export function summarizeTriggeredSkills(actions: AICallTriggeredAction[]): string {
+  const names = Array.from(new Set(actions.map((action) => action.skill_name).filter(Boolean)));
+  if (!names.length) {
+    return "未触发 Skill";
+  }
+  if (names.length === 1) {
+    return names[0];
+  }
+  return `${names[0]} +${names.length - 1}`;
+}
+
+export function formatAiArgumentValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return "空";
+  }
+  if (typeof value === "string") {
+    return value || '""';
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return JSON.stringify(value, null, 2);
 }

@@ -1,19 +1,22 @@
-import { KeyValueGrid } from "../../components/KeyValueGrid";
 import { SectionHeader } from "../../components/SectionHeader";
-import { formatAiCallSource, formatDate } from "../../lib/format";
+import {
+  formatAiCallSource,
+  formatDate,
+  summarizeTriggeredSkills,
+} from "../../lib/format";
 import type { AICallLog } from "../../types";
 
 type AiCallsTabProps = {
   calls: AICallLog[];
-  selectedCall: AICallLog | null;
-  onSelectCall: (callId: string | null) => void;
+  selectedCallId: string | null;
+  onOpenDetail: (callId: string) => void;
   onRefresh: () => void | Promise<void>;
 };
 
 export function AiCallsTab({
   calls,
-  selectedCall,
-  onSelectCall,
+  selectedCallId,
+  onOpenDetail,
   onRefresh,
 }: AiCallsTabProps) {
   return (
@@ -36,22 +39,33 @@ export function AiCallsTab({
                 <th>来源</th>
                 <th>目标</th>
                 <th>模型</th>
+                <th>触发 Skill</th>
                 <th>结果</th>
                 <th>操作</th>
               </tr>
             </thead>
             <tbody>
               {calls.map((call) => (
-                <tr key={call.call_id}>
+                <tr className={selectedCallId === call.call_id ? "selected-row" : ""} key={call.call_id}>
                   <td>{formatDate(call.created_at)}</td>
                   <td>{formatAiCallSource(call.source)}</td>
                   <td>{call.device_id || call.task_id || "Gateway"}</td>
                   <td>{call.provider} · {call.model}</td>
+                  <td>
+                    {call.triggered_actions.length ? (
+                      <div className="ai-call-skill-summary">
+                        <strong>{summarizeTriggeredSkills(call.triggered_actions)}</strong>
+                        <span>{call.triggered_actions.map((action) => action.action_name).join(" · ")}</span>
+                      </div>
+                    ) : (
+                      <span className="cell-subtle">未触发 Skill</span>
+                    )}
+                  </td>
                   <td>{call.error ? "失败" : "成功"}</td>
                   <td>
                     <button
                       className="ghost-button"
-                      onClick={() => onSelectCall(call.call_id)}
+                      onClick={() => onOpenDetail(call.call_id)}
                       type="button"
                     >
                       查看详情
@@ -61,7 +75,7 @@ export function AiCallsTab({
               ))}
               {!calls.length ? (
                 <tr>
-                  <td colSpan={6}>
+                  <td colSpan={7}>
                     <p className="empty-copy">当前还没有 AI 调用记录。</p>
                   </td>
                 </tr>
@@ -69,47 +83,6 @@ export function AiCallsTab({
             </tbody>
           </table>
         </div>
-      </section>
-
-      <section className="panel panel-stack ai-call-detail">
-        <SectionHeader eyebrow="Detail" title="请求与响应" />
-        {selectedCall ? (
-          <>
-            <KeyValueGrid
-              items={[
-                { label: "时间", value: formatDate(selectedCall.created_at) },
-                { label: "来源", value: formatAiCallSource(selectedCall.source) },
-                { label: "设备", value: selectedCall.device_id || "-" },
-                { label: "任务", value: selectedCall.task_id || "-" },
-                { label: "供应商", value: selectedCall.provider },
-                { label: "模型", value: selectedCall.model },
-                { label: "Endpoint", value: selectedCall.endpoint || "-" },
-                { label: "结果", value: selectedCall.error ? "失败" : "成功" },
-              ]}
-            />
-
-            <div className="panel panel-nested panel-stack">
-              <SectionHeader compact eyebrow="Prompt" title="System Prompt" titleAs="h4" />
-              <pre className="ai-call-code">{selectedCall.system_prompt}</pre>
-            </div>
-
-            <div className="panel panel-nested panel-stack">
-              <SectionHeader compact eyebrow="Prompt" title="User Prompt" titleAs="h4" />
-              <pre className="ai-call-code">{selectedCall.user_prompt}</pre>
-            </div>
-
-            <div className="panel panel-nested panel-stack">
-              <SectionHeader compact eyebrow="Response" title="模型响应" titleAs="h4" />
-              <pre className="ai-call-code">
-                {selectedCall.error
-                  ? selectedCall.error
-                  : JSON.stringify(selectedCall.response ?? {}, null, 2)}
-              </pre>
-            </div>
-          </>
-        ) : (
-          <p className="empty-copy">选择一条调用记录后，可在这里查看完整请求与响应。</p>
-        )}
       </section>
     </section>
   );

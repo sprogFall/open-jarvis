@@ -75,6 +75,15 @@ export type AIConfigSource = "gateway_default" | "device_override" | "environmen
 
 export type AICallSource = "gateway_router" | "client_planner" | "config_test";
 
+export type AICallTriggeredAction = {
+  skill_id: string;
+  skill_name: string;
+  action_name: string;
+  args: Record<string, unknown>;
+  requires_approval: boolean;
+  reason: string | null;
+};
+
 export type AIConfigSummary = {
   provider: string;
   model: string;
@@ -100,6 +109,7 @@ export type AICallLog = {
   system_prompt: string;
   user_prompt: string;
   response: Record<string, unknown> | null;
+  triggered_actions: AICallTriggeredAction[];
   error: string | null;
   created_at: string;
 };

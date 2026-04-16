@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Iterable
 from uuid import uuid4
 
-from skill_catalog import builtin_skill
+from skill_catalog import builtin_action, builtin_skill
 
 
 TASK_FIELDS = (
@@ -35,6 +35,7 @@ AI_CALL_FIELDS = (
     "system_prompt",
     "user_prompt",
     "response",
+    "triggered_actions",
     "error",
     "created_at",
 )
@@ -106,6 +107,7 @@ CREATE TABLE IF NOT EXISTS ai_call_logs (
     system_prompt  TEXT NOT NULL,
     user_prompt    TEXT NOT NULL,
     response_json  TEXT,
+    triggered_actions_json TEXT NOT NULL DEFAULT '[]',
     error          TEXT,
     created_at     TEXT NOT NULL
 );
@@ -134,6 +136,9 @@ _MIGRATIONS = {
     "device_skills": {
         "assigned_at": "TEXT NOT NULL DEFAULT ''",
         "config_json": "TEXT NOT NULL DEFAULT '{}'",
+    },
+    "ai_call_logs": {
+        "triggered_actions_json": "TEXT NOT NULL DEFAULT '[]'",
     },
 }
 
@@ -646,17 +651,20 @@ class GatewayStore:
     ) -> dict:
         call_id = uuid4().hex[:12]
         now = self._now()
+        triggered_actions = _extract_triggered_actions(response)
         response_json = (
             json.dumps(response, ensure_ascii=False)
             if response is not None
             else None
         )
+        triggered_actions_json = json.dumps(triggered_actions, ensure_ascii=False)
         with self._connect() as db:
             db.execute(
                 "INSERT INTO ai_call_logs "
                 "(call_id, source, device_id, task_id, provider, model, endpoint, "
-                "system_prompt, user_prompt, response_json, error, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "system_prompt, user_prompt, response_json, triggered_actions_json, "
+                "error, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     call_id,
                     source,
@@ -668,6 +676,7 @@ class GatewayStore:
                     system_prompt,
                     user_prompt,
                     response_json,
+                    triggered_actions_json,
                     error,
                     now,
                 ),
@@ -711,7 +720,43 @@ class GatewayStore:
             if payload.get("response_json") is not None
             else None
         )
+        raw_triggered_actions = payload.pop("triggered_actions_json", "[]")
+        payload["triggered_actions"] = json.loads(raw_triggered_actions or "[]")
+        if not payload["triggered_actions"] and payload["response"] is not None:
+            payload["triggered_actions"] = _extract_triggered_actions(payload["response"])
         return {field: payload.get(field) for field in AI_CALL_FIELDS}
+
+
+def _extract_triggered_actions(response: Any) -> list[dict]:
+    if not isinstance(response, dict):
+        return []
+    actions = response.get("actions")
+    if not isinstance(actions, list):
+        return []
+
+    extracted: list[dict] = []
+    for raw_action in actions:
+        if not isinstance(raw_action, dict):
+            continue
+        action_name = str(raw_action.get("name") or "").strip()
+        if not action_name:
+            continue
+        action_args = raw_action.get("args")
+        args = action_args if isinstance(action_args, dict) else {}
+        action_spec = builtin_action(action_name)
+        skill = builtin_skill(action_spec.skill_id) if action_spec is not None else None
+        fallback_skill_id = action_name.split(".", 1)[0] or action_name
+        extracted.append(
+            {
+                "skill_id": skill.skill_id if skill is not None else fallback_skill_id,
+                "skill_name": skill.name if skill is not None else fallback_skill_id,
+                "action_name": action_name,
+                "args": args,
+                "requires_approval": bool(raw_action.get("requires_approval", False)),
+                "reason": raw_action.get("reason"),
+            }
+        )
+    return extracted
 
 
 # ── thin wrappers to normalise sqlite3 / psycopg2 differences ────────────

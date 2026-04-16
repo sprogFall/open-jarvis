@@ -120,6 +120,7 @@ _BUILTIN_ACTIONS = [
     for skill in BUILTIN_SKILLS
     for action in skill.actions
 ]
+_BUILTIN_ACTION_MAP = {action.name: action for action in _BUILTIN_ACTIONS}
 
 
 def builtin_skill_ids() -> list[str]:
@@ -128,6 +129,10 @@ def builtin_skill_ids() -> list[str]:
 
 def builtin_skill(skill_id: str) -> SkillDefinition | None:
     return _BUILTIN_SKILL_MAP.get(skill_id)
+
+
+def builtin_action(name: str) -> SkillActionSpec | None:
+    return _BUILTIN_ACTION_MAP.get(name)
 
 
 def builtin_actions_for_skill_ids(skill_ids: set[str] | None = None) -> list[SkillActionSpec]:

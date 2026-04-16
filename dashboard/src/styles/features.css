@@ -430,14 +430,9 @@
 
 .ai-calls-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(24rem, 0.8fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
-}
-
-.ai-call-detail {
-  position: sticky;
-  top: 1rem;
 }
 
 .ai-call-code {
@@ -448,6 +443,82 @@
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.03);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.selected-row {
+  background: rgba(125, 245, 180, 0.06);
+}
+
+.ai-call-skill-summary {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.ai-call-skill-summary span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.ai-call-action-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.ai-call-action-card {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ai-call-action-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ai-call-action-head div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.ai-call-action-head span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.ai-call-action-name {
+  margin: 0;
+  font-weight: 600;
+}
+
+.ai-call-arg-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.ai-call-arg-list div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.ai-call-arg-list dt {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.ai-call-arg-list dd {
+  margin: 0;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

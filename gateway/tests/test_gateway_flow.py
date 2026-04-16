@@ -697,3 +697,13 @@ def test_client_ai_call_log_is_persisted_and_listed(tmp_path):
     assert payload[0]["model"] == "qwen-max"
     assert payload[0]["user_prompt"] == "用户指令：查看系统负载"
     assert payload[0]["response"]["actions"][0]["name"] == "process.inspect_load"
+    assert payload[0]["triggered_actions"] == [
+        {
+            "skill_id": "builtin-process",
+            "skill_name": "进程监控",
+            "action_name": "process.inspect_load",
+            "args": {},
+            "requires_approval": False,
+            "reason": None,
+        }
+    ]

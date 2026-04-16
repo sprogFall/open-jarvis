@@ -146,7 +146,7 @@ function pickAiCallId(calls: AICallLog[], current: string | null): string | null
   if (current && calls.some((call) => call.call_id === current)) {
     return current;
   }
-  return calls[0]?.call_id ?? null;
+  return null;
 }
 
 function summarizeAiTestResponse(response: Record<string, unknown>): string {

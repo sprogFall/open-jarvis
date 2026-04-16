@@ -112,3 +112,40 @@ def test_create_task_without_device_uses_ai_router_and_gateway_local_executor(tm
     assert local_executor.assignments == [(task["task_id"], "查看本机系统负载")]
     assert router.calls[0][0] == "帮我自动选择合适的执行端并执行"
     assert router.calls[0][1][-1]["device_id"] == GATEWAY_LOCAL_DEVICE_ID
+
+
+def test_store_records_triggered_skill_actions_for_ai_call(tmp_path):
+    store = GatewayStore(str(tmp_path / "gateway.db"))
+
+    recorded = store.record_ai_call(
+        source="client_planner",
+        device_id="device-alpha",
+        task_id="task-001",
+        provider="custom",
+        model="qwen-max",
+        endpoint="https://llm.example/v1/chat/completions",
+        system_prompt="你是规划器",
+        user_prompt="请重启 api-service 容器",
+        response={
+            "actions": [
+                {
+                    "name": "docker.restart",
+                    "command": "docker restart api-service",
+                    "args": {"container": "api-service"},
+                    "requires_approval": True,
+                    "reason": "重启容器会打断服务，需要人工确认",
+                }
+            ]
+        },
+    )
+
+    assert recorded["triggered_actions"] == [
+        {
+            "skill_id": "builtin-docker",
+            "skill_name": "Docker 运维",
+            "action_name": "docker.restart",
+            "args": {"container": "api-service"},
+            "requires_approval": True,
+            "reason": "重启容器会打断服务，需要人工确认",
+        }
+    ]
