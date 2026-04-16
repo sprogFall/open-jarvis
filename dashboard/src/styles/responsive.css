@@ -75,6 +75,14 @@
     width: 100%;
   }
 
+  .task-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .task-filter-field {
+    flex-basis: 100%;
+  }
+
   .chat-composer-head {
     grid-template-columns: 1fr;
   }

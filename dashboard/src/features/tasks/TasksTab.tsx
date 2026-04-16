@@ -39,29 +39,37 @@ export function TasksTab({
     <section className="panel">
       <SectionHeader
         actions={
-          <div className="task-filters">
-            <select
-              value={taskStatusFilter}
-              onChange={(event) => onStatusFilterChange(event.target.value)}
-            >
-              <option value="">全部状态</option>
-              {taskStatuses.map((status) => (
-                <option key={status} value={status}>
-                  {formatTaskStatus(status)}
-                </option>
-              ))}
-            </select>
-            <select
-              value={taskDeviceFilter}
-              onChange={(event) => onDeviceFilterChange(event.target.value)}
-            >
-              <option value="">全部设备</option>
-              {devices.map((device) => (
-                <option key={device.device_id} value={device.device_id}>
-                  {device.device_id}
-                </option>
-              ))}
-            </select>
+          <div className="task-toolbar task-filters">
+            <label className="task-filter-field">
+              <span className="field-label">任务状态</span>
+              <select
+                aria-label="任务状态"
+                value={taskStatusFilter}
+                onChange={(event) => onStatusFilterChange(event.target.value)}
+              >
+                <option value="">全部状态</option>
+                {taskStatuses.map((status) => (
+                  <option key={status} value={status}>
+                    {formatTaskStatus(status)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="task-filter-field">
+              <span className="field-label">设备</span>
+              <select
+                aria-label="设备"
+                value={taskDeviceFilter}
+                onChange={(event) => onDeviceFilterChange(event.target.value)}
+              >
+                <option value="">全部设备</option>
+                {devices.map((device) => (
+                  <option key={device.device_id} value={device.device_id}>
+                    {device.device_id}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button className="ghost-button" onClick={() => void onRefresh()} type="button">
               刷新数据
             </button>
