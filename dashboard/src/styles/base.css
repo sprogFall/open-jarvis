@@ -19,6 +19,13 @@ body {
   line-height: 1.6;
 }
 
+[data-theme="light"] body {
+  background:
+    radial-gradient(circle at top left, rgba(96, 165, 250, 0.18), transparent 34%),
+    radial-gradient(circle at bottom right, rgba(54, 211, 153, 0.14), transparent 28%),
+    linear-gradient(180deg, #F4F8FB 0%, #E8EEF4 44%, #F4F8FB 100%);
+}
+
 button,
 input,
 select,
@@ -58,6 +65,10 @@ button {
   bottom: -12rem;
   left: -10rem;
   background: var(--accent-secondary);
+}
+
+[data-theme="light"] .ambient {
+  opacity: 0.32;
 }
 
 .eyebrow {

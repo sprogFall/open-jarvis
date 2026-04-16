@@ -1,5 +1,6 @@
 import { startTransition } from "react";
 
+import { ThemeToggle } from "../components/ThemeToggle";
 import { tabs, type TabId } from "./model";
 import { useDashboardController } from "./useDashboardController";
 import { AssignmentSheet } from "../features/devices/AssignmentSheet";
@@ -64,9 +65,12 @@ export function AppShell({
               <span className="live-dot" />
               <strong>{controller.refreshing ? "同步中" : "在线"}</strong>
             </div>
-            <button className="ghost-button" onClick={onLogout} type="button">
-              退出登录
-            </button>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <ThemeToggle />
+              <button className="ghost-button" onClick={onLogout} type="button">
+                退出登录
+              </button>
+            </div>
           </div>
         </aside>
 

@@ -37,6 +37,16 @@
   /* ===== 输入框 ===== */
   --input: rgba(11, 19, 36, 0.72);
 
+  /* ===== 表面色 (通用语义变量) ===== */
+  --surface-faint: rgba(255, 255, 255, 0.03);
+  --surface-subtle: rgba(255, 255, 255, 0.035);
+  --surface-moderate: rgba(255, 255, 255, 0.04);
+  --surface-highlight: rgba(125, 245, 180, 0.08);
+  --surface-selected: rgba(125, 245, 180, 0.06);
+  --bar-track: rgba(255, 255, 255, 0.05);
+  --backdrop: rgba(2, 7, 12, 0.62);
+  --quick-deploy-actions-bg: rgba(8, 18, 28, 0.92);
+
   /* ===== 阴影系统 (统一层级) ===== */
   --shadow-sm: 0 4px 12px rgba(2, 5, 16, 0.10);
   --shadow-md: 0 12px 28px rgba(2, 5, 16, 0.18);
@@ -51,4 +61,51 @@
   --radius-xl: 44px;   /* 大容器、海报、sheet */
   --radius-xxl: 52px;  /* 超大元素、hero区域 */
   --radius-full: 9999px; /* 圆形 */
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #F4F8FB;
+  --bg-soft: #E8EEF4;
+  --panel: rgba(255, 255, 255, 0.78);
+  --panel-border: rgba(148, 163, 184, 0.22);
+  --panel-strong: rgba(255, 255, 255, 0.92);
+
+  --text: #0F172A;
+  --muted: #475569;
+
+  --accent: #059669;
+  --accent-strong: #047857;
+  --accent-soft: rgba(5, 150, 105, 0.14);
+
+  --accent-secondary: #2563EB;
+  --accent-secondary-soft: rgba(37, 99, 235, 0.14);
+
+  --warning: #B45309;
+  --warning-soft: rgba(180, 83, 9, 0.14);
+  --danger: #BE123C;
+  --danger-soft: rgba(190, 18, 60, 0.14);
+  --success: #059669;
+  --success-soft: rgba(5, 150, 105, 0.14);
+
+  --line: rgba(148, 163, 184, 0.28);
+  --border: rgba(148, 163, 184, 0.55);
+  --border-strong: rgba(100, 116, 139, 0.65);
+
+  --input: rgba(255, 255, 255, 0.85);
+
+  --surface-faint: rgba(15, 23, 42, 0.04);
+  --surface-subtle: rgba(15, 23, 42, 0.06);
+  --surface-moderate: rgba(15, 23, 42, 0.05);
+  --surface-highlight: rgba(5, 150, 105, 0.10);
+  --surface-selected: rgba(5, 150, 105, 0.08);
+  --bar-track: rgba(15, 23, 42, 0.08);
+  --backdrop: rgba(15, 23, 42, 0.28);
+  --quick-deploy-actions-bg: rgba(255, 255, 255, 0.92);
+
+  --shadow-sm: 0 4px 12px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 12px 28px rgba(15, 23, 42, 0.10);
+  --shadow-lg: 0 28px 60px rgba(15, 23, 42, 0.14);
+  --shadow: var(--shadow-lg);
 }

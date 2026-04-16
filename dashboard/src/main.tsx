@@ -3,6 +3,9 @@ import ReactDOM from "react-dom/client";
 
 import App from "./App";
 import "./styles/index.css";
+import { applyTheme, readStoredTheme } from "./lib/storage";
+
+applyTheme(readStoredTheme());
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
