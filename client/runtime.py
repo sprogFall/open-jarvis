@@ -16,6 +16,7 @@ class ActionRegistry:
         self._handlers: dict[str, Callable[[TaskAction], str]] = {}
         self._action_specs: dict[str, SkillActionSpec] = {}
         self._enabled_skill_ids = enabled_skill_ids
+        self._device_skills: list[dict] = []
 
     def register(
         self,
@@ -29,6 +30,7 @@ class ActionRegistry:
             self._action_specs[name] = action_spec
 
     def sync_skills(self, skills: list[dict]) -> None:
+        self._device_skills = skills
         self._enabled_skill_ids = {
             str(skill["skill_id"])
             for skill in skills

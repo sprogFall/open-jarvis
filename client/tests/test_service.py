@@ -1,3 +1,4 @@
+from client.config import ClientConfig
 from client.service import ClientService
 
 
@@ -36,7 +37,8 @@ class RecordingAIConfigStore:
 def test_service_routes_gateway_messages_to_runner():
     runner = RecordingRunner()
     workspace = RecordingSkillWorkspace()
-    service = ClientService(runner=runner, transport=None, skill_workspace=workspace)
+    config = ClientConfig()
+    service = ClientService(runner=runner, transport=None, config=config, skill_workspace=workspace)
 
     service.handle_gateway_message(
         {
@@ -63,7 +65,8 @@ def test_service_routes_gateway_messages_to_runner():
 def test_service_routes_skill_sync_messages_to_workspace():
     runner = RecordingRunner()
     workspace = RecordingSkillWorkspace()
-    service = ClientService(runner=runner, transport=None, skill_workspace=workspace)
+    config = ClientConfig()
+    service = ClientService(runner=runner, transport=None, config=config, skill_workspace=workspace)
 
     service.handle_gateway_message(
         {
@@ -100,9 +103,11 @@ def test_service_routes_ai_config_sync_messages_to_store():
     runner = RecordingRunner()
     workspace = RecordingSkillWorkspace()
     ai_config_store = RecordingAIConfigStore()
+    config = ClientConfig()
     service = ClientService(
         runner=runner,
         transport=None,
+        config=config,
         skill_workspace=workspace,
         ai_config_store=ai_config_store,
     )

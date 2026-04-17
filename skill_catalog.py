@@ -31,6 +31,8 @@ class SkillDefinition:
     name: str
     description: str
     actions: tuple[SkillActionSpec, ...]
+    config_schema: dict[str, str] | None = None
+    env_schema: dict[str, str] | None = None
 
     @property
     def action_names(self) -> list[str]:
@@ -56,6 +58,8 @@ BUILTIN_SKILLS: tuple[SkillDefinition, ...] = (
                 args_schema={"suffix": "例如 .log 或 .yaml"},
             ),
         ),
+        config_schema={"allowed_roots": "允许访问的目录列表（逗号分隔）"},
+        env_schema={"OMNI_AGENT_ALLOWED_ROOTS": "允许访问的目录列表（冒号分隔）"},
     ),
     SkillDefinition(
         skill_id="builtin-process",

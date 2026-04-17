@@ -4,6 +4,8 @@ import json
 import subprocess
 import time
 
+from pathlib import Path
+
 from client.checkpoints import CheckpointStore
 from client.config import ClientConfig
 from client.planner import LLMPlanner
@@ -44,20 +46,76 @@ def _build_ai_call_sink(transport, device_id: str):
     return sink
 
 
+def merge_skill_config(
+    skill_id: str,
+    skill_config: dict,
+    assignment_config: dict,
+    client_config: ClientConfig,
+) -> dict:
+    """
+    合并skill配置，优先级：assignment_config > skill_config > env > defaults
+    """
+    merged = {}
+
+    if skill_id == "builtin-filesystem":
+        roots = (
+            assignment_config.get("allowed_roots")
+            or skill_config.get("allowed_roots")
+            or client_config.allowed_roots
+        )
+        if isinstance(roots, str):
+            roots = [Path(r.strip()) for r in roots.split(",") if r.strip()]
+        merged["allowed_roots"] = roots
+
+    elif skill_id == "builtin-iot":
+        merged["base_url"] = (
+            assignment_config.get("base_url")
+            or skill_config.get("base_url")
+            or client_config.iot_base_url
+        )
+        merged["token"] = (
+            assignment_config.get("token")
+            or skill_config.get("token")
+            or client_config.iot_token
+        )
+
+    return merged
+
+
 def build_default_registry(
     config: ClientConfig,
+    device_skills: list[dict] | None = None,
     *,
     enable_builtin_by_default: bool = True,
 ):
     from client.runtime import ActionRegistry
 
+    skill_configs = {}
+    if device_skills:
+        for skill in device_skills:
+            if skill.get("source") == "builtin":
+                merged = merge_skill_config(
+                    skill_id=skill["skill_id"],
+                    skill_config=skill.get("skill_config") or {},
+                    assignment_config=skill.get("config") or {},
+                    client_config=config,
+                )
+                skill_configs[skill["skill_id"]] = merged
+
     registry = ActionRegistry(
         enabled_skill_ids=set(builtin_skill_ids()) if enable_builtin_by_default else set()
     )
-    filesystem = FileSystemSkill(config.allowed_roots)
+    fs_config = skill_configs.get("builtin-filesystem", {})
+    filesystem = FileSystemSkill(
+        allowed_roots=fs_config.get("allowed_roots", config.allowed_roots)
+    )
     process = ProcessSkill()
     docker = DockerSkill()
-    iot = IoTSkill(config.iot_base_url, config.iot_token)
+    iot_config = skill_configs.get("builtin-iot", {})
+    iot = IoTSkill(
+        base_url=iot_config.get("base_url", config.iot_base_url),
+        token=iot_config.get("token", config.iot_token),
+    )
     action_handlers = {
         "filesystem.read_file": lambda action: filesystem.read_file(action.args["path"]),
         "filesystem.search_suffix": lambda action: filesystem.search_suffix(action.args["suffix"]),
@@ -104,12 +162,14 @@ class ClientService:
         self,
         runner,
         transport,
+        config: ClientConfig,
         skill_workspace=None,
         ai_config_store=None,
         skill_registry=None,
     ) -> None:
         self.runner = runner
         self.transport = transport
+        self.config = config
         self.skill_workspace = skill_workspace
         self.ai_config_store = ai_config_store
         self.skill_registry = skill_registry
@@ -125,6 +185,7 @@ class ClientService:
             skills = payload.get("skills", [])
             if self.skill_registry is not None:
                 self.skill_registry.sync_skills(skills)
+                self._rebuild_registry(skills)
             if self.skill_workspace is not None:
                 self.skill_workspace.sync(skills)
         elif message_type == "DEVICE_AI_CONFIG_SYNC" and self.ai_config_store is not None:
@@ -133,6 +194,16 @@ class ClientService:
                 self.ai_config_store.save_ai_config(config)
             else:
                 self.ai_config_store.delete_ai_config()
+
+    def _rebuild_registry(self, skills: list[dict]) -> None:
+        """重建registry以应用新的skill配置"""
+        new_registry = build_default_registry(
+            self.config,
+            device_skills=skills,
+            enable_builtin_by_default=False,
+        )
+        self.skill_registry._handlers = new_registry._handlers
+        self.skill_registry._action_specs = new_registry._action_specs
 
 
 def create_default_service(config: ClientConfig | None = None) -> ClientService:
@@ -161,6 +232,7 @@ def create_default_service(config: ClientConfig | None = None) -> ClientService:
     return ClientService(
         runner=runner,
         transport=transport,
+        config=config,
         skill_workspace=skill_workspace,
         ai_config_store=checkpoint_store,
         skill_registry=registry,
@@ -208,6 +280,7 @@ def run_forever(config: ClientConfig | None = None) -> None:
                     service = ClientService(
                         runner=runner,
                         transport=transport,
+                        config=config,
                         skill_workspace=skill_workspace,
                         ai_config_store=checkpoint_store,
                         skill_registry=registry,
