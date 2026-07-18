@@ -7,8 +7,10 @@ START -> Planner -> Scheduler -> Executor x N -> Aggregator -> Reviewer -> Final
 
 from __future__ import annotations
 
+from typing import Any
+
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.constants import END, START
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -22,24 +24,8 @@ from app.graph.nodes.executor import executor
 from app.graph.nodes.planner import planner
 from app.graph.nodes.reallocator import reallocator
 from app.graph.nodes.scheduler import scheduler, route_after_scheduler
+from app.graph.serde import make_serde
 from app.graph.state import RunState
-
-
-# 注册所有可能在 checkpoint 中序列化的自定义类型到 msgpack 白名单
-_ALLOWED_MSGPACK_TYPES: list[tuple[str, ...]] = [
-    ("app.domain.plan", "Plan"),
-    ("app.domain.plan", "Task"),
-    ("app.domain.task", "TaskStatus"),
-    ("app.domain.task", "TaskResult"),
-    ("app.domain.aggregate", "AggregateResult"),
-    ("app.domain.review", "ReviewResult"),
-    ("app.domain.budget", "RunBudget"),
-    ("app.domain.final_answer", "RunStatus"),
-    ("app.domain.final_answer", "FinalAnswer"),
-    ("app.domain.assignment", "Assignment"),
-    ("app.domain.diagnosis", "Diagnosis"),
-    ("app.domain.diagnosis", "FaultDomain"),
-]
 
 def _route_after_reviewer(state: RunState) -> str:
     """reviewer节点后的路由"""
@@ -62,11 +48,11 @@ def _route_after_cause_analyzer(state: RunState) -> str:
         return "aggregator"
     return "finalizer"
 
-def build_graph() -> CompiledStateGraph[RunState]:
+def build_graph(checkpointer: BaseCheckpointSaver[Any] | None = None) -> CompiledStateGraph[RunState]:
     """构建并编译 LangGraph 工作流。
 
-    首版按实施顺序第 1 步：状态模型 + Planner + Scheduler + 单一 Executor +
-    Aggregator + Reviewer + 内存 Checkpointer，使用假工具跑通图测试。
+    checkpointer 为 None 时回退到 MemorySaver（便于单元测试）；
+    生产环境由 services/run.get_graph() 注入 AsyncPostgresSaver。
     """
     builder = StateGraph(RunState)
 
@@ -95,7 +81,8 @@ def build_graph() -> CompiledStateGraph[RunState]:
     builder.add_conditional_edges("reviewer", _route_after_reviewer)
     builder.add_conditional_edges("cause_analyzer", _route_after_cause_analyzer)
 
-    serde = JsonPlusSerializer(allowed_msgpack_modules=_ALLOWED_MSGPACK_TYPES)
-    return builder.compile(checkpointer=MemorySaver(serde=serde))
+    if checkpointer is None:
+        checkpointer = MemorySaver(serde=make_serde())
+    return builder.compile(checkpointer=checkpointer)
 
 __all__ = ["build_graph"]

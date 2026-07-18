@@ -1,29 +1,69 @@
-"""Run 服务：创建运行、状态流转、取消。"""
+"""Run 服务：创建运行、状态流转、取消。
+
+当前阶段：图以进程内 asyncio 后台任务执行，create_run 立即返回 run_id，
+前端通过 GET /runs/{run_id} 轮询状态。
+TODO（持久化步）：替换为 Redis run_queue + 独立 Worker 进程消费，
+避免 API 重启导致运行中任务丢失（架构设计第 3、8.2 节）。
+"""
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import uuid
+from typing import Any
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph.state import CompiledStateGraph
 
 from app.domain import RunBudget
 from app.graph.builder import build_graph
 from app.graph.state import RunState
 
+logger = logging.getLogger(__name__)
+
 _graph: CompiledStateGraph[RunState] | None = None
 
 
-def get_graph() -> CompiledStateGraph[RunState]:
+async def get_graph() -> CompiledStateGraph[RunState]:
+    """惰性构建并缓存编译后的图。
+
+    生产环境注入 AsyncPostgresSaver（PostgreSQL Checkpointer，架构第 8.1 节）；
+    测试中可直接覆盖 _graph 为 fake graph 绕过本方法。
+    """
     global _graph
     if _graph is None:
-        _graph = build_graph()
+        # 延迟导入：避免健康检查等不触图场景在 import 阶段拉起 psycopg
+        from app.graph.checkpointer import get_checkpointer
+
+        checkpointer = await get_checkpointer()
+        _graph = build_graph(checkpointer)
     return _graph
 
 
-async def create_run(user_request: str) -> str:
-    """创建运行并驱动图执行。
+# 运行中的后台任务注册表：run_id -> asyncio.Task
+# 单事件循环内 dict 读写安全；进程重启后丢失，持久化步将替换为 Redis。
+_running_tasks: dict[str, asyncio.Task[None]] = {}
 
-    目前是 await 同步跑完，后续替换为 Redis 队列 + 独立 Worker 消费。
+
+async def _execute_run(run_id: str, initial_state: RunState, config: RunnableConfig) -> None:
+    """后台驱动图执行，异常记录到日志避免被静默吞没。
+
+    任务结束后仍保留在 _running_tasks 中，便于 get_run_result 读取 done/failed
+    终态；持久化步替换为 Redis 后此注册表自然失效。
+    """
+    try:
+        graph = await get_graph()
+        await graph.ainvoke(initial_state, config=config)
+    except Exception:
+        logger.exception("run %s 执行失败", run_id)
+        raise
+
+
+async def create_run(user_request: str) -> str:
+    """创建运行并立即返回 run_id，图在后台异步执行。
+
+    状态通过 get_run_result(run_id) 查询（读取 Checkpointer 快照 + 任务注册表）。
     """
     run_id = f"run_{uuid.uuid4().hex[:12]}"
     initial_state: RunState = {
@@ -42,20 +82,53 @@ async def create_run(user_request: str) -> str:
         "final_answer": None,
     }
 
-    config = {"configurable": {"thread_id": run_id}}
-    graph = get_graph()
-    await graph.ainvoke(initial_state, config=config)
+    config: RunnableConfig = {"configurable": {"thread_id": run_id}}
+    task = asyncio.create_task(_execute_run(run_id, initial_state, config))
+    _running_tasks[run_id] = task
     return run_id
 
 
-async def get_run_result(run_id: str) -> dict | None:
-    """通过 Checkpointer 查询运行最终状态。"""
-    config = {"configurable": {"thread_id": run_id}}
-    graph = get_graph()
+def _resolve_status(run_id: str, values: dict[str, Any]) -> str:
+    """结合任务注册表与图状态推断运行状态。
+
+    优先级：后台任务异常 > 任务仍在运行 > final_answer 终态 > 兜底 running。
+    """
+    task = _running_tasks.get(run_id)
+    if task is not None and task.done() and task.exception() is not None:
+        return "failed"
+    if task is not None and not task.done():
+        return "running"
+    final = values.get("final_answer")
+    if final is not None:
+        return final.status.value
+    if task is not None and task.done():
+        return "done"
+    return "running"
+
+
+async def get_run_result(run_id: str) -> dict[str, Any] | None:
+    """查询运行状态：Checkpointer 快照 + 后台任务注册表。
+
+    返回的 dict 额外带 ``status`` 字段（running / done / failed / success /
+    partial / cancelled），便于前端轮询。运行失败时附带 ``error``。
+    """
+    task = _running_tasks.get(run_id)
+    config: RunnableConfig = {"configurable": {"thread_id": run_id}}
+    graph = await get_graph()
     snapshot = await graph.aget_state(config)
-    if snapshot is None:
+
+    # 既无快照也无后台任务：确实不存在
+    if snapshot is None and task is None:
         return None
-    return snapshot.values
+
+    values: dict[str, Any] = dict(snapshot.values) if snapshot and snapshot.values else {}
+    status = _resolve_status(run_id, values)
+    values["status"] = status
+
+    if status == "failed" and task is not None and task.exception() is not None:
+        values["error"] = str(task.exception())
+
+    return values
 
 
 __all__ = ["create_run", "get_run_result", "get_graph"]

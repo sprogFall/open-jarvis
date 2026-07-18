@@ -6,6 +6,14 @@ Worker 进程通过 `python -m app.worker.consumer` 启动。
 
 from __future__ import annotations
 
+import asyncio
+import sys
+
+# Windows 下 psycopg3 异步模式不支持默认的 ProactorEventLoop，
+# 必须在事件循环创建前切换到 SelectorEventLoop（uvicorn 导入本模块时即生效）。
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 
@@ -21,6 +29,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     configure_logging(level=settings.app_log_level)
     yield
+    # 关闭 PostgreSQL checkpointer 连接池（未初始化时为空操作）
+    from app.graph.checkpointer import close_checkpointer
+
+    await close_checkpointer()
 
 
 def create_app() -> FastAPI:

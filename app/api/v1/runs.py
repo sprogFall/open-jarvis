@@ -21,9 +21,12 @@ class CreateRunResponse(BaseModel):
 
 @router.post("", response_model=CreateRunResponse)
 async def create_run_endpoint(req: CreateRunRequest) -> CreateRunResponse:
-    """POST 创建运行"""
+    """POST 创建运行。
+
+    立即返回 run_id，图在后台异步执行；通过 GET /runs/{run_id} 轮询状态。
+    """
     run_id = await create_run(req.user_request)
-    return CreateRunResponse(run_id=run_id, status="created")
+    return CreateRunResponse(run_id=run_id, status="queued")
 
 @router.get("/{run_id}")
 async def get_run(run_id: str) -> dict:
