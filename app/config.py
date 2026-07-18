@@ -36,7 +36,14 @@ class Settings(BaseSettings):
 
     # LLM 密钥：仅从环境变量注入
     openai_api_key: str = Field(default="")
-    anthropic_api_key: str = Field(default="")
+    openai_api_url: str = Field(default="")
+
+    # LLM 路由配置（新增）
+    llm_fast_model: str = Field(default="deepseek-ai/DeepSeek-V4-Flash", description="fast 档位模型名")
+    llm_standard_model: str = Field(default="deepseek-ai/DeepSeek-V4-Pro", description="standard 档位模型名")
+    llm_reasoning_model: str = Field(default="zai-org/GLM-5.2", description="reasoning 档位模型名")
+    llm_temperature: float = Field(default=0.0, description="采样温度，0 表示尽量确定性")
+    llm_request_timeout: int = Field(default=60, description="单次模型调用超时（秒）")
 
     # 可观测性
     otel_exporter_otlp_endpoint: str = Field(default="")

@@ -10,6 +10,13 @@ from langgraph.types import Send
 from app.domain import TaskStatus, Assignment, Task
 from app.graph.state import RunState
 
+_TERMINAL_STATUSES = (
+    TaskStatus.completed,
+    TaskStatus.running,
+    TaskStatus.failed,
+    TaskStatus.cancelled,
+    TaskStatus.skipped,
+)
 
 def _task_status_map(state: RunState) -> dict[str, TaskStatus]:
     """从task_events归并出每个任务的最新状态（事件溯源）。"""
@@ -26,7 +33,7 @@ def _ready_tasks(state: RunState) -> list[Task]:
     status_map = _task_status_map(state)
     ready = []
     for task in plan.tasks:
-        if status_map.get(task.task_id) in (TaskStatus.completed, TaskStatus.running):
+        if status_map.get(task.task_id) in _TERMINAL_STATUSES:
             # 如果任务已完成/运行中 不做处理
             # 这里是【任务状态】
             continue
@@ -52,6 +59,7 @@ def route_after_scheduler(state: RunState) -> str | list[Send]:
         return "finalizer"
     ready = _ready_tasks(state)
     if ready:
+        plan = state.get("plan")
         sends: list[Send] = []
         for task in ready:
             assignment = Assignment(
@@ -62,7 +70,10 @@ def route_after_scheduler(state: RunState) -> str | list[Send]:
                 timeout_seconds=task.timeout_seconds,
                 attempt=1
             )
-            sends.append(Send("executor", {"current_assignment": assignment}))
+            sends.append(Send("executor", {
+                "current_assignment": assignment,
+                "plan": plan
+            }))
         return sends
     # 没有就绪任务：判断是全部成功还是阻塞
     plan = state.get("plan")

@@ -6,23 +6,68 @@
 
 from __future__ import annotations
 
+import json
+
+from langchain_core.runnables.config import RunnableConfig
+
 from app.domain import ReviewResult
+from app.graph.prompts.reviewer import reviewer_prompt
 from app.graph.state import RunState
+from app.models import get_model_for_run, ModelTier
 
+_FAILED_STATUSES = {"failed", "cancelled"}
 
-async def reviewer(state: RunState) -> dict:
+def _format_task_result(state: RunState) -> str:
+    """把task_event转换为给LLM看的紧凑文本"""
+    events = state.get("task_events", [])
+    if not events:
+        return "（无任务结果）"
+    rows = []
+    for ev in events:
+        answer = ""
+        if ev.output and "answer" in ev.output:
+            answer = str(ev.output["answer"])[:500]
+        rows.append({
+            "task_id": ev.task_id,
+            "status": ev.status.value,
+            "answer": answer,
+            "error": ev.error_message
+        })
+    return json.dumps(rows, ensure_ascii=False, indent=2)
+
+async def reviewer(state: RunState, config: RunnableConfig) -> dict:
+    """规则预检 + LLM语义审核"""
+    events = state.get("task_events", [])
     failed_task_id = [
-        ev.task_id
-        for ev in state.get("task_events", [])
-        if ev.status.value not in ("completed", "skipped")
+        ev.task_id for ev in events if ev.status.value in _FAILED_STATUSES
     ]
-    passed = len(failed_task_id) == 0
+    # 有的任务直接判否，不调用LLM
+    if failed_task_id:
+        return {"review": ReviewResult(
+            passed=False,
+            score=0.0,
+            failed_task_ids=failed_task_id,
+            issues=[f"任务未成功：{failed_task_id}"],
+            suggested_action="replan"
+        )}
+    plan = state.get("plan")
+    aggregate = state.get("aggregate")
+    model = get_model_for_run(config, ModelTier.standard)
+    chain = reviewer_prompt | model.with_structured_output(ReviewResult)
+    # 调用LLM，送入参数 获取review结果
+    draft: ReviewResult = await chain.ainvoke({
+        "objective": plan.objective if plan else "",
+        "global_success_criteria": "\n".join(plan.global_success_criteria) if plan else "（无）",
+        "task_results": _format_task_result(state),
+        "candidate_answer": aggregate.candidate_answer if aggregate else ""
+    })
     review = ReviewResult(
-        passed=passed,
-        score=1.0 if passed else 0.0,
-        failed_task_ids=failed_task_id,
-        issues=[] if passed else [f"任务未成功: {failed_task_id}"],
-        suggested_action="finalize" if passed else "replan",
+        passed=draft.passed,
+        score=draft.score,
+        failed_task_ids=[], # 已通过规则校验无失败任务
+        issues=draft.issues,
+        evidence_refs=[],   # 证据引用留到经验/审计步骤
+        suggested_action=draft.suggested_action
     )
     return {"review": review}
 

@@ -25,7 +25,7 @@ async def cause_analyzer(state: RunState) -> dict:
         fault_domain=FaultDomain.planning,
         confidence=0.5,
         evidence=["存在失败任务，无明确执行错误"],
-        suggested_action="replan"
+        suggested_action="finalize"
     )}
 
 
