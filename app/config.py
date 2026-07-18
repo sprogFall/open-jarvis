@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     llm_reasoning_model: str = Field(default="zai-org/GLM-5.2", description="reasoning 档位模型名")
     llm_temperature: float = Field(default=0.0, description="采样温度，0 表示尽量确定性")
     llm_request_timeout: int = Field(default=60, description="单次模型调用超时（秒）")
+    llm_max_retries: int = Field(default=2, ge=0, description="OpenAI SDK 单次调用重试次数")
+    llm_sdk_log_level: str = Field(
+        default="DEBUG",
+        description="OpenAI SDK 日志级别；DEBUG 会显示每次重试前的底层异常",
+    )
 
     # 可观测性
     otel_exporter_otlp_endpoint: str = Field(default="")

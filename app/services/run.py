@@ -93,7 +93,10 @@ async def create_run(user_request: str) -> str:
         "final_answer": None,
     }
 
-    config: RunnableConfig = {"configurable": {"thread_id": run_id}}
+    config: RunnableConfig = {
+        "configurable": {"thread_id": run_id},
+        "metadata": {"workflow_run_id": run_id},
+    }
     task = asyncio.create_task(_execute_run(run_id, initial_state, config), name=f"run-{run_id}")
     task.add_done_callback(_on_run_done)
     running_tasks[run_id] = task
@@ -112,7 +115,7 @@ def _resolve_status(run_id: str, values: dict[str, Any]) -> str:
         return "running"
     final = values.get("final_answer")
     if final is not None:
-        return final.status.value
+        return str(final.status.value)
     if task is not None and task.done():
         return "done"
     return "running"

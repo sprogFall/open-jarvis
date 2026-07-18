@@ -46,10 +46,9 @@ async def planner(state: RunState, config: RunnableConfig) -> dict:
     # 单个任务信息 后续需要替换成LLM结构化输出
     user_request = state["user_request"]
     safe_user_request = sanitize_user_input(user_request)
-    model = get_model_for_run(config, ModelTier.reasoning)
-    chain = planner_prompt | model.with_structured_output(PlannerDraft)
+    model = get_model_for_run(config, ModelTier.reasoning, extra_body={"thinking": {"type": "disabled"}})
+    chain = planner_prompt | model.with_structured_output(PlannerDraft, method="function_calling", strict=False)
     draft: PlannerDraft = await chain.ainvoke({"user_request": safe_user_request})
-
     plan_version = 1
     plan = Plan(
         plan_id=f"plan_{uuid.uuid4().hex[:8]}",

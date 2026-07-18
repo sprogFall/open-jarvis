@@ -52,9 +52,9 @@ async def reviewer(state: RunState, config: RunnableConfig) -> dict:
         )}
     plan = state.get("plan")
     aggregate = state.get("aggregate")
-    model = get_model_for_run(config, ModelTier.standard)
+    model = get_model_for_run(config=config, tier=ModelTier.reasoning, extra_body={"thinking": {"type": "disabled"}})
     # 使用 ReviewerDraft 限定 LLM 只输出评分、问题和动作，任务 ID 等事实由代码维护
-    chain = reviewer_prompt | model.with_structured_output(ReviewerDraft)
+    chain = reviewer_prompt | model.with_structured_output(ReviewerDraft, method="function_calling", strict=True)
     # 调用LLM，送入参数 获取review结果
     draft: ReviewerDraft = await chain.ainvoke({
         "objective": plan.objective if plan else "",

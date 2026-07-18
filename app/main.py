@@ -27,7 +27,10 @@ from app.observability.logging import configure_logging
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
-    configure_logging(level=settings.app_log_level)
+    configure_logging(
+        level=settings.app_log_level,
+        llm_sdk_level=settings.llm_sdk_log_level,
+    )
     yield
     # 取消并等待运行中的图任务，避免强制终止导致状态不一致
     from app.services.run import running_tasks
@@ -50,7 +53,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app() -> FastAPI:
-    settings = get_settings()
     app = FastAPI(
         title="Open Jarvis Agent",
         description="基于 LangChain + LangGraph 的可恢复、多任务 Agent 编排系统",
