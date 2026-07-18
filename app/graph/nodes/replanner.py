@@ -5,9 +5,18 @@
 
 from __future__ import annotations
 
+from app.graph.state import RunState
 
-async def replanner(state: object) -> object:
-    raise NotImplementedError
+
+async def replanner(state: RunState) -> dict:
+    plan = state.get("plan")
+    if plan is None:
+        return {}
+    new_version = state.get("plan_version", 1) + 1
+    return {
+        "plan_version": new_version,
+        "plan": plan.model_copy(update={"version": new_version})
+    }
 
 
 __all__ = ["replanner"]

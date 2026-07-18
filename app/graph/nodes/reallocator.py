@@ -5,9 +5,12 @@
 
 from __future__ import annotations
 
+from app.graph.state import RunState
 
-async def reallocator(state: object) -> object:
-    raise NotImplementedError
+
+async def reallocator(state: RunState) -> dict:
+    """暂时只清空诊断"""
+    return {"diagnosis": None}
 
 
 __all__ = ["reallocator"]

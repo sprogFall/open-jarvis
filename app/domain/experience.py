@@ -21,23 +21,23 @@ class ExperienceScope(StrEnum):
 class Experience(BaseModel):
     """结构化经验记录。"""
 
-    experience_id: str
-    scope: ExperienceScope
-    problem_fingerprint: str
-    task_pattern: str | None = None
-    fault_domain: str | None = None
-    symptoms: list[str] = Field(default_factory=list)
-    root_cause: str | None = None
-    successful_action: str | None = None
-    constraints: list[str] = Field(default_factory=list)
-    evidence_refs: list[str] = Field(default_factory=list)
-    source_run_id: str | None = None
-    confidence: float = 0.5
-    success_count: int = 0
-    failure_count: int = 0
-    created_at: datetime | None = None
-    last_used_at: datetime | None = None
-    expires_at: datetime | None = None
+    experience_id: str = Field(description="经验记录的唯一标识符")
+    scope: ExperienceScope = Field(description="经验适用范围：planning（规划）、execution（执行）、review（审核）")
+    problem_fingerprint: str = Field(description="问题特征的指纹哈希，用于相似问题匹配")
+    task_pattern: str | None = Field(default=None, description="匹配的任务模式描述，None 表示不限定任务类型")
+    fault_domain: str | None = Field(default=None, description="关联的故障域类型，None 表示通用经验")
+    symptoms: list[str] = Field(default_factory=list, description="问题表现的症状描述列表")
+    root_cause: str | None = Field(default=None, description="根因分析结果")
+    successful_action: str | None = Field(default=None, description="经过验证的成功处理方案")
+    constraints: list[str] = Field(default_factory=list, description="经验适用的约束条件列表")
+    evidence_refs: list[str] = Field(default_factory=list, description="支撑此经验的证据引用列表")
+    source_run_id: str | None = Field(default=None, description="产生此经验的源运行 ID")
+    confidence: float = Field(default=0.5, description="经验的置信度权重，范围 0.0~1.0，初始值 0.5")
+    success_count: int = Field(default=0, description="此经验被成功应用的次数")
+    failure_count: int = Field(default=0, description="此经验应用失败的次数")
+    created_at: datetime | None = Field(default=None, description="经验创建时间")
+    last_used_at: datetime | None = Field(default=None, description="经验最近一次被使用的时间")
+    expires_at: datetime | None = Field(default=None, description="经验过期时间，None 表示永不过期")
 
 
 __all__ = ["Experience", "ExperienceScope"]

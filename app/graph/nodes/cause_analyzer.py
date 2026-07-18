@@ -6,9 +6,27 @@
 
 from __future__ import annotations
 
+from app.domain import Diagnosis
+from app.domain.diagnosis import FaultDomain
+from app.graph.state import RunState
 
-async def cause_analyzer(state: object) -> object:
-    raise NotImplementedError
+
+async def cause_analyzer(state: RunState) -> dict:
+    budget = state.get("budget")
+    if budget is not None and budget.exhausted:
+        return {"diagnosis": Diagnosis(
+            fault_domain=FaultDomain.execution_transient,
+            confidence=1,
+            evidence=["预算已耗尽"],
+            suggested_action="finalize"
+        )}
+
+    return {"diagnosis": Diagnosis(
+        fault_domain=FaultDomain.planning,
+        confidence=0.5,
+        evidence=["存在失败任务，无明确执行错误"],
+        suggested_action="replan"
+    )}
 
 
 __all__ = ["cause_analyzer"]

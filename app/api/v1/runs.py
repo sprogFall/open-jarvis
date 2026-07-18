@@ -6,35 +6,29 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
+from pydantic import BaseModel, Field
+
+from app.services.run import create_run, get_run_result
 
 router = APIRouter()
 
+class CreateRunRequest(BaseModel):
+    user_request: str = Field(..., min_length=1, description="用户目标/需求")
 
-@router.post("")
-async def create_run() -> dict[str, str]:
-    """POST /runs 创建运行；支持 Idempotency-Key。"""
-    return {"status": "not_implemented"}
+class CreateRunResponse(BaseModel):
+    run_id: str
+    status: str
 
+@router.post("", response_model=CreateRunResponse)
+async def create_run_endpoint(req: CreateRunRequest) -> CreateRunResponse:
+    """POST 创建运行"""
+    run_id = await create_run(req.user_request)
+    return CreateRunResponse(run_id=run_id, status="created")
 
 @router.get("/{run_id}")
-async def get_run(run_id: str) -> dict[str, str]:
+async def get_run(run_id: str) -> dict:
     """GET /runs/{run_id} 查询状态、预算和最终结果。"""
-    return {"run_id": run_id, "status": "not_implemented"}
-
-
-@router.get("/{run_id}/plan")
-async def get_run_plan(run_id: str) -> dict[str, str]:
-    """GET /runs/{run_id}/plan 获取当前计划、任务状态及版本。"""
-    return {"run_id": run_id, "status": "not_implemented"}
-
-
-@router.get("/{run_id}/events")
-async def stream_run_events(run_id: str) -> dict[str, str]:
-    """GET /runs/{run_id}/events SSE 实时事件；支持 Last-Event-ID。"""
-    return {"run_id": run_id, "status": "not_implemented"}
-
-
-@router.post("/{run_id}/cancel")
-async def cancel_run(run_id: str) -> dict[str, str]:
-    """POST /runs/{run_id}/cancel 发起协作式取消。"""
-    return {"run_id": run_id, "status": "not_implemented"}
+    result = await get_run_result(run_id)
+    if result is None:
+        return {"run_id": run_id, "status": "not_found"}
+    return result

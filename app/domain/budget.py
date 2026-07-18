@@ -5,25 +5,24 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class RunBudget(BaseModel):
     """单次运行的资源预算，任一维度耗尽即进入降级汇总。"""
 
-    max_plan_versions: int = 3
-    max_review_cycles: int = 3
-    max_task_attempts: int = 2
-    max_concurrent_tasks: int = 4
-    max_total_seconds: int = 900  # 15 分钟
-    max_model_calls: int | None = None
-    max_tokens: int | None = None
-    max_cost: float | None = None
+    max_plan_versions: int = Field(default=3, description="允许的最大计划重规划版本数")
+    max_review_cycles: int = Field(default=3, description="允许的最大审核循环次数")
+    max_task_attempts: int = Field(default=2, description="单个任务的最大重试次数")
+    max_concurrent_tasks: int = Field(default=4, description="最大并发执行任务数")
+    max_total_seconds: int = Field(default=900, description="单次运行总时间上限（秒），默认 15 分钟")
+    max_model_calls: int | None = Field(default=None, description="允许的最大模型调用次数，None 表示不限制")
+    max_tokens: int | None = Field(default=None, description="允许的最大 Token 消耗量，None 表示不限制")
+    max_cost: float | None = Field(default=None, description="允许的最大费用上限，None 表示不限制")
 
-    # 已消耗
-    used_model_calls: int = 0
-    used_tokens: int = 0
-    used_cost: float = 0.0
+    used_model_calls: int = Field(default=0, description="已消耗的模型调用次数")
+    used_tokens: int = Field(default=0, description="已消耗的 Token 数量")
+    used_cost: float = Field(default=0.0, description="已消耗的费用")
 
     @property
     def exhausted(self) -> bool:

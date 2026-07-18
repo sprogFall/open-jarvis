@@ -5,9 +5,23 @@
 
 from __future__ import annotations
 
+from alembic.util import status
 
-async def finalizer(state: object) -> object:
-    raise NotImplementedError
+from app.domain import RunStatus, FinalAnswer
+from app.graph.state import RunState
+
+
+async def finalizer(state: RunState) -> dict:
+    aggregate = state.get("aggregate")
+    review = state.get("review")
+
+    if aggregate is not None:
+        content = aggregate.candidate_answer
+        result_status = RunStatus.success if review.passed else RunStatus.partial
+    else:
+        content = "未能完成任务。"
+        result_status = RunStatus.failed
+    return {"final_answer": FinalAnswer(content=content, status=result_status)}
 
 
 __all__ = ["finalizer"]
