@@ -32,3 +32,31 @@ async def get_run(run_id: str) -> dict:
     if result is None:
         return {"run_id": run_id, "status": "not_found"}
     return result
+
+
+@router.get("/{run_id}/plan")
+async def get_run_plan(run_id: str) -> dict:
+    """GET /runs/{run_id}/plan 获取当前计划、任务状态及版本。"""
+    result = await get_run_result(run_id)
+    if result is None:
+        return {"run_id": run_id, "status": "not_found"}
+    plan = result.get("plan")
+    return {
+        "run_id": run_id,
+        "plan_version": result.get("plan_version", 0),
+        "plan": plan.model_dump() if plan else None,
+    }
+
+
+@router.get("/{run_id}/events")
+async def stream_run_events(run_id: str) -> dict:
+    """GET /runs/{run_id}/events SSE 实时事件；支持 Last-Event-ID。"""
+    # TODO: 第二步接 Redis Stream + sse-starlette
+    return {"run_id": run_id, "status": "not_implemented"}
+
+
+@router.post("/{run_id}/cancel")
+async def cancel_run(run_id: str) -> dict:
+    """POST /runs/{run_id}/cancel 发起协作式取消。"""
+    # TODO: 写 Redis 取消标记，Scheduler/Executor 检查
+    return {"run_id": run_id, "status": "not_implemented"}

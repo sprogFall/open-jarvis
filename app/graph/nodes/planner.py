@@ -11,7 +11,7 @@ from app.graph.state import RunState
 from app.domain.plan import Task, Plan
 
 
-async def planner(state: RunState) -> object:
+async def planner(state: RunState) -> dict:
     """
     读取user_request，生成任务DAG
     :param state:

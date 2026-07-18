@@ -59,7 +59,7 @@ def _route_after_cause_analyzer(state: RunState) -> str:
     if action == "reallocate":
         return "reallocator"
     if action == "reaggregate":
-        return "aggregate"
+        return "aggregator"
     return "finalizer"
 
 def build_graph() -> CompiledStateGraph[RunState]:

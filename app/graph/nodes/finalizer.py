@@ -5,8 +5,6 @@
 
 from __future__ import annotations
 
-from alembic.util import status
-
 from app.domain import RunStatus, FinalAnswer
 from app.graph.state import RunState
 
@@ -17,7 +15,7 @@ async def finalizer(state: RunState) -> dict:
 
     if aggregate is not None:
         content = aggregate.candidate_answer
-        result_status = RunStatus.success if review.passed else RunStatus.partial
+        result_status = RunStatus.success if (review and review.passed) else RunStatus.partial
     else:
         content = "未能完成任务。"
         result_status = RunStatus.failed
