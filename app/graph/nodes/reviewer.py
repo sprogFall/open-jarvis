@@ -11,9 +11,9 @@ import json
 from langchain_core.runnables.config import RunnableConfig
 
 from app.domain import ReviewResult
-from app.graph.prompts.reviewer import reviewer_prompt
+from app.graph.prompts.reviewer import ReviewerDraft, reviewer_prompt
 from app.graph.state import RunState
-from app.models import get_model_for_run, ModelTier
+from app.models import ModelTier, get_model_for_run
 
 _FAILED_STATUSES = {"failed", "cancelled"}
 
@@ -53,9 +53,10 @@ async def reviewer(state: RunState, config: RunnableConfig) -> dict:
     plan = state.get("plan")
     aggregate = state.get("aggregate")
     model = get_model_for_run(config, ModelTier.standard)
-    chain = reviewer_prompt | model.with_structured_output(ReviewResult)
+    # 使用 ReviewerDraft 限定 LLM 只输出评分、问题和动作，任务 ID 等事实由代码维护
+    chain = reviewer_prompt | model.with_structured_output(ReviewerDraft)
     # 调用LLM，送入参数 获取review结果
-    draft: ReviewResult = await chain.ainvoke({
+    draft: ReviewerDraft = await chain.ainvoke({
         "objective": plan.objective if plan else "",
         "global_success_criteria": "\n".join(plan.global_success_criteria) if plan else "（无）",
         "task_results": _format_task_result(state),

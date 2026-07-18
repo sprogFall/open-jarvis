@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Annotated, TypedDict
 
 from app.domain.aggregate import AggregateResult

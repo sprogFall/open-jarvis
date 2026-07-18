@@ -65,7 +65,7 @@ def _detect_cycle(plan: Plan) -> list[str] | None:
     """DFS 三色标记检测环，返回环上任务 ID 序列，无环返回 None。"""
     graph: dict[str, list[str]] = {t.task_id: list(t.dependencies) for t in plan.tasks}
     white, gray, black = 0, 1, 2
-    color: dict[str, int] = {tid: white for tid in graph}
+    color: dict[str, int] = dict.fromkeys(graph, white)
     path: list[str] = []
     def dfs(node: str) -> list[str] | None:
         color[node] = gray

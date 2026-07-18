@@ -6,11 +6,13 @@
 
 from __future__ import annotations
 
-from datetime import timezone, datetime
+import asyncio
+from datetime import UTC, datetime
+from typing import Any
 
 from langchain_core.messages.ai import AIMessage
 from langchain_core.runnables.config import RunnableConfig
-from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.domain import TaskResult, TaskStatus
 from app.graph.prompts.executor import executor_prompt
@@ -21,21 +23,49 @@ from app.models import get_model_for_run
 # 输出上限控制
 _MAX_OUTPUT_LENGTH = 20000
 
+# 瞬时错误类型名称（不含包名）：优先按异常类型链判断，仅回退到字符串匹配
+_TRANSIENT_TYPE_NAMES = frozenset({
+    "TimeoutError", "Timeout", "ConnectTimeout", "ReadTimeout", "WriteTimeout",
+    "RateLimitError", "RateLimitExceededError",
+    "ServiceUnavailableError", "APITimeoutError", "APIConnectionError",
+})
+
+# 重试相关的 HTTP 状态码
+_TRANSIENT_HTTP_STATUSES = frozenset({429, 502, 503, 504})
+
 class TransientLLMError(Exception):
     """可重试的瞬时错误：超时、限流、网络错误等"""
 
 def _is_transient(exc: Exception) -> bool:
-    """判断是否为可重试的瞬时错误"""
+    """按异常类型链、HTTP 状态码和消息判断瞬时错误。
+
+    优先检查异常类型名与 HTTP 状态码，避免业务错误文本中含 "500" 等字样被误判；
+    仅在以上检查没有结论时才回退到关键字符串匹配。
+    """
+    exc_type_name = type(exc).__name__
+    if exc_type_name in _TRANSIENT_TYPE_NAMES:
+        return True
+
+    # 检查异常链中的 HTTP 状态码
+    status = getattr(exc, "status_code", None) or getattr(exc, "http_status", None)
+    if status is not None and status in _TRANSIENT_HTTP_STATUSES:
+        return True
+
+    # 遍历异常链
+    cause: BaseException | None = exc.__cause__
+    while cause is not None:
+        if isinstance(cause, Exception) and _is_transient(cause):
+            return True
+        cause = cause.__cause__
+
+    # 回退：关键字符串匹配（仅匹配不含数字的关键词，避免 500 误判）
     msg = str(exc).lower()
-    markers = [
-        "timeout", "timed out", "connection", "429", "rate limit",
-        "service_unavailable", "503", "502", "internal server error", "500"
-    ]
+    markers = ["timeout", "timed out", "connection", "rate limit", "service_unavailable"]
     return any(m in msg for m in markers)
 
 def _now() -> str:
     """当前时间"""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 async def _invoke_with_retry(chain, inputs: dict) -> AIMessage:
     async for attempt in AsyncRetrying(
@@ -81,11 +111,11 @@ def _extract_token(response: AIMessage) -> int:
     meta = getattr(response, "response_metadata", None) or {}
     token_usage = meta.get("token_usage") or meta.get("usage")
     if isinstance(token_usage, dict):
-        return int(token_usage.get("token_tokens", 0))
+        return int(token_usage.get("total_tokens", 0))
     return 0
 
 
-async def executor(state: RunState, config: RunnableConfig) -> dict:
+async def executor(state: RunState, config: RunnableConfig) -> dict[str, Any]:
     """
     准备本次执行上下文 -> 模型 -> 工具调用 -> 结果校验
     """
@@ -103,7 +133,7 @@ async def executor(state: RunState, config: RunnableConfig) -> dict:
             task_id=assignment.task_id,
             attempt=assignment.attempt,
             status=TaskStatus.failed,
-            error_code="task_not_fount",
+            error_code="task_not_found",
             error_message=f"计划中找不到任务 {assignment.task_id}",
             started_at=now,
             ended_at=now
@@ -111,41 +141,53 @@ async def executor(state: RunState, config: RunnableConfig) -> dict:
     model = get_model_for_run(config, assignment.model_tier)
     chain = executor_prompt | model
     started_at = _now()
+    # 任务级超时：覆盖模型调用 + 重试 + 退避的总耗时
+    timeout = assignment.timeout_seconds or 300
     try:
-        response: AIMessage = await _invoke_with_retry(chain, {
-            "objective": sanitize_user_input(plan.objective),
-            "task_title": task.title,
-            "instruction": sanitize_user_input(task.instruction),
-            "success_criteria": "\n".join(task.success_criteria) or "（无显式标准）",
-        })
-        answer = _extract_text(response)
+        async with asyncio.timeout(timeout):
+            response: AIMessage = await _invoke_with_retry(chain, {
+                "objective": sanitize_user_input(plan.objective),
+                "task_title": sanitize_user_input(task.title),
+                "instruction": sanitize_user_input(task.instruction),
+                "success_criteria": "\n".join(task.success_criteria) or "（无显式标准）",
+            })
+            answer = _extract_text(response)
 
-        validate_error = validate_output(answer)
-        if validate_error is None:
-            # 任务正常完成返回
-            task_result = TaskResult(
-                task_id=assignment.task_id,
-                attempt=assignment.attempt,
-                status=TaskStatus.completed,
-                output={"answer": answer},
-                started_at=started_at,
-                ended_at=_now(),
-                token_usage=_extract_token(response),
-                cost=0.0,
-                tools_used=[]
-            )
-        else:
-            # 被validate_output拦截
-            task_result = TaskResult(
-                task_id=assignment.task_id,
-                attempt=assignment.attempt,
-                status=TaskStatus.failed,
-                error_code="output_validation_failed",
-                error_message=validate_error,
-                started_at=started_at,
-                ended_at=_now()
-            )
-
+            validate_error = validate_output(answer)
+            if validate_error is None:
+                # 任务正常完成返回
+                task_result = TaskResult(
+                    task_id=assignment.task_id,
+                    attempt=assignment.attempt,
+                    status=TaskStatus.completed,
+                    output={"answer": answer},
+                    started_at=started_at,
+                    ended_at=_now(),
+                    token_usage=_extract_token(response),
+                    cost=0.0,
+                    tools_used=[]
+                )
+            else:
+                # 被validate_output拦截
+                task_result = TaskResult(
+                    task_id=assignment.task_id,
+                    attempt=assignment.attempt,
+                    status=TaskStatus.failed,
+                    error_code="output_validation_failed",
+                    error_message=validate_error,
+                    started_at=started_at,
+                    ended_at=_now()
+                )
+    except TimeoutError:
+        task_result = TaskResult(
+            task_id=assignment.task_id,
+            attempt=assignment.attempt,
+            status=TaskStatus.failed,
+            error_code="task_timeout",
+            error_message=f"任务执行超时（{timeout}s）",
+            started_at=started_at,
+            ended_at=_now(),
+        )
     except TransientLLMError as e:
         # 重试耗尽仍失败：瞬时错误，可由图级重分配重试
         task_result = TaskResult(

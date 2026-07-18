@@ -7,8 +7,6 @@ from pydantic import BaseModel, Field
 
 class Assignment(BaseModel):
     """Scheduler 为就绪任务生成的执行分配。
-
-    对应架构设计第 5.2 节。
     """
 
     task_id: str = Field(description="被分配的目标任务 ID")

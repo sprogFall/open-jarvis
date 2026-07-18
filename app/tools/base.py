@@ -22,7 +22,7 @@ class ToolSpec(BaseModel):
 
     name: str
     description: str
-    parameters_schema: dict
+    parameters_schema: dict[str, object]
     permission_level: PermissionLevel = PermissionLevel.read
     timeout_seconds: int = 30
     idempotent: bool = True

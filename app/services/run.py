@@ -43,7 +43,7 @@ async def get_graph() -> CompiledStateGraph[RunState]:
 
 # 运行中的后台任务注册表：run_id -> asyncio.Task
 # 单事件循环内 dict 读写安全；进程重启后丢失，持久化步将替换为 Redis。
-_running_tasks: dict[str, asyncio.Task[None]] = {}
+running_tasks: dict[str, asyncio.Task[None]] = {}
 
 
 async def _execute_run(run_id: str, initial_state: RunState, config: RunnableConfig) -> None:
@@ -58,6 +58,17 @@ async def _execute_run(run_id: str, initial_state: RunState, config: RunnableCon
     except Exception:
         logger.exception("run %s 执行失败", run_id)
         raise
+
+
+def _on_run_done(task: asyncio.Task[None]) -> None:
+    """消费后台任务异常，避免未捕获异常被静默丢弃。"""
+    try:
+        task.result()
+    except asyncio.CancelledError:
+        pass
+    except Exception:
+        # 已在 _execute_run 中记录日志，此处仅消费避免未检索异常告警
+        pass
 
 
 async def create_run(user_request: str) -> str:
@@ -83,8 +94,9 @@ async def create_run(user_request: str) -> str:
     }
 
     config: RunnableConfig = {"configurable": {"thread_id": run_id}}
-    task = asyncio.create_task(_execute_run(run_id, initial_state, config))
-    _running_tasks[run_id] = task
+    task = asyncio.create_task(_execute_run(run_id, initial_state, config), name=f"run-{run_id}")
+    task.add_done_callback(_on_run_done)
+    running_tasks[run_id] = task
     return run_id
 
 
@@ -93,7 +105,7 @@ def _resolve_status(run_id: str, values: dict[str, Any]) -> str:
 
     优先级：后台任务异常 > 任务仍在运行 > final_answer 终态 > 兜底 running。
     """
-    task = _running_tasks.get(run_id)
+    task = running_tasks.get(run_id)
     if task is not None and task.done() and task.exception() is not None:
         return "failed"
     if task is not None and not task.done():
@@ -112,13 +124,17 @@ async def get_run_result(run_id: str) -> dict[str, Any] | None:
     返回的 dict 额外带 ``status`` 字段（running / done / failed / success /
     partial / cancelled），便于前端轮询。运行失败时附带 ``error``。
     """
-    task = _running_tasks.get(run_id)
+    task = running_tasks.get(run_id)
     config: RunnableConfig = {"configurable": {"thread_id": run_id}}
     graph = await get_graph()
     snapshot = await graph.aget_state(config)
 
     # 既无快照也无后台任务：确实不存在
     if snapshot is None and task is None:
+        return None
+
+    # LangGraph 对未知 thread_id 可能返回空快照（非 None），需二次判断
+    if task is None and (snapshot is None or snapshot.values is None or not snapshot.values):
         return None
 
     values: dict[str, Any] = dict(snapshot.values) if snapshot and snapshot.values else {}
@@ -131,4 +147,4 @@ async def get_run_result(run_id: str) -> dict[str, Any] | None:
     return values
 
 
-__all__ = ["create_run", "get_run_result", "get_graph"]
+__all__ = ["create_run", "get_run_result", "get_graph", "running_tasks"]

@@ -14,8 +14,8 @@ import sys
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
@@ -29,6 +29,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     configure_logging(level=settings.app_log_level)
     yield
+    # 取消并等待运行中的图任务，避免强制终止导致状态不一致
+    from app.services.run import running_tasks
+
+    for _rid, task in list(running_tasks.items()):
+        if not task.done():
+            task.cancel()
+    for _rid, task in list(running_tasks.items()):
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            pass
+
     # 关闭 PostgreSQL checkpointer 连接池（未初始化时为空操作）
     from app.graph.checkpointer import close_checkpointer
 

@@ -27,9 +27,9 @@ class RunBudget(BaseModel):
     @property
     def exhausted(self) -> bool:
         return (
-            self.used_model_calls >= (self.max_model_calls or float("inf"))
-            or self.used_tokens >= (self.max_tokens or float("inf"))
-            or self.used_cost >= (self.max_cost or float("inf"))
+            (self.max_model_calls is not None and self.used_model_calls >= self.max_model_calls)
+            or (self.max_tokens is not None and self.used_tokens >= self.max_tokens)
+            or (self.max_cost is not None and self.used_cost >= self.max_cost)
         )
 
 

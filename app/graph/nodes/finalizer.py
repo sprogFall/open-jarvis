@@ -8,11 +8,11 @@ from __future__ import annotations
 from langchain_core.messages.ai import AIMessage
 from langchain_core.runnables.config import RunnableConfig
 
-from app.domain import RunStatus, FinalAnswer
+from app.domain import FinalAnswer, RunStatus, TaskStatus
 from app.graph.prompts.finalizer import finalizer_prompt
 from app.graph.safety import sanitize_user_input
 from app.graph.state import RunState
-from app.models import get_model_for_run, ModelTier
+from app.models import ModelTier, get_model_for_run
 
 
 def _extract_text(response: AIMessage) -> str:
@@ -27,6 +27,19 @@ async def finalizer(state: RunState, config: RunnableConfig) -> dict:
     review = state.get("review")
 
     if aggregate is None:
+        # 失败路径在 Aggregator 前结束：从 task_events 中提取已完成任务的部分结果
+        task_events = state.get("task_events", [])
+        completed_outputs = [
+            str(ev.output["answer"])
+            for ev in task_events
+            if ev.status == TaskStatus.completed and ev.output and "answer" in ev.output
+        ]
+        if completed_outputs:
+            return {"final_answer": FinalAnswer(
+                content="\n".join(completed_outputs),
+                status=RunStatus.partial,
+                warnings=["任务未全部完成，以下为已完成任务的部分结果"]
+            )}
         return {"final_answer": FinalAnswer(
             content="未能完成任务。",
             status=RunStatus.failed

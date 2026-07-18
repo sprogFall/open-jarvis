@@ -5,9 +5,11 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from langgraph.types import Send
 
-from app.domain import TaskStatus, Assignment, Task
+from app.domain import Assignment, Task, TaskStatus
 from app.graph.state import RunState
 
 _TERMINAL_STATUSES = (
@@ -48,35 +50,47 @@ def _ready_tasks(state: RunState) -> list[Task]:
     # 返回本轮就绪的task列表
     return ready
 
-async def scheduler(state: RunState) -> dict:
-    """节点本体，递增cycle_count，具体的扇出操作由路由函数处理。"""
-    return {"cycle_count": state.get("cycle_count", 0) + 1}
+async def scheduler(state: RunState) -> dict[str, Any]:
+    """按并发上限生成 Assignment 并写入全局状态，路由函数据此做 Send 扇出。"""
+    ready = _ready_tasks(state)
+    budget = state.get("budget")
+    max_concurrent = budget.max_concurrent_tasks if budget else 4
+
+    assignments: dict[str, Assignment] = {}
+    for task in ready[:max_concurrent]:
+        assignments[task.task_id] = Assignment(
+            task_id=task.task_id,
+            executor_profile="default",
+            model_tier="standard",
+            tool_allowlist=task.tool_allowlist,
+            timeout_seconds=task.timeout_seconds,
+            attempt=1,
+        )
+
+    return {
+        "cycle_count": state.get("cycle_count", 0) + 1,
+        "assignments": assignments,
+    }
+
 
 def route_after_scheduler(state: RunState) -> str | list[Send]:
-    """条件路由：有就绪任务 -> Send到executor; 否则走向汇总或归因"""
+    """条件路由：有 Assignment -> Send 到 executor; 否则走向汇总或归因"""
     budget = state.get("budget")
     if budget is not None and budget.exhausted:
         return "finalizer"
-    ready = _ready_tasks(state)
-    if ready:
-        plan = state.get("plan")
+
+    assignments = state.get("assignments", {})
+    plan = state.get("plan")
+    if assignments and plan is not None:
         sends: list[Send] = []
-        for task in ready:
-            assignment = Assignment(
-                task_id=task.task_id,
-                executor_profile="default",
-                model_tier="standard",
-                tool_allowlist=task.tool_allowlist,
-                timeout_seconds=task.timeout_seconds,
-                attempt=1
-            )
+        for _task_id, assignment in assignments.items():
             sends.append(Send("executor", {
                 "current_assignment": assignment,
-                "plan": plan
+                "plan": plan,
             }))
         return sends
+
     # 没有就绪任务：判断是全部成功还是阻塞
-    plan = state.get("plan")
     if plan is None:
         return "cause_analyzer"
     status_map = _task_status_map(state)

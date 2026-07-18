@@ -19,7 +19,7 @@ class Task(BaseModel):
     required_capabilities: list[str] = Field(default_factory=list, description="执行此任务所需的能力列表")
     tool_allowlist: list[str] = Field(default_factory=list, description="允许使用的工具白名单，空列表表示不限制")
     input_refs: list[str] = Field(default_factory=list, description="输入数据引用列表，指向其他任务的输出或外部数据")
-    output_schema: dict | None = Field(default=None, description="期望的输出数据结构 Schema，None 表示不限制输出格式")
+    output_schema: dict[str, object] | None = Field(default=None, description="期望的输出数据结构 Schema，None 表示不限制输出格式")
     success_criteria: list[str] = Field(default_factory=list, description="任务成功的判定标准列表")
     timeout_seconds: int | None = Field(default=None, description="任务超时时间（秒），None 表示不限时")
     max_attempts: int = Field(default=2, description="最大重试次数")
