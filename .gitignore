@@ -1,0 +1,93 @@
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 虚拟环境
+.venv/
+venv/
+env/
+ENV/
+
+# 测试与覆盖率
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---------- IDE ----------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ---------- 环境变量与密钥 ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ---------- 数据库 ----------
+*.db
+*.sqlite
+*.sqlite3
+
+# ---------- 运行时日志/产物 ----------
+*.log
+logs/
+*.pid
+
+# ---------- 前端 (web/) ----------
+node_modules/
+web/dist/
+web/build/
+web/.next/
+web/.nuxt/
+web/.output/
+web/.vite/
+web/.turbo/
+web/.cache/
+web/coverage/
+web/.env
+web/.env.*
+!web/.env.example
+*.tsbuildinfo
+
+# ---------- 操作系统 ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- 开发临时文件 ----------
+tmp/
+*.tmp
