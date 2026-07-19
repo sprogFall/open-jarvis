@@ -1,0 +1,188 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #121212;
+  color: #e5e7eb;
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* ---- Shimmer skeleton ---- */
+.shimmer {
+  background: linear-gradient(90deg, #252525 25%, #303030 50%, #252525 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* ---- DAG edge lines ---- */
+.dag-edge {
+  stroke: #4b5563;
+  stroke-width: 2;
+  fill: none;
+}
+
+.dag-edge.active {
+  stroke: #6366f1;
+  stroke-width: 2.5;
+}
+
+/* ---- pulse dot ---- */
+@layer utilities {
+  .dot-pulse {
+    @apply relative inline-flex h-2.5 w-2.5;
+  }
+  .dot-pulse::before {
+    content: "";
+    @apply absolute inset-0 rounded-full bg-current opacity-75;
+    animation: pulse-ring 1.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+  }
+  .dot-pulse::after {
+    content: "";
+    @apply relative rounded-full bg-current w-2.5 h-2.5;
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.75;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+/* ======== highlight.js dark theme ======== */
+/* Based on GitHub Dark theme, adapted for our color scheme */
+.hljs {
+  color: #c9d1d9;
+  background: transparent;
+}
+
+.hljs-doctag,
+.hljs-keyword,
+.hljs-meta .hljs-keyword,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-type,
+.hljs-variable.language_ {
+  color: #ff7b72;
+}
+
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.class_.inherited__,
+.hljs-title.function_ {
+  color: #d2a8ff;
+}
+
+.hljs-attr,
+.hljs-attribute,
+.hljs-literal,
+.hljs-meta,
+.hljs-number,
+.hljs-operator,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id,
+.hljs-variable {
+  color: #79c0ff;
+}
+
+.hljs-meta .hljs-string,
+.hljs-regexp,
+.hljs-string {
+  color: #a5d6ff;
+}
+
+.hljs-built_in,
+.hljs-symbol {
+  color: #ffa657;
+}
+
+.hljs-code,
+.hljs-comment,
+.hljs-formula {
+  color: #8b949e;
+}
+
+.hljs-name,
+.hljs-quote,
+.hljs-selector-pseudo,
+.hljs-selector-tag {
+  color: #7ee787;
+}
+
+.hljs-subst {
+  color: #c9d1d9;
+}
+
+.hljs-section {
+  color: #1f6feb;
+  font-weight: 700;
+}
+
+.hljs-bullet {
+  color: #f2cc60;
+}
+
+.hljs-emphasis {
+  color: #c9d1d9;
+  font-style: italic;
+}
+
+.hljs-strong {
+  color: #c9d1d9;
+  font-weight: 700;
+}
+
+.hljs-addition {
+  color: #aff5b4;
+  background-color: #033a16;
+}
+
+.hljs-deletion {
+  color: #ffdcd7;
+  background-color: #67060c;
+}
+
+/* ======== Markdown compact mode ======== */
+.markdown-compact h1 { font-size: 1.15em !important; margin-top: 0.75rem !important; margin-bottom: 0.5rem !important; }
+.markdown-compact h2 { font-size: 1.05em !important; margin-top: 0.65rem !important; margin-bottom: 0.4rem !important; }
+.markdown-compact h3 { font-size: 0.95em !important; margin-top: 0.55rem !important; margin-bottom: 0.35rem !important; }
+.markdown-compact p,
+.markdown-compact li { font-size: 0.8125rem !important; line-height: 1.6 !important; margin-top: 0.25rem !important; margin-bottom: 0.25rem !important; }
+.markdown-compact pre { margin-top: 0.35rem !important; margin-bottom: 0.35rem !important; }
+.markdown-compact ul,
+.markdown-compact ol { margin-top: 0.25rem !important; margin-bottom: 0.25rem !important; }
+.markdown-compact blockquote { margin-top: 0.35rem !important; margin-bottom: 0.35rem !important; }
+.markdown-compact code { font-size: 0.8em !important; }
+.markdown-compact table { font-size: 0.775rem !important; }
