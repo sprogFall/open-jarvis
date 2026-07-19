@@ -18,7 +18,6 @@ from langgraph.graph.state import CompiledStateGraph
 from app.graph.nodes.aggregator import aggregator
 from app.graph.nodes.cause_analyzer import cause_analyzer
 from app.graph.nodes.finalizer import finalizer
-from app.graph.nodes.replanner import replanner
 from app.graph.nodes.reviewer import reviewer
 from app.graph.nodes.executor import executor
 from app.graph.nodes.planner import planner
@@ -41,12 +40,13 @@ def _route_after_cause_analyzer(state: RunState) -> str:
         return "finalizer"
     action = diagnosis.suggested_action
     if action == "replan":
-        return "replanner"
+        return "planner"
     if action == "reallocate":
         return "reallocator"
     if action == "reaggregate":
         return "aggregator"
     return "finalizer"
+
 
 def build_graph(checkpointer: BaseCheckpointSaver[Any] | None = None) -> CompiledStateGraph[RunState]:
     """构建并编译 LangGraph 工作流。
@@ -64,7 +64,6 @@ def build_graph(checkpointer: BaseCheckpointSaver[Any] | None = None) -> Compile
     builder.add_node("aggregator", aggregator)
     builder.add_node("cause_analyzer", cause_analyzer)
     builder.add_node("reallocator", reallocator)
-    builder.add_node("replanner", replanner)
     builder.add_node("finalizer", finalizer)
 
     # 固定边
@@ -72,7 +71,6 @@ def build_graph(checkpointer: BaseCheckpointSaver[Any] | None = None) -> Compile
     builder.add_edge("planner", "scheduler")
     builder.add_edge("executor", "scheduler")  # 执行结果汇合后回到调度
     builder.add_edge("aggregator", "reviewer")
-    builder.add_edge("replanner", "scheduler")
     builder.add_edge("reallocator", "scheduler")
     builder.add_edge("finalizer", END)
 

@@ -6,11 +6,13 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from langchain_core.runnables.config import RunnableConfig
 
 from app.domain.plan import Plan, Task
-from app.graph.prompts.planner import PlannerDraft, planner_prompt
+from app.graph.nodes.cause_analyzer import format_task_summary
+from app.graph.prompts.planner import PlannerDraft, planner_prompt, replanner_prompt, ReplannerDraft
 from app.graph.safety import sanitize_user_input
 from app.graph.state import RunState
 from app.graph.validation import PlanValidationError, validate_plan
@@ -18,13 +20,16 @@ from app.models import ModelTier, get_model_for_run
 from app.models.structured import ainvoke_structured_with_retry
 
 
-def _fallback_plan(user_request: str, issues: list[str]) -> Plan:
+def _generate_plan_id() -> str:
+    return f"plan_{uuid.uuid4().hex[:8]}"
+
+def _fallback_plan(user_request: str, issues: list[str], version: int = 1) -> Plan:
     """DAG校验失败的时候触发兜底单任务计划，保证图不卡死"""
     return Plan(
-        plan_id=f"plan_{uuid.uuid4().hex[:8]}",
-        version=1,
+        plan_id=_generate_plan_id(),
+        version=version,
         objective=user_request,
-        assumptions=[f"LLM生成的计划未通过DAG校验：{issues}; 已退回为单任务"],
+        assumptions=[f"自动规划失败，回退单步执行模式。原因：{issues}"],
         global_success_criteria=['产出与用户请求相关的回答'],
         tasks=[Task(
             task_id="t1",
@@ -39,43 +44,110 @@ def _fallback_plan(user_request: str, issues: list[str]) -> Plan:
         )]
     )
 
+def _build_context(state: RunState) -> dict[str, Any]:
+    """从当前状态构建重规划所需的上下文"""
+    plan = state["plan"]
+    plan_version = state.get("plan_version", 0)
+    diagnosis = state.get("diagnosis")
+    return {
+        "objective": plan.objective,
+        "plan_version": str(plan_version),
+        "fault_domain": diagnosis.fault_domain.value if diagnosis else "unknown",
+        "diagnosis_evidence": "\n".join(diagnosis.evidence) if diagnosis else "（无）",
+        "suggested_action": (diagnosis.suggested_action or "replan") if diagnosis else "replan",
+        "task_summary": format_task_summary(state),
+        "current_plan_json": plan.model_dump_json(indent=2),
+    }
+
+
 async def planner(state: RunState, config: RunnableConfig) -> dict[str, object]:
     """
-    读取user_request，生成任务DAG
+    Planner 双模式入口。
     """
-
-    # 单个任务信息 后续需要替换成LLM结构化输出
     user_request = state["user_request"]
-    safe_user_request = sanitize_user_input(user_request)
-    model = get_model_for_run(config, ModelTier.reasoning, extra_body={"thinking": {"type": "disabled"}})
-    chain = planner_prompt | model.with_structured_output(
-        PlannerDraft,
-        method="function_calling",
-        strict=False,
-        include_raw=True,
-    )
-    draft = await ainvoke_structured_with_retry(
-        chain,
-        {"user_request": safe_user_request},
-        schema=PlannerDraft,
-        node="planner",
-    )
-    plan_version = 1
-    plan = Plan(
-        plan_id=f"plan_{uuid.uuid4().hex[:8]}",
-        version=plan_version,
-        objective=user_request,
-        assumptions=draft.assumptions,
-        global_success_criteria=draft.global_success_criteria,
-        tasks=draft.tasks
-    )
-    try:
-        # 计划DAG检验与回退
-        validate_plan(plan)
-    except PlanValidationError as e:
-        plan = _fallback_plan(user_request, e.issues)
+    existing_plan = state.get("plan")
+    diagnosis = state.get("diagnosis")
+    plan_version = state.get("plan_version", 0)
 
-    return {"plan": plan, "plan_version": plan_version}
+    # 判断模式：有现有 plan 且有 diagnosis（suggested_action=replan）→ 重规划模式
+    is_replan = (
+        existing_plan is not None
+        and diagnosis is not None
+        and diagnosis.suggested_action == "replan"
+    )
+    model = get_model_for_run(config, ModelTier.reasoning, extra_body={"thinking": {"type": "disabled"}})
+    if is_replan:
+        replan_context = _build_context(state)
+        chain = replanner_prompt | model.with_structured_output(
+            ReplannerDraft,
+            method="function_calling",
+            strict=False,
+            include_raw=True
+        )
+        new_version = plan_version + 1
+        try:
+            replan_draft: ReplannerDraft = await ainvoke_structured_with_retry(
+                chain,
+                replan_context,
+                schema=ReplannerDraft,
+                node="planner",
+            )
+        except Exception as e:
+            # 重规划失败 -> 保留原计划，递增版本号兜底
+            print(f"重新规划失败: {str(e)}")
+            return {
+                "plan": _fallback_plan(user_request, [f"LLM重规划失败：{str(e)}"], version=new_version),
+                "plan_version": new_version,
+                "diagnosis": None
+            }
+        plan = Plan(
+            plan_id=_generate_plan_id(),
+            version=new_version,
+            objective=replan_draft.objective,
+            assumptions=replan_draft.assumptions,
+            global_success_criteria=replan_draft.global_success_criteria,
+            tasks=replan_draft.tasks
+        )
+        # DAG校验
+        try:
+            validate_plan(plan)
+        except PlanValidationError as e:
+            plan = _fallback_plan(user_request, e.issues, version=new_version)
+            return {"plan": plan, "plan_version": new_version, "diagnosis": None}
+
+        return {"plan": plan, "plan_version": new_version, "diagnosis": None}
+
+    else:
+        # 首次规划模式
+        safe_user_request = sanitize_user_input(user_request)
+        chain = planner_prompt | model.with_structured_output(
+            PlannerDraft,
+            method="function_calling",
+            strict=False,
+            include_raw=True,
+        )
+        draft = await ainvoke_structured_with_retry(
+            chain,
+            {"user_request": safe_user_request},
+            schema=PlannerDraft,
+            node="planner",
+        )
+        plan_version = plan_version + 1
+        plan = Plan(
+            plan_id=_generate_plan_id(),
+            version=plan_version,
+            objective=user_request,
+            assumptions=draft.assumptions,
+            global_success_criteria=draft.global_success_criteria,
+            tasks=draft.tasks
+        )
+        try:
+            # 计划DAG检验与回退
+            validate_plan(plan)
+        except PlanValidationError as e:
+            plan = _fallback_plan(user_request, e.issues, version=plan_version)
+
+        return {"plan": plan, "plan_version": plan_version}
 
 
 __all__ = ["planner"]

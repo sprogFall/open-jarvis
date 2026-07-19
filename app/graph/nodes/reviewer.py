@@ -58,7 +58,7 @@ async def reviewer(state: RunState, config: RunnableConfig) -> dict[str, object]
     chain = reviewer_prompt | model.with_structured_output(
         ReviewerDraft,
         method="function_calling",
-        strict=True,
+        strict=False,
         include_raw=True,
     )
     # 调用LLM，送入参数 获取review结果

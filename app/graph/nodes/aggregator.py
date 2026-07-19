@@ -13,6 +13,16 @@ from app.graph.state import RunState
 
 async def aggregator(state: RunState) -> dict[str, Any]:
     task_events = state.get("task_events", [])
+    budget = state.get("budget")
+    if budget is not None:
+        update_budge = budget.model_copy()
+        for ev in task_events:
+            if ev.status == TaskStatus.completed:
+                update_budge.used_model_calls += 1
+                update_budge.used_tokens += (ev.token_usage or 0)
+                update_budge.used_cost += (ev.cost or 0)
+    else:
+        update_budge = None
 
     # 每任务只取最新成功事件（event 追加顺序保证最新在后）
     latest: dict[str, dict[str, Any]] = {}
@@ -33,7 +43,12 @@ async def aggregator(state: RunState) -> dict[str, Any]:
                 parts.append(str(output["answer"]))
 
     candidate = "\n".join(parts) if parts else "(无任务输出)"
-    return {"aggregate": AggregateResult(candidate_answer=candidate, task_outputs=outputs)}
+    result: dict[str, Any] = {
+        "aggregate": AggregateResult(candidate_answer=candidate, task_outputs=outputs)
+    }
+    if update_budge is not None:
+        result["budget"] = update_budge
+    return result
 
 
 __all__ = ["aggregator"]

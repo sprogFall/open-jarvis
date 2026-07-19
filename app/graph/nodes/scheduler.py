@@ -55,6 +55,15 @@ async def scheduler(state: RunState) -> dict[str, Any]:
     ready = _ready_tasks(state)
     budget = state.get("budget")
     max_concurrent = budget.max_concurrent_tasks if budget else 4
+    cycle_count = state.get("cycle_count", 0) + 1
+    max_cycles = (budget.max_review_cycles if budget else 3) * 3
+
+    if cycle_count > max_cycles:
+        return {
+            "cycle_count": cycle_count,
+            "assignments": {},
+            "diagnosis": state.get("diagnosis"),
+        }
 
     assignments: dict[str, Assignment] = {}
     for task in ready[:max_concurrent]:
@@ -99,7 +108,12 @@ def route_after_scheduler(state: RunState) -> str | list[Send]:
         status_map.get(t.task_id) == TaskStatus.completed
         for t in plan.tasks
     )
-    return "aggregator" if all_done else "cause_analyzer"
+    if all_done:
+        diagnosis = state.get("diagnosis")
+        if diagnosis is not None and diagnosis.suggested_action not in (None, "finalize"):
+            return "cause_analyzer"
+        return "aggregator"
+    return "cause_analyzer"
 
 
 __all__ = ["scheduler", "route_after_scheduler"]

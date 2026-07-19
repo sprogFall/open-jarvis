@@ -17,7 +17,7 @@ class FaultDomain(StrEnum):
 
 
 class Diagnosis(BaseModel):
-    """对应架构设计第 4.3 节与第 5.2 节 Diagnosis。"""
+    """诊断信息。"""
 
     fault_domain: FaultDomain = Field(description="故障归属域，标识错误发生在哪个阶段")
     confidence: float = Field(default=0.0, description="诊断结论的置信度，范围 0.0~1.0")
