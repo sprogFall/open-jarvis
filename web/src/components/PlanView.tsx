@@ -9,10 +9,8 @@ import {
   Loader2,
   XCircle,
   SkipForward,
-  ArrowRight,
   GitBranch,
   Wrench,
-  AlignLeft,
 } from "lucide-react";
 import type { Plan, TaskWithProgress } from "../types";
 import MarkdownRenderer from "./MarkdownRenderer";

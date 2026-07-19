@@ -1,8 +1,10 @@
+import { useCallback } from "react";
 import { useRuns } from "./hooks/useRuns";
 import { usePolling } from "./hooks/usePolling";
-import { useCallback } from "react";
 import Sidebar from "./components/Sidebar";
 import { Dashboard } from "./components/Dashboard";
+
+const FINISHED_STATUSES = ["success", "partial", "failed", "cancelled", "done"];
 
 export default function App() {
   const {
@@ -14,40 +16,35 @@ export default function App() {
     submitRequest,
     fetchRun,
     selectRun,
+    startNewSession,
   } = useRuns();
 
-  // 轮询当前活跃运行的快照
-  const isActive = activeRunId !== null;
-  const shouldPoll =
-    isActive &&
-    activeRun !== null &&
-    !["success", "partial", "failed", "cancelled"].includes(
-      activeRun.status,
-    );
+  const shouldPoll = Boolean(
+    activeRunId && activeRun && !FINISHED_STATUSES.includes(activeRun.status),
+  );
 
-  const poll = useCallback(() => {
-    if (activeRunId) fetchRun(activeRunId);
+  const poll = useCallback(async () => {
+    if (activeRunId) await fetchRun(activeRunId);
   }, [activeRunId, fetchRun]);
 
   usePolling(poll, 2000, shouldPoll);
 
   return (
-    <div className="flex h-screen bg-[#121212] text-[#e5e7eb] overflow-hidden">
-      {/* 左侧栏 */}
+    <div className="flex h-dvh overflow-hidden bg-[#10131a] text-[#e5e7eb]">
       <Sidebar
         runs={runList}
         activeRunId={activeRunId}
         onSelectRun={selectRun}
+        onNewSession={startNewSession}
       />
-
-      {/* 主区域 */}
-      <main className="flex-1 flex flex-col min-w-0 h-full">
+      <main className="flex min-w-0 flex-1 flex-col">
         <Dashboard
           activeRun={activeRun}
           activeRunId={activeRunId}
           loading={loading}
           error={error}
           onSubmit={submitRequest}
+          onNewSession={startNewSession}
         />
       </main>
     </div>

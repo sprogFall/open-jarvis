@@ -1,33 +1,16 @@
 import { useMemo } from "react";
-import {
-  Lightbulb,
-  ListChecks,
-  Merge,
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
-  Clock,
-  ChevronDown,
-  ChevronRight,
-  MessageSquareText,
-  Gauge,
-  Zap,
-} from "lucide-react";
-import type { RunSnapshot, TaskWithProgress, TaskProgress, WorkflowPhase } from "../types";
-import { PlanView } from "./PlanView";
+import { CheckCircle2, Clock3, Cpu, Layers3, ListChecks, Loader2, Merge, MessageSquareText, RotateCcw, Settings2, ShieldCheck, XCircle } from "lucide-react";
+import type { RunSnapshot, TaskProgress, TaskWithProgress, WorkflowPhase } from "../types";
 import { AggregateCard } from "./AggregateCard";
-import { ReviewCard } from "./ReviewCard";
 import { FinalAnswer } from "./FinalAnswer";
-import { StatusBadge } from "./Dashboard";
+import { PlanView } from "./PlanView";
+import { ReviewCard } from "./ReviewCard";
 
-interface RunDetailProps {
-  run: RunSnapshot;
-}
+interface RunDetailProps { run: RunSnapshot; }
 
-/** 根据快照推断工作流阶段 */
 function inferPhase(run: RunSnapshot): WorkflowPhase {
-  if (run.final_answer) return "done";
   if (run.status === "failed" || run.error) return "failed";
+  if (run.final_answer || ["success", "partial", "done", "cancelled"].includes(run.status)) return "done";
   if (run.review) return "reviewing";
   if (run.aggregate) return "aggregating";
   if (run.plan && run.task_events.length > 0) return "executing";
@@ -35,233 +18,100 @@ function inferPhase(run: RunSnapshot): WorkflowPhase {
   return "queued";
 }
 
-/** 将 plan.tasks 与 task_events 合并为 TaskWithProgress[] */
 function mergeTasks(run: RunSnapshot): TaskWithProgress[] {
   if (!run.plan) return [];
-  const eventMap = new Map(run.task_events.map((e) => [e.task_id, e]));
+  const latest = new Map<string, (typeof run.task_events)[number]>();
+  run.task_events.forEach((event) => latest.set(event.task_id, event));
   return run.plan.tasks.map((task) => {
-    const result = eventMap.get(task.task_id) ?? null;
-    let progress: TaskProgress;
-    if (!result) {
-      progress = { stage: "pending" };
-    } else if (result.status === "completed") {
-      progress = { stage: "completed" };
-    } else if (result.status === "failed") {
-      progress = { stage: "failed", error: result.error_message ?? undefined };
-    } else if (result.status === "running") {
-      progress = { stage: "running", started_at: result.started_at ?? undefined };
-    } else if (result.status === "skipped") {
-      progress = { stage: "skipped" };
-    } else {
-      progress = { stage: "pending" };
-    }
+    const result = latest.get(task.task_id) ?? null;
+    let progress: TaskProgress = { stage: "pending" };
+    if (result?.status === "completed") progress = { stage: "completed" };
+    else if (result?.status === "failed") progress = { stage: "failed", error: result.error_message ?? undefined };
+    else if (result?.status === "running") progress = { stage: "running", started_at: result.started_at ?? undefined };
+    else if (result?.status === "skipped" || result?.status === "cancelled") progress = { stage: "skipped" };
     return { task, result, progress };
   });
 }
 
-const PHASE_STEPS: { phase: WorkflowPhase; label: string; icon: React.FC<{ className?: string }> }[] = [
-  { phase: "queued", label: "排队", icon: Clock },
-  { phase: "planning", label: "规划", icon: Lightbulb },
+const PHASE_STEPS = [
+  { phase: "queued", label: "排队", icon: Clock3 },
+  { phase: "planning", label: "规划", icon: Layers3 },
   { phase: "executing", label: "执行", icon: ListChecks },
   { phase: "aggregating", label: "汇总", icon: Merge },
-  { phase: "reviewing", label: "审核", icon: CheckCircle2 },
-  { phase: "finalizing", label: "完成", icon: MessageSquareText },
-];
+  { phase: "reviewing", label: "审核", icon: ShieldCheck },
+  { phase: "done", label: "完成", icon: MessageSquareText },
+] as const;
 
 export function RunDetail({ run }: RunDetailProps) {
   const phase = useMemo(() => inferPhase(run), [run]);
   const tasks = useMemo(() => mergeTasks(run), [run]);
-
-  const isFinished = ["done", "failed"].includes(phase);
-  const isFailed = phase === "failed";
-
   return (
-    <div className="max-w-4xl mx-auto px-6 py-6 space-y-6 animate-fade-in">
-      {/* 工作流进度条 */}
-      <WorkflowProgress phase={phase} isFailed={isFailed} />
-
-      {/* 错误提示 */}
-      {run.error && (
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
-          <XCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-medium text-red-300">运行错误</p>
-            <p className="text-xs text-red-400/80 mt-1 font-mono">{run.error}</p>
-          </div>
-        </div>
-      )}
-
-      {/* 预算信息 */}
-      {run.plan && <BudgetBar run={run} />}
-
-      {/* 计划 + 任务 DAG */}
-      {run.plan && (
-        <PlanView plan={run.plan} tasks={tasks} />
-      )}
-
-      {/* 汇总结果 */}
+    <div className="mx-auto max-w-5xl space-y-5 px-4 py-5 sm:px-6 sm:py-6">
+      <WorkflowProgress phase={phase} />
+      <ResourceMonitor run={run} tasks={tasks} />
+      {run.error && <div className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4" role="alert"><XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-300" /><div><p className="text-sm font-medium text-red-200">运行发生错误</p><p className="mt-1 break-words font-mono text-xs leading-5 text-red-200/80">{run.error}</p></div></div>}
+      {run.plan && <PlanView plan={run.plan} tasks={tasks} />}
       {run.aggregate && <AggregateCard aggregate={run.aggregate} />}
-
-      {/* 审核结果 */}
       {run.review && <ReviewCard review={run.review} />}
-
-      {/* 最终答案 */}
       {run.final_answer && <FinalAnswer answer={run.final_answer} />}
-
-      {/* 运行中无计划时的等待 */}
-      {!run.plan && !isFinished && (
-        <div className="flex flex-col items-center justify-center py-16 text-muted">
-          <div className="w-10 h-10 rounded-full border-2 border-accent/30 border-t-accent animate-spin mb-4" />
-          <p className="text-sm">Agent 正在分析你的请求...</p>
-          <p className="text-xs mt-1 text-muted/60">预计几秒内生成执行计划</p>
-        </div>
-      )}
+      {!run.plan && phase !== "failed" && phase !== "done" && <WaitingState />}
     </div>
   );
 }
 
-/* ---- 工作流进度条 ---- */
-function WorkflowProgress({
-  phase,
-  isFailed,
-}: {
-  phase: WorkflowPhase;
-  isFailed: boolean;
-}) {
-  const currentIdx = PHASE_STEPS.findIndex((s) => s.phase === phase);
-
+function WorkflowProgress({ phase }: { phase: WorkflowPhase }) {
+  const currentIndex = Math.max(0, PHASE_STEPS.findIndex((step) => step.phase === phase));
+  const failed = phase === "failed";
   return (
-    <div className="bg-surface-raised rounded-2xl border border-surface-border p-4">
-      <div className="flex items-center justify-between">
-        {PHASE_STEPS.map((step, i) => {
+    <section aria-label="工作流进度" className="rounded-2xl border border-surface-border bg-surface-raised p-4 sm:p-5">
+      <div className="mb-4 flex items-center justify-between"><div><p className="text-sm font-semibold">运行进度</p><p className="mt-0.5 text-xs text-muted">每个阶段会在快照更新时自动刷新</p></div><span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${failed ? "bg-red-500/15 text-red-300" : phase === "done" ? "bg-emerald-500/15 text-emerald-300" : "bg-accent/15 text-accent-hover"}`}>{failed ? "已中断" : phase === "done" ? "已完成" : "处理中"}</span></div>
+      <ol className="grid grid-cols-3 gap-x-2 gap-y-4 sm:grid-cols-6">
+        {PHASE_STEPS.map((step, index) => {
           const Icon = step.icon;
-          const isActive = i === currentIdx && !isFailed;
-          const isDone = i < currentIdx || (i === currentIdx && phase === "done");
-          const isError = isFailed && i === currentIdx;
-          return (
-            <div key={step.phase} className="flex items-center flex-1 last:flex-none">
-              <div className="flex flex-col items-center gap-1.5">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
-                    isError
-                      ? "bg-red-500/20 text-red-400 ring-1 ring-red-500/30"
-                      : isDone
-                        ? "bg-emerald-500/15 text-emerald-400"
-                        : isActive
-                          ? "bg-accent/20 text-accent ring-1 ring-accent/30"
-                          : "bg-surface-overlay text-muted/50"
-                  }`}
-                >
-                  {isError ? (
-                    <XCircle className="w-4 h-4" />
-                  ) : isActive ? (
-                    <div className="w-3.5 h-3.5 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-                  ) : (
-                    <Icon className="w-4 h-4" />
-                  )}
-                </div>
-                <span
-                  className={`text-[10px] font-medium transition-colors duration-300 ${
-                    isActive ? "text-accent" : isDone ? "text-emerald-400/80" : isError ? "text-red-400" : "text-muted/50"
-                  }`}
-                >
-                  {step.label}
-                </span>
-              </div>
-              {i < PHASE_STEPS.length - 1 && (
-                <div className="flex-1 h-0.5 mx-1 -mt-5">
-                  <div className="h-full rounded-full bg-surface-overlay overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-700 ${
-                        i < currentIdx || (isDone && i < currentIdx)
-                          ? "bg-emerald-500/50"
-                          : i === currentIdx && isActive
-                            ? "bg-accent/30"
-                            : ""
-                      }`}
-                      style={{
-                        width:
-                          i < currentIdx
-                            ? "100%"
-                            : i === currentIdx && !isFailed && phase !== "done"
-                              ? "40%"
-                              : "0%",
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          );
+          const isComplete = !failed && (index < currentIndex || phase === "done");
+          const isCurrent = !failed && index === currentIndex && phase !== "done";
+          const isFailed = failed && index === currentIndex;
+          return <li key={step.phase} className="relative flex min-w-0 items-center gap-2 sm:block sm:text-center">
+            {index > 0 && <span className={`absolute -left-1/2 top-4 hidden h-px w-full sm:block ${isComplete ? "bg-emerald-500/70" : "bg-surface-border"}`} aria-hidden="true" />}
+            <span className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${isFailed ? "bg-red-500/20 text-red-300" : isComplete ? "bg-emerald-500/20 text-emerald-300" : isCurrent ? "bg-accent/20 text-accent ring-1 ring-accent/50" : "bg-surface-overlay text-muted/60"}`}>{isCurrent ? <Loader2 className="h-4 w-4 animate-spin" /> : isFailed ? <XCircle className="h-4 w-4" /> : isComplete ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-4 w-4" />}</span>
+            <span className={`relative z-10 text-[11px] font-medium ${isFailed ? "text-red-300" : isComplete ? "text-emerald-300" : isCurrent ? "text-accent-hover" : "text-muted/70"}`}>{step.label}</span>
+          </li>;
         })}
-      </div>
-    </div>
+      </ol>
+    </section>
   );
 }
 
-/* ---- 资源预算条 ---- */
-function BudgetBar({ run }: { run: RunSnapshot }) {
-  const b = run.budget;
-  const totalTasks = run.plan?.tasks.length ?? 0;
-  const completedTasks = run.task_events.filter(
-    (e) => e.status === "completed",
-  ).length;
-  const failedTasks = run.task_events.filter(
-    (e) => e.status === "failed",
-  ).length;
-  const runningTasks = run.task_events.filter(
-    (e) => e.status === "running",
-  ).length;
-
+function ResourceMonitor({ run, tasks }: { run: RunSnapshot; tasks: TaskWithProgress[] }) {
+  const budget = run.budget;
+  const counts = tasks.reduce((acc, item) => { acc[item.progress.stage] += 1; return acc; }, { pending: 0, running: 0, completed: 0, failed: 0, skipped: 0 });
+  const total = tasks.length;
+  const settled = counts.completed + counts.failed + counts.skipped;
+  const taskPercent = total ? Math.round((settled / total) * 100) : 0;
+  const planPercent = ratio(run.plan_version, budget.max_plan_versions);
+  const cyclePercent = ratio(run.cycle_count, budget.max_review_cycles);
+  const tokenPercent = ratio(budget.used_tokens, budget.max_tokens);
+  const callPercent = ratio(budget.used_model_calls, budget.max_model_calls);
   return (
-    <div className="bg-surface-raised rounded-2xl border border-surface-border p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <Gauge className="w-4 h-4 text-muted" />
-        <span className="text-xs font-medium text-muted">运行资源监控</span>
+    <section aria-labelledby="resource-title" className="overflow-hidden rounded-2xl border border-surface-border bg-surface-raised">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-surface-border px-4 py-4 sm:px-5"><div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent/15"><Settings2 className="h-4 w-4 text-accent-hover" /></div><div><h3 id="resource-title" className="text-sm font-semibold">运行资源监控</h3><p className="mt-0.5 text-xs text-muted">任务进度、重规划与模型用量</p></div></div><span className="font-mono text-[11px] text-muted/70">{run.run_id}</span></div>
+      <div className="grid grid-cols-2 gap-px bg-surface-border md:grid-cols-4">
+        <Metric title="任务进度" value={total ? `${settled} / ${total}` : "等待计划"} caption={total ? `${counts.running} 运行中 · ${counts.pending} 待执行${counts.failed ? ` · ${counts.failed} 失败` : ""}` : "规划生成后显示"} percent={taskPercent} tone="emerald" icon={ListChecks} />
+        <Metric title="计划版本" value={`v${run.plan_version} / ${budget.max_plan_versions}`} caption="超过上限将停止重规划" percent={planPercent} tone="violet" icon={Layers3} />
+        <Metric title="审核循环" value={`${run.cycle_count} / ${budget.max_review_cycles}`} caption="审核不通过时触发循环" percent={cyclePercent} tone="orange" icon={RotateCcw} />
+        <Metric title="Token 用量" value={`${formatNumber(budget.used_tokens)}${budget.max_tokens ? ` / ${formatNumber(budget.max_tokens)}` : ""}`} caption={`${budget.used_model_calls}${budget.max_model_calls ? ` / ${budget.max_model_calls}` : ""} 次模型调用`} percent={Math.max(tokenPercent, callPercent)} tone="cyan" icon={Cpu} />
       </div>
-      <div className="grid grid-cols-4 gap-3 text-xs">
-        <MetricItem
-          label="计划版本"
-          value={`v${run.plan_version} / ${b.max_plan_versions}`}
-          color="text-violet-400"
-        />
-        <MetricItem
-          label="循环次数"
-          value={`${run.cycle_count} / ${b.max_review_cycles}`}
-          color="text-orange-400"
-        />
-        <MetricItem
-          label="Token 消耗"
-          value={`${b.used_tokens.toLocaleString()}${b.max_tokens ? ` / ${b.max_tokens.toLocaleString()}` : ""}`}
-          color="text-cyan-400"
-        />
-        <MetricItem
-          label="任务进度"
-          value={`${completedTasks}/${totalTasks}`}
-          sub={`${runningTasks} 运行中${failedTasks > 0 ? ` · ${failedTasks} 失败` : ""}`}
-          color="text-emerald-400"
-        />
-      </div>
-    </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 px-4 py-3 text-xs text-muted sm:grid-cols-4 sm:px-5"><div><dt>并发上限</dt><dd className="mt-1 font-mono text-muted-foreground">{budget.max_concurrent_tasks} 个任务</dd></div><div><dt>单任务重试</dt><dd className="mt-1 font-mono text-muted-foreground">最多 {budget.max_task_attempts} 次</dd></div><div><dt>时间上限</dt><dd className="mt-1 font-mono text-muted-foreground">{Math.round(budget.max_total_seconds / 60)} 分钟</dd></div><div><dt>预估成本</dt><dd className="mt-1 font-mono text-muted-foreground">{budget.used_cost ? `$${budget.used_cost.toFixed(4)}` : "—"}</dd></div></dl>
+    </section>
   );
 }
 
-function MetricItem({
-  label,
-  value,
-  sub,
-  color,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  color: string;
-}) {
-  return (
-    <div className="bg-surface px-3 py-2.5 rounded-xl">
-      <p className="text-[10px] text-muted/60 mb-0.5">{label}</p>
-      <p className={`font-mono font-medium text-sm ${color}`}>{value}</p>
-      {sub && <p className="text-[10px] text-muted/50 mt-0.5">{sub}</p>}
-    </div>
-  );
+function Metric({ title, value, caption, percent, tone, icon: Icon }: { title: string; value: string; caption: string; percent: number; tone: "emerald" | "violet" | "orange" | "cyan"; icon: typeof ListChecks }) {
+  const styles = { emerald: "bg-emerald-400 text-emerald-300", violet: "bg-violet-400 text-violet-300", orange: "bg-orange-400 text-orange-300", cyan: "bg-cyan-400 text-cyan-300" }[tone];
+  const [bar, text] = styles.split(" ");
+  return <div className="min-w-0 bg-surface p-4"><div className="flex items-center gap-2 text-muted"><Icon className={`h-3.5 w-3.5 ${text}`} /><p className="text-[11px] font-medium">{title}</p></div><p className={`mt-3 truncate font-mono text-base font-semibold ${text}`}>{value}</p><p className="mt-1 min-h-4 truncate text-[10px] text-muted/70">{caption}</p><div className="mt-3 h-1 overflow-hidden rounded-full bg-surface-overlay"><div className={`h-full rounded-full transition-[width] duration-500 ${bar}`} style={{ width: `${Math.min(100, percent)}%` }} /></div></div>;
 }
+
+function WaitingState() { return <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-surface-border py-12 text-center"><div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/15"><Loader2 className="h-5 w-5 animate-spin text-accent" /></div><p className="mt-4 text-sm font-medium">正在生成执行计划</p><p className="mt-1 text-xs text-muted">计划、任务和资源统计将在首个快照到达后显示。</p></div>; }
+function ratio(used: number, limit: number | null | undefined): number { return limit && limit > 0 ? Math.round((used / limit) * 100) : 0; }
+function formatNumber(value: number): string { return new Intl.NumberFormat("zh-CN", { notation: "compact", maximumFractionDigits: 1 }).format(value); }

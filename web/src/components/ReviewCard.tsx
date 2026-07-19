@@ -1,4 +1,4 @@
-import { CheckCircle2, XCircle, AlertTriangle, Lightbulb, ArrowRight } from "lucide-react";
+import { CheckCircle2, XCircle, AlertTriangle, Lightbulb } from "lucide-react";
 import type { ReviewResult } from "../types";
 
 interface ReviewCardProps {
