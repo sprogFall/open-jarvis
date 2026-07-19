@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -22,7 +23,7 @@ class ToolSpec(BaseModel):
 
     name: str
     description: str
-    parameters_schema: dict[str, object]
+    parameters_schema: dict[str, Any]
     permission_level: PermissionLevel = PermissionLevel.read
     timeout_seconds: int = 30
     idempotent: bool = True

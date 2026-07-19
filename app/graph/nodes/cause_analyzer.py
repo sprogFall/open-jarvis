@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 from langchain_core.runnables.config import RunnableConfig
@@ -17,6 +18,8 @@ from app.graph.prompts.cause_analyzer import cause_analyzer_prompt, CauseAnalyze
 from app.graph.state import RunState
 from app.models import get_model_for_run, ModelTier
 from app.models.structured import ainvoke_structured_with_retry
+
+logger = logging.getLogger(__name__)
 
 
 def _collect_rule_evidence(state: RunState) -> tuple[list[str], str | None]:
@@ -142,7 +145,7 @@ async def cause_analyzer(state: RunState, config: RunnableConfig) -> dict[str, A
         )}
 
     # 规则无法确定的，需要LLM判断归因
-    model = get_model_for_run(config, ModelTier.fast)
+    model = get_model_for_run(config, ModelTier.fast, extra_body={"thinking": {"type": "disabled"}})
     chain = cause_analyzer_prompt | model.with_structured_output(
         CauseAnalyzerDraft,
         method="function_calling",
@@ -164,7 +167,7 @@ async def cause_analyzer(state: RunState, config: RunnableConfig) -> dict[str, A
             node="cause_analyzer"
         )
     except Exception as e:
-        print(f"归因失败： {str(e)}")
+        logger.error("归因失败: %s", str(e))
         return {"diagnosis": Diagnosis(
             fault_domain=FaultDomain.execution_permanent,
             confidence=0.0,

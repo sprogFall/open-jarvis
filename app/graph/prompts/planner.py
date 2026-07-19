@@ -49,7 +49,7 @@ REPLANNER_SYSTEM = """\
 2. 对失败或被诊断出问题的任务：修订 instruction、success_criteria、dependencies 或重新规划。
 3. 如果诊断指出是工具/执行器问题，相应调整 required_capabilities 和 tool_allowlist。
 4. 如果诊断指出是规划问题，可能需要新增任务、拆分任务或调整依赖关系。
-5. task_id 保持稳定：已有的成功任务保留原 ID，新任务用 t{N+1} 递增。
+5. task_id 保持稳定：已有的成功任务保留原 ID，新任务用 t{{N+1}} 递增。
 6. assumptions 和 global_success_criteria 按需更新。
 只输出结构化结果。"""
 

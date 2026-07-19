@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Any
 
@@ -18,6 +19,8 @@ from app.graph.state import RunState
 from app.graph.validation import PlanValidationError, validate_plan
 from app.models import ModelTier, get_model_for_run
 from app.models.structured import ainvoke_structured_with_retry
+
+logger = logging.getLogger(__name__)
 
 
 def _generate_plan_id() -> str:
@@ -93,8 +96,7 @@ async def planner(state: RunState, config: RunnableConfig) -> dict[str, object]:
                 node="planner",
             )
         except Exception as e:
-            # 重规划失败 -> 保留原计划，递增版本号兜底
-            print(f"重新规划失败: {str(e)}")
+            logger.error("重新规划失败: %s", str(e))
             return {
                 "plan": _fallback_plan(user_request, [f"LLM重规划失败：{str(e)}"], version=new_version),
                 "plan_version": new_version,
@@ -133,21 +135,21 @@ async def planner(state: RunState, config: RunnableConfig) -> dict[str, object]:
             node="planner",
         )
         plan_version = plan_version + 1
+        # 使用 LLM 精炼后的 objective，而非原始 user_request
         plan = Plan(
             plan_id=_generate_plan_id(),
             version=plan_version,
-            objective=user_request,
+            objective=draft.objective,
             assumptions=draft.assumptions,
             global_success_criteria=draft.global_success_criteria,
             tasks=draft.tasks
         )
         try:
-            # 计划DAG检验与回退
             validate_plan(plan)
+            return {"plan": plan, "plan_version": plan_version}
         except PlanValidationError as e:
             plan = _fallback_plan(user_request, e.issues, version=plan_version)
-
-        return {"plan": plan, "plan_version": plan_version}
+            return {"plan": plan, "plan_version": plan_version}
 
 
 __all__ = ["planner"]

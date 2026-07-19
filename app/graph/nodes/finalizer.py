@@ -27,16 +27,15 @@ async def finalizer(state: RunState, config: RunnableConfig) -> dict:
     review = state.get("review")
 
     if aggregate is None:
-        # 失败路径在 Aggregator 前结束：从 task_events 中提取已完成任务的部分结果
+        # 失败路径在 Aggregator 前结束：从 task_events 中提取已完成任务的部分结果（按 task_id 去重）
         task_events = state.get("task_events", [])
-        completed_outputs = [
-            str(ev.output["answer"])
-            for ev in task_events
-            if ev.status == TaskStatus.completed and ev.output and "answer" in ev.output
-        ]
-        if completed_outputs:
+        latest_outputs: dict[str, str] = {}
+        for ev in task_events:
+            if ev.status == TaskStatus.completed and ev.output and "answer" in ev.output:
+                latest_outputs[ev.task_id] = str(ev.output["answer"])
+        if latest_outputs:
             return {"final_answer": FinalAnswer(
-                content="\n".join(completed_outputs),
+                content="\n".join(latest_outputs.values()),
                 status=RunStatus.partial,
                 warnings=["任务未全部完成，以下为已完成任务的部分结果"]
             )}

@@ -44,6 +44,10 @@ async def reallocator(state: RunState) -> dict[str, Any]:
             continue
         old = old_assignments.get(task.task_id)
         next_attempt = (old.attempt + 1) if old else 1
+        # 使用任务原有的工具白名单，不应清空（清空意味着无工具可用）
+        allowlist = task.tool_allowlist if task.tool_allowlist else []
+        # 设置超时默认值，避免 None 导致无限挂起
+        timeout = task.timeout_seconds if task.timeout_seconds is not None else 120
         if diagnosis.fault_domain in (
             FaultDomain.allocation,
             FaultDomain.execution_permanent
@@ -55,8 +59,8 @@ async def reallocator(state: RunState) -> dict[str, Any]:
                     "reasoning" if (old and old.model_tier != "reasoning")
                     else "standard"
                 ),
-                tool_allowlist=[],
-                timeout_seconds=task.timeout_seconds * 2 if task.timeout_seconds is not None else None,
+                tool_allowlist=allowlist,
+                timeout_seconds=timeout * 2,
                 attempt=next_attempt
             )
         else:
@@ -64,8 +68,8 @@ async def reallocator(state: RunState) -> dict[str, Any]:
                 task_id=task.task_id,
                 executor_profile="default",
                 model_tier=old.model_tier if old else "standard",
-                tool_allowlist=[],
-                timeout_seconds=task.timeout_seconds,
+                tool_allowlist=allowlist,
+                timeout_seconds=timeout,
                 attempt=next_attempt
             )
 

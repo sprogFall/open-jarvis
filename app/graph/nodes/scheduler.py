@@ -5,19 +5,27 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from langgraph.types import Send
 
-from app.domain import Assignment, Task, TaskStatus
+from app.domain import Assignment, Diagnosis, Task, TaskStatus
+from app.domain.diagnosis import FaultDomain
 from app.graph.state import RunState
 
-_TERMINAL_STATUSES = (
+logger = logging.getLogger(__name__)
+
+# 不可被重新调度的最终/进行中状态
+_NON_SCHEDULABLE_STATUSES = (
     TaskStatus.completed,
-    TaskStatus.running,
-    TaskStatus.failed,
     TaskStatus.cancelled,
     TaskStatus.skipped,
+)
+# 任务处于进行中，不能重新调度，但也不是终端状态
+_RUNNING_BLOCKED_STATUSES = (
+    TaskStatus.running,
+    TaskStatus.failed,
 )
 
 def _task_status_map(state: RunState) -> dict[str, TaskStatus]:
@@ -28,26 +36,29 @@ def _task_status_map(state: RunState) -> dict[str, TaskStatus]:
     return latest
 
 def _ready_tasks(state: RunState) -> list[Task]:
-    """计算就绪任务：依赖已经全部completed且自身未完成/未运行"""
+    """计算就绪任务：依赖已全部完成且自身未完成/未失败/未运行"""
     plan = state.get("plan")
     if plan is None:
         return []
     status_map = _task_status_map(state)
+    # 已有 assignments 的任务（例如 reallocator 已分配）不再重复生成
+    existing_assigned = set(state.get("assignments", {}).keys())
     ready = []
     for task in plan.tasks:
-        if status_map.get(task.task_id) in _TERMINAL_STATUSES:
-            # 如果任务已完成/运行中 不做处理
-            # 这里是【任务状态】
+        status = status_map.get(task.task_id)
+        if status in _NON_SCHEDULABLE_STATUSES:
             continue
-        # 当前task下的依赖是否已经全部完成
-        # 这里是任务下的【依赖状态】
+        # 正在运行或已失败但已有新 assignment（重分配）的任务跳过
+        if status in _RUNNING_BLOCKED_STATUSES:
+            if task.task_id in existing_assigned:
+                continue  # reallocator 已分配，跳过自动调度
+            continue
         deps_ok = all(
             status_map.get(dep) == TaskStatus.completed
             for dep in task.dependencies
         )
         if deps_ok:
             ready.append(task)
-    # 返回本轮就绪的task列表
     return ready
 
 async def scheduler(state: RunState) -> dict[str, Any]:
@@ -59,25 +70,34 @@ async def scheduler(state: RunState) -> dict[str, Any]:
     max_cycles = (budget.max_review_cycles if budget else 3) * 3
 
     if cycle_count > max_cycles:
+        logger.warning("已达到最大循环次数 %d/%d，强制终止", cycle_count, max_cycles)
         return {
             "cycle_count": cycle_count,
             "assignments": {},
-            "diagnosis": state.get("diagnosis"),
+            "diagnosis": Diagnosis(
+                fault_domain=FaultDomain.execution_permanent,
+                confidence=1.0,
+                evidence=[f"已达到最大循环次数 {cycle_count}/{max_cycles}，强制终止"],
+                suggested_action="finalize"
+            ),
         }
 
-    assignments: dict[str, Assignment] = {}
-    for task in ready[:max_concurrent]:
-        assignments[task.task_id] = Assignment(
-            task_id=task.task_id,
-            executor_profile="default",
-            model_tier="standard",
-            tool_allowlist=task.tool_allowlist,
-            timeout_seconds=task.timeout_seconds,
-            attempt=1,
-        )
+    # 保留已有 assignments（如 reallocator 生成的重分配），仅补充新就绪任务
+    assignments: dict[str, Assignment] = dict(state.get("assignments", {}))
+    remaining_slots = max_concurrent - len(assignments)
+    for task in ready[:max(remaining_slots, 0)]:
+        if task.task_id not in assignments:
+            assignments[task.task_id] = Assignment(
+                task_id=task.task_id,
+                executor_profile="default",
+                model_tier="standard",
+                tool_allowlist=task.tool_allowlist,
+                timeout_seconds=task.timeout_seconds,
+                attempt=1,
+            )
 
     return {
-        "cycle_count": state.get("cycle_count", 0) + 1,
+        "cycle_count": cycle_count,
         "assignments": assignments,
     }
 
@@ -101,7 +121,7 @@ def route_after_scheduler(state: RunState) -> str | list[Send]:
 
     # 没有就绪任务：判断是全部成功还是阻塞
     if plan is None:
-        return "cause_analyzer"
+        return "finalizer"
     status_map = _task_status_map(state)
     # 是否全部完成了
     all_done = all(
