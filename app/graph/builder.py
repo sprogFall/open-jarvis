@@ -44,7 +44,8 @@ def _route_after_cause_analyzer(state: RunState) -> str:
     if action == "reallocate":
         return "reallocator"
     if action == "reaggregate":
-        return "aggregator"
+        # 走 scheduler 保证 cycle_count 递增，有终止条件
+        return "scheduler"
     return "finalizer"
 
 

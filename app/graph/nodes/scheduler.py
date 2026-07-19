@@ -110,9 +110,9 @@ def route_after_scheduler(state: RunState) -> str | list[Send]:
     )
     if all_done:
         diagnosis = state.get("diagnosis")
-        if diagnosis is not None and diagnosis.suggested_action not in (None, "finalize"):
+        if diagnosis is not None and diagnosis.suggested_action not in (None, "finalize", "reaggregate"):
             return "cause_analyzer"
-        return "aggregator"
+        return "aggregator"                     # reaggregate 走这里，允许重新汇总
     return "cause_analyzer"
 
 

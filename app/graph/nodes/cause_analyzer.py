@@ -38,12 +38,17 @@ def _collect_rule_evidence(state: RunState) -> tuple[list[str], str | None]:
     if cancelled:
         evidence.append(f"任务已被取消:{cancelled}")
         return evidence, "finalize"
-    # 3.任务全部成功，但是审核未通过
+    # 3.任务全部成功，但是审核未通过 —— 交给 LLM 语义归因，不直接 return
     if events:
-        all_ok = all(ev.status == TaskStatus.completed for ev in events)
+        latest: dict[str, TaskStatus] = {}
+        for ev in events:
+            latest[ev.task_id] = ev.status
+        all_ok = all(s == TaskStatus.completed for s in latest.values())
         if all_ok:
             evidence.append("所有任务执行成功，但是审核未通过")
-            return evidence, "reaggregate"
+            review = state.get("review")
+            if review:
+                evidence.append(f"审核建议: {review.suggested_action}, 评分: {review.score}, 问题: {review.issues}")
 
     # 剩余情况按错误码分类
     transient_ids = [
