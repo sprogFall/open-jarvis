@@ -9,12 +9,13 @@ import uuid
 
 from langchain_core.runnables.config import RunnableConfig
 
-from app.graph.prompts.planner import planner_prompt, PlannerDraft
+from app.domain.plan import Plan, Task
+from app.graph.prompts.planner import PlannerDraft, planner_prompt
 from app.graph.safety import sanitize_user_input
 from app.graph.state import RunState
-from app.domain.plan import Task, Plan
-from app.graph.validation import validate_plan, PlanValidationError
-from app.models import get_model_for_run, ModelTier
+from app.graph.validation import PlanValidationError, validate_plan
+from app.models import ModelTier, get_model_for_run
+from app.models.structured import ainvoke_structured_with_retry
 
 
 def _fallback_plan(user_request: str, issues: list[str]) -> Plan:
@@ -38,7 +39,7 @@ def _fallback_plan(user_request: str, issues: list[str]) -> Plan:
         )]
     )
 
-async def planner(state: RunState, config: RunnableConfig) -> dict:
+async def planner(state: RunState, config: RunnableConfig) -> dict[str, object]:
     """
     读取user_request，生成任务DAG
     """
@@ -47,8 +48,18 @@ async def planner(state: RunState, config: RunnableConfig) -> dict:
     user_request = state["user_request"]
     safe_user_request = sanitize_user_input(user_request)
     model = get_model_for_run(config, ModelTier.reasoning, extra_body={"thinking": {"type": "disabled"}})
-    chain = planner_prompt | model.with_structured_output(PlannerDraft, method="function_calling", strict=False)
-    draft: PlannerDraft = await chain.ainvoke({"user_request": safe_user_request})
+    chain = planner_prompt | model.with_structured_output(
+        PlannerDraft,
+        method="function_calling",
+        strict=False,
+        include_raw=True,
+    )
+    draft = await ainvoke_structured_with_retry(
+        chain,
+        {"user_request": safe_user_request},
+        schema=PlannerDraft,
+        node="planner",
+    )
     plan_version = 1
     plan = Plan(
         plan_id=f"plan_{uuid.uuid4().hex[:8]}",

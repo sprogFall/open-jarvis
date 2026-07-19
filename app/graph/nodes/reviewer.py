@@ -14,6 +14,7 @@ from app.domain import ReviewResult
 from app.graph.prompts.reviewer import ReviewerDraft, reviewer_prompt
 from app.graph.state import RunState
 from app.models import ModelTier, get_model_for_run
+from app.models.structured import ainvoke_structured_with_retry
 
 _FAILED_STATUSES = {"failed", "cancelled"}
 
@@ -35,7 +36,7 @@ def _format_task_result(state: RunState) -> str:
         })
     return json.dumps(rows, ensure_ascii=False, indent=2)
 
-async def reviewer(state: RunState, config: RunnableConfig) -> dict:
+async def reviewer(state: RunState, config: RunnableConfig) -> dict[str, object]:
     """规则预检 + LLM语义审核"""
     events = state.get("task_events", [])
     failed_task_id = [
@@ -54,14 +55,24 @@ async def reviewer(state: RunState, config: RunnableConfig) -> dict:
     aggregate = state.get("aggregate")
     model = get_model_for_run(config=config, tier=ModelTier.reasoning, extra_body={"thinking": {"type": "disabled"}})
     # 使用 ReviewerDraft 限定 LLM 只输出评分、问题和动作，任务 ID 等事实由代码维护
-    chain = reviewer_prompt | model.with_structured_output(ReviewerDraft, method="function_calling", strict=True)
+    chain = reviewer_prompt | model.with_structured_output(
+        ReviewerDraft,
+        method="function_calling",
+        strict=True,
+        include_raw=True,
+    )
     # 调用LLM，送入参数 获取review结果
-    draft: ReviewerDraft = await chain.ainvoke({
-        "objective": plan.objective if plan else "",
-        "global_success_criteria": "\n".join(plan.global_success_criteria) if plan else "（无）",
-        "task_results": _format_task_result(state),
-        "candidate_answer": aggregate.candidate_answer if aggregate else ""
-    })
+    draft = await ainvoke_structured_with_retry(
+        chain,
+        {
+            "objective": plan.objective if plan else "",
+            "global_success_criteria": "\n".join(plan.global_success_criteria) if plan else "（无）",
+            "task_results": _format_task_result(state),
+            "candidate_answer": aggregate.candidate_answer if aggregate else "",
+        },
+        schema=ReviewerDraft,
+        node="reviewer",
+    )
     review = ReviewResult(
         passed=draft.passed,
         score=draft.score,
