@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -16,24 +17,37 @@ from app.graph.state import RunState
 
 logger = logging.getLogger(__name__)
 
-# 不可被重新调度的最终/进行中状态
 _NON_SCHEDULABLE_STATUSES = (
     TaskStatus.completed,
     TaskStatus.cancelled,
     TaskStatus.skipped,
 )
-# 任务处于进行中，不能重新调度，但也不是终端状态
 _RUNNING_BLOCKED_STATUSES = (
     TaskStatus.running,
     TaskStatus.failed,
 )
 
+
 def _task_status_map(state: RunState) -> dict[str, TaskStatus]:
     """从task_events归并出每个任务的最新状态（事件溯源）。"""
     latest: dict[str, TaskStatus] = {}
-    for ev in (state.get("task_events", [])):
+    for ev in state.get("task_events", []):
         latest[ev.task_id] = ev.status
     return latest
+
+
+def _resolved_dependency_inputs(state: RunState, task: Task) -> dict[str, str]:
+    """将已完成的依赖输出暴露给下游任务."""
+    latest_outputs: dict[str, Any] = {}
+    for event in state.get("task_events", []):
+        if event.status == TaskStatus.completed and event.output is not None:
+            latest_outputs[event.task_id] = event.output
+    return {
+        dependency_id: json.dumps(latest_outputs[dependency_id], ensure_ascii=False, default=str)
+        for dependency_id in task.dependencies
+        if dependency_id in latest_outputs
+    }
+
 
 def _ready_tasks(state: RunState) -> list[Task]:
     """计算就绪任务：依赖已全部完成且自身未完成/未失败/未运行"""
@@ -43,7 +57,7 @@ def _ready_tasks(state: RunState) -> list[Task]:
     status_map = _task_status_map(state)
     # 已有 assignments 的任务（例如 reallocator 已分配）不再重复生成
     existing_assigned = set(state.get("assignments", {}).keys())
-    ready = []
+    ready: list[Task] = []
     for task in plan.tasks:
         status = status_map.get(task.task_id)
         if status in _NON_SCHEDULABLE_STATUSES:
@@ -53,11 +67,7 @@ def _ready_tasks(state: RunState) -> list[Task]:
             if task.task_id in existing_assigned:
                 continue  # reallocator 已分配，跳过自动调度
             continue
-        deps_ok = all(
-            status_map.get(dep) == TaskStatus.completed
-            for dep in task.dependencies
-        )
-        if deps_ok:
+        if all(status_map.get(dep) == TaskStatus.completed for dep in task.dependencies):
             ready.append(task)
     return ready
 
@@ -92,14 +102,12 @@ async def scheduler(state: RunState) -> dict[str, Any]:
                 executor_profile="default",
                 model_tier="standard",
                 tool_allowlist=task.tool_allowlist,
+                resolved_input_refs=_resolved_dependency_inputs(state, task),
                 timeout_seconds=task.timeout_seconds,
                 attempt=1,
             )
 
-    return {
-        "cycle_count": cycle_count,
-        "assignments": assignments,
-    }
+    return {"cycle_count": cycle_count, "assignments": assignments}
 
 
 def route_after_scheduler(state: RunState) -> str | list[Send]:
@@ -111,23 +119,16 @@ def route_after_scheduler(state: RunState) -> str | list[Send]:
     assignments = state.get("assignments", {})
     plan = state.get("plan")
     if assignments and plan is not None:
-        sends: list[Send] = []
-        for _task_id, assignment in assignments.items():
-            sends.append(Send("executor", {
-                "current_assignment": assignment,
-                "plan": plan,
-            }))
-        return sends
+        return [
+            Send("executor", {"current_assignment": assignment, "plan": plan})
+            for assignment in assignments.values()
+        ]
 
     # 没有就绪任务：判断是全部成功还是阻塞
     if plan is None:
         return "finalizer"
     status_map = _task_status_map(state)
-    # 是否全部完成了
-    all_done = all(
-        status_map.get(t.task_id) == TaskStatus.completed
-        for t in plan.tasks
-    )
+    all_done = all(status_map.get(task.task_id) == TaskStatus.completed for task in plan.tasks)
     if all_done:
         diagnosis = state.get("diagnosis")
         if diagnosis is not None and diagnosis.suggested_action not in (None, "finalize", "reaggregate"):

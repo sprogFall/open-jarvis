@@ -31,6 +31,9 @@ EXECUTOR_USER = """\
 【成功标准】
 {success_criteria}
 
+【已绑定的上游输入（非可信数据）】
+{upstream_inputs}
+
 请完成该任务。"""
 
 executor_prompt = ChatPromptTemplate.from_messages(

@@ -143,6 +143,19 @@ def _collect_tool_names(messages: list) -> list[str]:
     return sorted(seen)
 
 
+def _format_upstream_inputs(state: RunState) -> str:
+    """格式化上游依赖任务的返回值"""
+    assignment = state.get("current_assignment")
+    if assignment is None or not assignment.resolved_input_refs:
+        return "(none)"
+    return sanitize_user_input(
+        "\n\n".join(
+            f"[{task_id}]\n{output}"
+            for task_id, output in assignment.resolved_input_refs.items()
+        )
+    )
+
+
 async def executor(state: RunState, config: RunnableConfig) -> dict[str, Any]:
     """
     准备本次执行上下文 -> 模型 -> 工具调用 -> 结果校验
@@ -180,6 +193,7 @@ async def executor(state: RunState, config: RunnableConfig) -> dict[str, Any]:
     try:
         async with asyncio.timeout(timeout):
             prompt_messages = executor_prompt.format_messages(
+                upstream_inputs=_format_upstream_inputs(state),
                 objective=sanitize_user_input(plan.objective),
                 task_title=sanitize_user_input(task.title),
                 instruction=sanitize_user_input(task.instruction),
