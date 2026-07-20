@@ -19,12 +19,25 @@ from app.graph.state import RunState
 from app.graph.validation import PlanValidationError, validate_plan
 from app.models import ModelTier, get_model_for_run
 from app.models.structured import ainvoke_structured_with_retry
+from app.tools import tool_registry
 
 logger = logging.getLogger(__name__)
 
 
 def _generate_plan_id() -> str:
     return f"plan_{uuid.uuid4().hex[:8]}"
+
+
+def _format_tool_descriptions() -> str:
+    """将已注册工具的 name + description 格式化为 LLM 可读文本。"""
+    specs = tool_registry.all()
+    if not specs:
+        return "（当前无可用工具）"
+    lines = []
+    for spec in specs:
+        lines.append(f"- **{spec.name}**：{spec.description}")
+    return "\n".join(lines)
+
 
 def _fallback_plan(user_request: str, issues: list[str], version: int = 1) -> Plan:
     """DAG校验失败的时候触发兜底单任务计划，保证图不卡死"""
@@ -47,6 +60,7 @@ def _fallback_plan(user_request: str, issues: list[str], version: int = 1) -> Pl
         )]
     )
 
+
 def _build_context(state: RunState) -> dict[str, Any]:
     """从当前状态构建重规划所需的上下文"""
     plan = state["plan"]
@@ -60,6 +74,7 @@ def _build_context(state: RunState) -> dict[str, Any]:
         "suggested_action": (diagnosis.suggested_action or "replan") if diagnosis else "replan",
         "task_summary": format_task_summary(state),
         "current_plan_json": plan.model_dump_json(indent=2),
+        "tool_descriptions": _format_tool_descriptions(),
     }
 
 
@@ -74,9 +89,9 @@ async def planner(state: RunState, config: RunnableConfig) -> dict[str, object]:
 
     # 判断模式：有现有 plan 且有 diagnosis（suggested_action=replan）→ 重规划模式
     is_replan = (
-        existing_plan is not None
-        and diagnosis is not None
-        and diagnosis.suggested_action == "replan"
+            existing_plan is not None
+            and diagnosis is not None
+            and diagnosis.suggested_action == "replan"
     )
     model = get_model_for_run(config, ModelTier.reasoning, extra_body={"thinking": {"type": "disabled"}})
     if is_replan:
@@ -122,6 +137,7 @@ async def planner(state: RunState, config: RunnableConfig) -> dict[str, object]:
     else:
         # 首次规划模式
         safe_user_request = sanitize_user_input(user_request)
+        tool_descriptions = _format_tool_descriptions()
         chain = planner_prompt | model.with_structured_output(
             PlannerDraft,
             method="function_calling",
@@ -130,7 +146,10 @@ async def planner(state: RunState, config: RunnableConfig) -> dict[str, object]:
         )
         draft = await ainvoke_structured_with_retry(
             chain,
-            {"user_request": safe_user_request},
+            {
+                "user_request": safe_user_request,
+                "tool_descriptions": tool_descriptions
+            },
             schema=PlannerDraft,
             node="planner",
         )

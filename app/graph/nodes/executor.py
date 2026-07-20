@@ -10,6 +10,7 @@ import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
+from langchain.agents import create_agent
 from langchain_core.messages.ai import AIMessage
 from langchain_core.runnables.config import RunnableConfig
 from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
@@ -19,6 +20,7 @@ from app.graph.prompts.executor import executor_prompt
 from app.graph.safety import sanitize_user_input
 from app.graph.state import RunState
 from app.models import get_model_for_run
+from app.tools import tool_registry
 
 # 输出上限控制
 _MAX_OUTPUT_LENGTH = 20000
@@ -114,6 +116,32 @@ def _extract_token(response: AIMessage) -> int:
         return int(token_usage.get("total_tokens", 0))
     return 0
 
+def _sum_tokens(messages: list) -> int:
+    """从消息列表中累加所有 AI 消息的 token 消耗。"""
+    total = 0
+    for msg in messages:
+        usage = getattr(msg, "usage_metadata", None)
+        if isinstance(usage, dict):
+            total += int(usage.get("input_tokens", 0))
+            total += int(usage.get("output_tokens", 0))
+    return total
+
+
+def _collect_tool_names(messages: list) -> list[str]:
+    """从消息列表中收集实际调用的工具名称（去重）。"""
+    seen: set[str] = set()
+    for msg in messages:
+        # AIMessage 的 tool_calls 里有模型要求调用的工具名
+        for tc in getattr(msg, "tool_calls", None) or []:
+            name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
+            if name:
+                seen.add(name)
+        # ToolMessage 的 name 是实际被执行的工具
+        name = getattr(msg, "name", None)
+        if name and isinstance(name, str):
+            seen.add(name)
+    return sorted(seen)
+
 
 async def executor(state: RunState, config: RunnableConfig) -> dict[str, Any]:
     """
@@ -138,78 +166,64 @@ async def executor(state: RunState, config: RunnableConfig) -> dict[str, Any]:
             started_at=now,
             ended_at=now
         )]}
+    # 获取当前executor可以使用的工具
+    tools = [
+        spec.executor
+        for name in (assignment.tool_allowlist or [])
+        if (spec := tool_registry.get(name)) and spec.executor is not None
+    ]
     model = get_model_for_run(config, assignment.model_tier)
-    chain = executor_prompt | model
+    agent = create_agent(model, tools)
     started_at = _now()
     # 任务级超时：覆盖模型调用 + 重试 + 退避的总耗时
     timeout = assignment.timeout_seconds or 300
     try:
         async with asyncio.timeout(timeout):
-            response: AIMessage = await _invoke_with_retry(chain, {
-                "objective": sanitize_user_input(plan.objective),
-                "task_title": sanitize_user_input(task.title),
-                "instruction": sanitize_user_input(task.instruction),
-                "success_criteria": "\n".join(task.success_criteria) or "（无显式标准）",
-            })
-            answer = _extract_text(response)
-
-            validate_error = validate_output(answer)
-            if validate_error is None:
-                # 任务正常完成返回
-                task_result = TaskResult(
-                    task_id=assignment.task_id,
-                    attempt=assignment.attempt,
-                    status=TaskStatus.completed,
-                    output={"answer": answer},
-                    started_at=started_at,
-                    ended_at=_now(),
-                    token_usage=_extract_token(response),
-                    cost=0.0,
-                    tools_used=[]
-                )
-            else:
-                # 被validate_output拦截
-                task_result = TaskResult(
-                    task_id=assignment.task_id,
-                    attempt=assignment.attempt,
-                    status=TaskStatus.failed,
-                    error_code="output_validation_failed",
-                    error_message=validate_error,
-                    started_at=started_at,
-                    ended_at=_now()
-                )
+            prompt_messages = executor_prompt.format_messages(
+                objective=sanitize_user_input(plan.objective),
+                task_title=sanitize_user_input(task.title),
+                instruction=sanitize_user_input(task.instruction),
+                success_criteria="\n".join(task.success_criteria) or "（无显式标准）",
+            )
+            result = await agent.ainvoke(
+                {"messages": prompt_messages} # type: ignore[arg-type]
+            )
     except TimeoutError:
-        task_result = TaskResult(
-            task_id=assignment.task_id,
-            attempt=assignment.attempt,
-            status=TaskStatus.failed,
-            error_code="task_timeout",
+        now = _now()
+        return {"task_events": [TaskResult(
+            task_id=assignment.task_id, attempt=assignment.attempt,
+            status=TaskStatus.failed, error_code="task_timeout",
             error_message=f"任务执行超时（{timeout}s）",
-            started_at=started_at,
-            ended_at=_now(),
-        )
-    except TransientLLMError as e:
-        # 重试耗尽仍失败：瞬时错误，可由图级重分配重试
-        task_result = TaskResult(
-            task_id=assignment.task_id,
-            attempt=assignment.attempt,
-            status=TaskStatus.failed,
-            error_code="llm_transient",
-            error_message=f"重试耗尽：{e}",
-            started_at=started_at,
-            ended_at=_now(),
-        )
-    except Exception as e:  # noqa: BLE001 - 非瞬时错误：语义/权限/参数，交还图级归因
-        task_result = TaskResult(
-            task_id=assignment.task_id,
-            attempt=assignment.attempt,
-            status=TaskStatus.failed,
-            error_code="llm_error",
+            started_at=started_at, ended_at=now,
+        )]}
+    except Exception as e:
+        now = _now()
+        return {"task_events": [TaskResult(
+            task_id=assignment.task_id, attempt=assignment.attempt,
+            status=TaskStatus.failed, error_code="llm_error",
             error_message=str(e),
-            started_at=started_at,
-            ended_at=_now(),
-        )
-    return {"task_events": [task_result]}
+            started_at=started_at, ended_at=now,
+        )]}
+
+        # 提取 Agent 最后一条有内容的 AI 回复
+    messages = result.get("messages", [])
+    answer = ""
+    for msg in reversed(messages):
+        content = getattr(msg, "content", "")
+        if content and isinstance(content, str):
+            answer = content
+            break
+
+    now = _now()
+    return {"task_events": [TaskResult(
+        task_id=assignment.task_id, attempt=assignment.attempt,
+        status=TaskStatus.completed,
+        output={"answer": answer},
+        started_at=started_at, ended_at=now,
+        token_usage=_sum_tokens(messages),
+        cost=0.0,
+        tools_used=_collect_tool_names(messages),
+    )]}
 
 
 __all__ = ["executor", "validate_output"]

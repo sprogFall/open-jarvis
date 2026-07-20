@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from app.tools.base import ToolSpec
+import logging
 
+from app.tools.base import ToolSpec
+logger = logging.getLogger(__name__)
 
 class ToolRegistry:
     """工具注册中心，负责校验白名单与权限。"""
@@ -12,6 +14,7 @@ class ToolRegistry:
         self._tools: dict[str, ToolSpec] = {}
 
     def register(self, spec: ToolSpec) -> None:
+        logger.info(f"注册Tool成功：{spec.name}")
         self._tools[spec.name] = spec
 
     def get(self, name: str) -> ToolSpec | None:

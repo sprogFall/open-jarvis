@@ -31,6 +31,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         level=settings.app_log_level,
         llm_sdk_level=settings.llm_sdk_log_level,
     )
+    # 显式注册所有内置工具（日志已就绪）
+    from app.tools.builtin import register_builtin_tools
+    register_builtin_tools()
     yield
     # 取消并等待运行中的图任务，避免强制终止导致状态不一致
     from app.services.run import running_tasks

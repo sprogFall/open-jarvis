@@ -8,13 +8,18 @@ from app.domain import Task
 PROMPT_VERSION = "v1"
 
 PLANNER_SYSTEM = """\
-你是一个严谨的任务规划专家。给定用户目标，你需要：
+你是一个严谨的任务规划专家。给定用户目标和可用工具列表，你需要：
 1. 拆解为可独立执行的任务，形成任务 DAG。
 2. 每个任务必须有明确的 instruction 和 success_criteria。
 3. 通过 dependencies 表达依赖关系；无依赖的任务 dependencies 留空。
 4. 任务 ID 用 t1、t2、t3……，在同一次计划内稳定。
-5. tool_allowlist 暂时留空（当前阶段未接入工具）。
+5. 根据任务需要，在 tool_allowlist 中填入应使用的工具名称（从下面可用工具中选择）；
+   如果一个任务不需要工具，tool_allowlist 留空。
 6. 必要时在 assumptions 里记录你的假设。
+
+【可用工具】
+{tool_descriptions}
+
 只输出结构化结果，不要输出多余解释。"""
 
 PLANNER_USER = """\
@@ -51,6 +56,10 @@ REPLANNER_SYSTEM = """\
 4. 如果诊断指出是规划问题，可能需要新增任务、拆分任务或调整依赖关系。
 5. task_id 保持稳定：已有的成功任务保留原 ID，新任务用 t{{N+1}} 递增。
 6. assumptions 和 global_success_criteria 按需更新。
+
+【可用工具】
+{tool_descriptions}
+
 只输出结构化结果。"""
 
 REPLANNER_USER = """\

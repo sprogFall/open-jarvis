@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     otel_exporter_otlp_endpoint: str = Field(default="")
     otel_service_name: str = Field(default="open-jarvis")
 
+    # tool配置
+    tavily_api_key: str = Field(default="", description="tavily服务的api_key,通过https://app.tavily.com 获取")
+
     @property
     def is_development(self) -> bool:
         return self.app_env == "development"
