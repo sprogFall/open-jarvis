@@ -16,6 +16,7 @@ PLANNER_SYSTEM = """\
 5. 根据任务需要，在 tool_allowlist 中填入应使用的工具名称（从下面可用工具中选择）；
    如果一个任务不需要工具，tool_allowlist 留空。
 6. 必要时在 assumptions 里记录你的假设。
+7. 以系统注入的【当前时间】为“现在”；涉及“最新/近期”的目标应规划工具检索，并在验收标准中写明时效要求。
 
 【可用工具】
 {tool_descriptions}
@@ -23,6 +24,9 @@ PLANNER_SYSTEM = """\
 只输出结构化结果，不要输出多余解释。"""
 
 PLANNER_USER = """\
+【当前时间（权威，由系统注入）】
+{current_time}
+
 用户目标：
 {user_request}
 
@@ -56,6 +60,7 @@ REPLANNER_SYSTEM = """\
 4. 如果诊断指出是规划问题，可能需要新增任务、拆分任务或调整依赖关系。
 5. task_id 保持稳定：已有的成功任务保留原 ID，新任务用 t{{N+1}} 递增。
 6. assumptions 和 global_success_criteria 按需更新。
+7. 以系统注入的【当前时间】为“现在”，时效相关验收标准按该时间修订。
 
 【可用工具】
 {tool_descriptions}
@@ -63,6 +68,9 @@ REPLANNER_SYSTEM = """\
 只输出结构化结果。"""
 
 REPLANNER_USER = """\
+【当前时间（权威，由系统注入）】
+{current_time}
+
 【用户目标】
 {objective}
 

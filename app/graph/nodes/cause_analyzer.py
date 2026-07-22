@@ -12,11 +12,12 @@ from typing import Any
 
 from langchain_core.runnables.config import RunnableConfig
 
-from app.domain import Diagnosis, TaskResult, TaskStatus
+from app.domain import Diagnosis, TaskStatus
 from app.domain.diagnosis import FaultDomain
-from app.graph.prompts.cause_analyzer import cause_analyzer_prompt, CauseAnalyzerDraft
+from app.graph.projection import latest_task_results
+from app.graph.prompts.cause_analyzer import CauseAnalyzerDraft, cause_analyzer_prompt
 from app.graph.state import RunState
-from app.models import get_model_for_run, ModelTier
+from app.models import ModelTier, get_model_for_run
 from app.models.structured import ainvoke_structured_with_retry
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 def _collect_rule_evidence(state: RunState) -> tuple[list[str], str | None]:
     """
-    收集确定性规则证据并返回
+    收集确定性规则证据并返回（仅基于当前计划版本的最新任务结果）
     """
     evidence: list[str] = []
     certain_action: str | None = None
@@ -35,34 +36,41 @@ def _collect_rule_evidence(state: RunState) -> tuple[list[str], str | None]:
         evidence.append("预算已耗尽(Token/费用/调用次数达到上限")
         return evidence, "finalize"
 
-    # 2.包含取消任务
-    events: list[TaskResult] = state.get("task_events", [])
-    cancelled = [ev.task_id for ev in events if ev.status == TaskStatus.cancelled]
+    # 2.包含取消任务（当前版本最新态）
+    latest = latest_task_results(state)
+    cancelled = [tid for tid, ev in latest.items() if ev.status == TaskStatus.cancelled]
     if cancelled:
         evidence.append(f"任务已被取消:{cancelled}")
         return evidence, "finalize"
+
     # 3.任务全部成功，但是审核未通过 —— 交给 LLM 语义归因，不直接 return
-    if events:
-        latest: dict[str, TaskStatus] = {}
-        for ev in events:
-            latest[ev.task_id] = ev.status
-        all_ok = all(s == TaskStatus.completed for s in latest.values())
+    if latest:
+        all_ok = all(ev.status == TaskStatus.completed for ev in latest.values())
+        plan = state.get("plan")
+        if plan is not None:
+            all_ok = all(
+                latest.get(t.task_id) is not None
+                and latest[t.task_id].status == TaskStatus.completed
+                for t in plan.tasks
+            )
         if all_ok:
             evidence.append("所有任务执行成功，但是审核未通过")
             review = state.get("review")
             if review:
-                evidence.append(f"审核建议: {review.suggested_action}, 评分: {review.score}, 问题: {review.issues}")
+                evidence.append(
+                    f"审核建议: {review.suggested_action}, 评分: {review.score}, 问题: {review.issues}"
+                )
 
-    # 剩余情况按错误码分类
+    # 剩余情况按错误码分类（当前版本最新结果）
     transient_ids = [
-        ev.task_id for ev in events
-        # 重试耗尽或任务超时
+        tid for tid, ev in latest.items()
         if ev.error_code in ("llm_transient", "task_timeout")
+        and ev.status == TaskStatus.failed
     ]
-
     permanent_ids = [
-        ev.task_id for ev in events
+        tid for tid, ev in latest.items()
         if ev.error_code in ("llm_error", "output_validation_failed", "task_not_found")
+        and ev.status == TaskStatus.failed
     ]
 
     if transient_ids:
@@ -78,20 +86,28 @@ def _collect_rule_evidence(state: RunState) -> tuple[list[str], str | None]:
 
 
 def _format_task_summary(state: RunState) -> str:
-    """任务执行信息"""
-    events = state.get("task_events", [])
-    if not events:
+    """当前计划版本的任务执行信息"""
+    latest = latest_task_results(state)
+    if not latest:
         return "（无任务结果）"
+    plan = state.get("plan")
+    task_ids = [t.task_id for t in plan.tasks] if plan else list(latest.keys())
     rows: list[dict[str, Any]] = []
-    for ev in events:
+    for task_id in task_ids:
+        ev = latest.get(task_id)
+        if ev is None:
+            rows.append({"task_id": task_id, "status": "pending"})
+            continue
         rows.append({
             "task_id": ev.task_id,
             "status": ev.status.value,
             "error_code": ev.error_code,
             "error_message": (ev.error_message or "")[:200],
             "attempt": ev.attempt,
+            "plan_version": ev.plan_version,
         })
     return json.dumps(rows, ensure_ascii=False, indent=2)
+
 
 def format_task_summary(state: RunState) -> str:
     return _format_task_summary(state)

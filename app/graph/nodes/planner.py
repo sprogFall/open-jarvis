@@ -10,10 +10,12 @@ import uuid
 from typing import Any
 
 from langchain_core.runnables.config import RunnableConfig
+from langgraph.types import Overwrite
 
 from app.domain.plan import Plan, Task
+from app.graph.clock import format_clock_from_state
 from app.graph.nodes.cause_analyzer import format_task_summary
-from app.graph.prompts.planner import PlannerDraft, planner_prompt, replanner_prompt, ReplannerDraft
+from app.graph.prompts.planner import PlannerDraft, ReplannerDraft, planner_prompt, replanner_prompt
 from app.graph.safety import sanitize_user_input
 from app.graph.state import RunState
 from app.graph.validation import PlanValidationError, validate_plan
@@ -75,7 +77,35 @@ def _build_context(state: RunState) -> dict[str, Any]:
         "task_summary": format_task_summary(state),
         "current_plan_json": plan.model_dump_json(indent=2),
         "tool_descriptions": _format_tool_descriptions(),
+        "current_time": format_clock_from_state(state),
     }
+
+
+def _replan_state_update(
+    plan: Plan,
+    new_version: int,
+    state: RunState | None = None,
+) -> dict[str, object]:
+    """重规划后的状态增量：换新 plan，并清空会被旧轮次污染的字段。
+
+    replan 约定全量重跑，因此用 Overwrite 物理清空 append-only 的 task_events。
+    预算消耗（used_*）保留；仅重置 counted_event_count，避免清空事件后漏计新事件。
+    """
+    update: dict[str, object] = {
+        "plan": plan,
+        "plan_version": new_version,
+        "diagnosis": None,
+        "assignments": {},
+        "aggregate": None,
+        "review": None,
+        # 绕过 add_task_results reducer，整表替换为空列表
+        "task_events": Overwrite(value=[]),
+    }
+    if state is not None:
+        budget = state.get("budget")
+        if budget is not None:
+            update["budget"] = budget.model_copy(update={"counted_event_count": 0})
+    return update
 
 
 async def planner(state: RunState, config: RunnableConfig) -> dict[str, object]:
@@ -112,11 +142,11 @@ async def planner(state: RunState, config: RunnableConfig) -> dict[str, object]:
             )
         except Exception as e:
             logger.error("重新规划失败: %s", str(e))
-            return {
-                "plan": _fallback_plan(user_request, [f"LLM重规划失败：{str(e)}"], version=new_version),
-                "plan_version": new_version,
-                "diagnosis": None
-            }
+            return _replan_state_update(
+                _fallback_plan(user_request, [f"LLM重规划失败：{str(e)}"], version=new_version),
+                new_version,
+                state,
+            )
         plan = Plan(
             plan_id=_generate_plan_id(),
             version=new_version,
@@ -130,9 +160,9 @@ async def planner(state: RunState, config: RunnableConfig) -> dict[str, object]:
             validate_plan(plan)
         except PlanValidationError as e:
             plan = _fallback_plan(user_request, e.issues, version=new_version)
-            return {"plan": plan, "plan_version": new_version, "diagnosis": None}
+            return _replan_state_update(plan, new_version, state)
 
-        return {"plan": plan, "plan_version": new_version, "diagnosis": None}
+        return _replan_state_update(plan, new_version, state)
 
     else:
         # 首次规划模式
@@ -148,7 +178,8 @@ async def planner(state: RunState, config: RunnableConfig) -> dict[str, object]:
             chain,
             {
                 "user_request": safe_user_request,
-                "tool_descriptions": tool_descriptions
+                "tool_descriptions": tool_descriptions,
+                "current_time": format_clock_from_state(state),
             },
             schema=PlannerDraft,
             node="planner",

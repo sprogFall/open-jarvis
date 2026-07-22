@@ -9,6 +9,8 @@ from langchain_core.messages.ai import AIMessage
 from langchain_core.runnables.config import RunnableConfig
 
 from app.domain import FinalAnswer, RunStatus, TaskStatus
+from app.graph.clock import format_clock_from_state
+from app.graph.projection import latest_task_results
 from app.graph.prompts.finalizer import finalizer_prompt
 from app.graph.safety import sanitize_user_input
 from app.graph.state import RunState
@@ -27,12 +29,11 @@ async def finalizer(state: RunState, config: RunnableConfig) -> dict:
     review = state.get("review")
 
     if aggregate is None:
-        # 失败路径在 Aggregator 前结束：从 task_events 中提取已完成任务的部分结果（按 task_id 去重）
-        task_events = state.get("task_events", [])
+        # 失败路径在 Aggregator 前结束：仅取当前计划版本的最新成功输出
         latest_outputs: dict[str, str] = {}
-        for ev in task_events:
+        for task_id, ev in latest_task_results(state).items():
             if ev.status == TaskStatus.completed and ev.output and "answer" in ev.output:
-                latest_outputs[ev.task_id] = str(ev.output["answer"])
+                latest_outputs[task_id] = str(ev.output["answer"])
         if latest_outputs:
             return {"final_answer": FinalAnswer(
                 content="\n".join(latest_outputs.values()),
@@ -46,6 +47,7 @@ async def finalizer(state: RunState, config: RunnableConfig) -> dict:
     model = get_model_for_run(config, ModelTier.standard)
     chain = finalizer_prompt | model
     response: AIMessage = await chain.ainvoke({
+        "current_time": format_clock_from_state(state),
         "user_request": sanitize_user_input(state.get("user_request", "")),
         "candidate_answer": aggregate.candidate_answer,
         "review_passed": str(review.passed) if review else "False",

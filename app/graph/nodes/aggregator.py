@@ -7,7 +7,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domain import AggregateResult, TaskStatus
+from app.domain import AggregateResult, TaskStatus, TaskResult
+from app.graph.projection import format_structured_candidate, latest_task_results
 from app.graph.state import RunState
 
 
@@ -28,25 +29,21 @@ async def aggregator(state: RunState) -> dict[str, Any]:
     else:
         updated_budget = None
 
-    # 每任务只取最新成功事件（event 追加顺序保证最新在后）
-    latest: dict[str, dict[str, Any]] = {}
-    for ev in task_events:
-        if ev.status == TaskStatus.completed and ev.output is not None:
-            latest[ev.task_id] = ev.output
+    # 仅投影当前计划版本的最新成功输出
+    latest_results = latest_task_results(state)
+    latest_outputs: dict[str, Any] = {}
+    for task_id, result in latest_results.items():
+        if result.status == TaskStatus.completed and result.output is not None:
+            latest_outputs[task_id] = result.output
 
-    # 按计划任务顺序输出，确保确定性
     plan = state.get("plan")
-    task_order = [t.task_id for t in plan.tasks] if plan else list(latest.keys())
-    outputs: dict[str, Any] = {}
-    parts: list[str] = []
-    for tid in task_order:
-        output = latest.get(tid)
-        if output is not None:
-            outputs[tid] = output
-            if "answer" in output:
-                parts.append(str(output["answer"]))
+    # 按计划任务顺序组装 outputs
+    task_order = [t.task_id for t in plan.tasks] if plan else list(latest_outputs.keys())
+    outputs: dict[str, Any] = {
+        tid: latest_outputs[tid] for tid in task_order if tid in latest_outputs
+    }
+    candidate = format_structured_candidate(plan, outputs)
 
-    candidate = "\n".join(parts) if parts else "(无任务输出)"
     result: dict[str, Any] = {
         "aggregate": AggregateResult(candidate_answer=candidate, task_outputs=outputs)
     }

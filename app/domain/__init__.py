@@ -10,6 +10,7 @@ from app.domain.experience import Experience
 from app.domain.final_answer import FinalAnswer, RunStatus
 from app.domain.plan import Plan, Task
 from app.domain.review import ReviewResult
+from app.domain.run_context import RunContext
 from app.domain.task import TaskResult, TaskStatus
 
 __all__ = [
@@ -19,11 +20,12 @@ __all__ = [
     "Plan",
     "ReviewResult",
     "RunBudget",
+    "RunContext",
     "Task",
     "TaskResult",
     "TaskStatus",
     "AggregateResult",
     "RunStatus",
-    "FinalAnswer"
+    "FinalAnswer",
 ]
 

@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     app_host: str = Field(default="0.0.0.0")
     app_port: int = Field(default=8000)
     app_log_level: str = Field(default="INFO")
+    app_timezone: str = Field(
+        default="Asia/Shanghai",
+        description="运行权威时钟时区（IANA 名称），注入 Planner/Executor/Reviewer/Finalizer",
+    )
 
     # PostgreSQL
     database_url: str = Field(

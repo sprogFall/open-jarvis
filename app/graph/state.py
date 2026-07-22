@@ -14,13 +14,18 @@ from app.domain.diagnosis import Diagnosis
 from app.domain.final_answer import FinalAnswer
 from app.domain.plan import Plan
 from app.domain.review import ReviewResult
+from app.domain.run_context import RunContext
 from app.domain.task import TaskResult
 
 
 def add_task_results(
     left: list[TaskResult], right: list[TaskResult]
 ) -> list[TaskResult]:
-    """reducer：追加并行 Executor 产出的不可变 TaskResult。"""
+    """reducer：追加并行 Executor 产出的不可变 TaskResult。
+
+    正常路径始终 append。replan 全量重跑时需清空历史，由节点返回
+    ``{"task_events": Overwrite(value=[])}`` 绕过本 reducer（见 langgraph.types.Overwrite）。
+    """
     return [*left, *right]
 
 
@@ -32,6 +37,7 @@ class RunState(TypedDict, total=False):
 
     run_id: str  # 运行唯一标识符
     user_request: str  # 用户原始请求文本
+    run_context: RunContext | None  # 运行权威时钟，create_run 写入一次，replan 不变
     plan: Plan | None  # 当前执行计划，None 表示尚未生成
     plan_version: int  # 计划版本号，每次重规划自增
     task_events: Annotated[list[TaskResult], add_task_results]  # 任务执行事件列表，并行 Executor 通过 reducer 追加不可变结果

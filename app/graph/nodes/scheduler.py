@@ -13,6 +13,7 @@ from langgraph.types import Send
 
 from app.domain import Assignment, Diagnosis, Task, TaskStatus
 from app.domain.diagnosis import FaultDomain
+from app.graph.projection import latest_task_results, task_status_map
 from app.graph.state import RunState
 
 logger = logging.getLogger(__name__)
@@ -28,33 +29,24 @@ _RUNNING_BLOCKED_STATUSES = (
 )
 
 
-def _task_status_map(state: RunState) -> dict[str, TaskStatus]:
-    """从task_events归并出每个任务的最新状态（事件溯源）。"""
-    latest: dict[str, TaskStatus] = {}
-    for ev in state.get("task_events", []):
-        latest[ev.task_id] = ev.status
-    return latest
-
-
 def _resolved_dependency_inputs(state: RunState, task: Task) -> dict[str, str]:
-    """将已完成的依赖输出暴露给下游任务."""
-    latest_outputs: dict[str, Any] = {}
-    for event in state.get("task_events", []):
-        if event.status == TaskStatus.completed and event.output is not None:
-            latest_outputs[event.task_id] = event.output
+    """将当前计划版本下已完成的依赖输出暴露给下游任务。"""
+    latest = latest_task_results(state)
     return {
-        dependency_id: json.dumps(latest_outputs[dependency_id], ensure_ascii=False, default=str)
+        dependency_id: json.dumps(latest[dependency_id].output, ensure_ascii=False, default=str)
         for dependency_id in task.dependencies
-        if dependency_id in latest_outputs
+        if dependency_id in latest
+        and latest[dependency_id].status == TaskStatus.completed
+        and latest[dependency_id].output is not None
     }
 
 
 def _ready_tasks(state: RunState) -> list[Task]:
-    """计算就绪任务：依赖已全部完成且自身未完成/未失败/未运行"""
+    """计算就绪任务：依赖已全部完成且自身未完成/未失败/未运行（仅当前 plan_version）。"""
     plan = state.get("plan")
     if plan is None:
         return []
-    status_map = _task_status_map(state)
+    status_map = task_status_map(state)
     # 已有 assignments 的任务（例如 reallocator 已分配）不再重复生成
     existing_assigned = set(state.get("assignments", {}).keys())
     ready: list[Task] = []
@@ -70,6 +62,7 @@ def _ready_tasks(state: RunState) -> list[Task]:
         if all(status_map.get(dep) == TaskStatus.completed for dep in task.dependencies):
             ready.append(task)
     return ready
+
 
 async def scheduler(state: RunState) -> dict[str, Any]:
     """按并发上限生成 Assignment 并写入全局状态，路由函数据此做 Send 扇出。"""
@@ -92,8 +85,13 @@ async def scheduler(state: RunState) -> dict[str, Any]:
             ),
         }
 
-    # 保留已有 assignments（如 reallocator 生成的重分配），仅补充新就绪任务
-    assignments: dict[str, Assignment] = dict(state.get("assignments", {}))
+    # 保留已有 assignments（如 reallocator 生成的重分配），但剔除已终态任务，避免重复派发
+    status_map = task_status_map(state)
+    assignments: dict[str, Assignment] = {
+        tid: a
+        for tid, a in state.get("assignments", {}).items()
+        if status_map.get(tid) not in _NON_SCHEDULABLE_STATUSES
+    }
     remaining_slots = max_concurrent - len(assignments)
     for task in ready[:max(remaining_slots, 0)]:
         if task.task_id not in assignments:
@@ -120,14 +118,20 @@ def route_after_scheduler(state: RunState) -> str | list[Send]:
     plan = state.get("plan")
     if assignments and plan is not None:
         return [
-            Send("executor", {"current_assignment": assignment, "plan": plan})
+            Send("executor", {
+                "current_assignment": assignment,
+                "plan": plan,
+                "plan_version": plan.version,
+                # Send 分支不自动继承全局 state，需显式带上 run 时钟
+                "run_context": state.get("run_context"),
+            })
             for assignment in assignments.values()
         ]
 
-    # 没有就绪任务：判断是全部成功还是阻塞
+    # 没有就绪任务：判断是全部成功还是阻塞（仅当前计划版本）
     if plan is None:
         return "finalizer"
-    status_map = _task_status_map(state)
+    status_map = task_status_map(state)
     all_done = all(status_map.get(task.task_id) == TaskStatus.completed for task in plan.tasks)
     if all_done:
         diagnosis = state.get("diagnosis")

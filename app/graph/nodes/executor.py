@@ -17,6 +17,8 @@ from langgraph.errors import GraphInterrupt
 from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.domain import TaskResult, TaskStatus
+from app.graph.clock import format_clock_from_state
+from app.graph.projection import resolve_plan_version
 from app.graph.prompts.executor import executor_prompt
 from app.graph.safety import sanitize_user_input
 from app.graph.state import RunState
@@ -165,6 +167,7 @@ async def executor(state: RunState, config: RunnableConfig) -> dict[str, Any]:
     if assignment is None:
         return {}
     plan = state.get("plan")
+    plan_version = resolve_plan_version(state)
     task = None
     if plan is not None:
         task = next((t for t in plan.tasks if t.task_id == assignment.task_id), None)
@@ -173,6 +176,7 @@ async def executor(state: RunState, config: RunnableConfig) -> dict[str, Any]:
         now = _now()
         return {"task_events": [TaskResult(
             task_id=assignment.task_id,
+            plan_version=plan_version,
             attempt=assignment.attempt,
             status=TaskStatus.failed,
             error_code="task_not_found",
@@ -191,11 +195,14 @@ async def executor(state: RunState, config: RunnableConfig) -> dict[str, Any]:
     started_at = _now()
     # 任务级超时：覆盖模型调用 + 重试 + 退避的总耗时
     timeout = assignment.timeout_seconds or 300
+    global_criteria = "\n".join(plan.global_success_criteria) if plan and plan.global_success_criteria else "（无）"
     try:
         async with asyncio.timeout(timeout):
             prompt_messages = executor_prompt.format_messages(
+                current_time=format_clock_from_state(state),
                 upstream_inputs=_format_upstream_inputs(state),
                 objective=sanitize_user_input(plan.objective),
+                global_success_criteria=sanitize_user_input(global_criteria),
                 task_title=sanitize_user_input(task.title),
                 instruction=sanitize_user_input(task.instruction),
                 success_criteria="\n".join(task.success_criteria) or "（无显式标准）",
@@ -209,7 +216,9 @@ async def executor(state: RunState, config: RunnableConfig) -> dict[str, Any]:
     except TimeoutError:
         now = _now()
         return {"task_events": [TaskResult(
-            task_id=assignment.task_id, attempt=assignment.attempt,
+            task_id=assignment.task_id,
+            plan_version=plan_version,
+            attempt=assignment.attempt,
             status=TaskStatus.failed, error_code="task_timeout",
             error_message=f"任务执行超时（{timeout}s）",
             started_at=started_at, ended_at=now,
@@ -217,13 +226,15 @@ async def executor(state: RunState, config: RunnableConfig) -> dict[str, Any]:
     except Exception as e:
         now = _now()
         return {"task_events": [TaskResult(
-            task_id=assignment.task_id, attempt=assignment.attempt,
+            task_id=assignment.task_id,
+            plan_version=plan_version,
+            attempt=assignment.attempt,
             status=TaskStatus.failed, error_code="llm_error",
             error_message=str(e),
             started_at=started_at, ended_at=now,
         )]}
 
-        # 提取 Agent 最后一条有内容的 AI 回复
+    # 提取 Agent 最后一条有内容的 AI 回复
     messages = result.get("messages", [])
     answer = ""
     for msg in reversed(messages):
@@ -233,8 +244,24 @@ async def executor(state: RunState, config: RunnableConfig) -> dict[str, Any]:
             break
 
     now = _now()
+    validation_error = validate_output(answer)
+    if validation_error:
+        return {"task_events": [TaskResult(
+            task_id=assignment.task_id,
+            plan_version=plan_version,
+            attempt=assignment.attempt,
+            status=TaskStatus.failed,
+            error_code="output_validation_failed",
+            error_message=validation_error,
+            started_at=started_at, ended_at=now,
+            token_usage=_sum_tokens(messages),
+            tools_used=_collect_tool_names(messages),
+        )]}
+
     return {"task_events": [TaskResult(
-        task_id=assignment.task_id, attempt=assignment.attempt,
+        task_id=assignment.task_id,
+        plan_version=plan_version,
+        attempt=assignment.attempt,
         status=TaskStatus.completed,
         output={"answer": answer},
         started_at=started_at, ended_at=now,

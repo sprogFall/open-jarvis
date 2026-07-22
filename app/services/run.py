@@ -18,6 +18,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from app.domain import RunBudget
 from app.graph.builder import build_graph
+from app.graph.clock import build_run_context
 from app.graph.state import RunState
 
 logger = logging.getLogger(__name__)
@@ -80,6 +81,7 @@ async def create_run(user_request: str) -> str:
     initial_state: RunState = {
         "run_id": run_id,
         "user_request": user_request,
+        "run_context": build_run_context(),
         "plan": None,
         "plan_version": 0,
         "task_events": [],

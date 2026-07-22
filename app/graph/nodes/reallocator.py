@@ -8,8 +8,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.domain import Diagnosis, TaskStatus, Assignment
+from app.domain import Assignment, Diagnosis, TaskStatus
 from app.domain.diagnosis import FaultDomain
+from app.graph.projection import latest_task_results
 from app.graph.state import RunState
 
 
@@ -17,10 +18,9 @@ def _none_diagnosis() -> dict[str, Any]:
     """返回空诊断信息"""
     return {"diagnosis": None}
 
-async def reallocator(state: RunState) -> dict[str, Any]:
-    """根据Diagnosis调整失败任务的程序策略
 
-    """
+async def reallocator(state: RunState) -> dict[str, Any]:
+    """根据Diagnosis调整失败任务的程序策略（仅当前计划版本最新失败任务）"""
     diagnosis: Diagnosis | None = state.get("diagnosis")
     if diagnosis is None:
         return _none_diagnosis()
@@ -30,9 +30,9 @@ async def reallocator(state: RunState) -> dict[str, Any]:
     if plan is None:
         return _none_diagnosis()
 
-    events = state.get("task_events", [])
+    latest = latest_task_results(state)
     failed_task_ids: set[str] = {
-        ev.task_id for ev in events if ev.status == TaskStatus.failed
+        tid for tid, ev in latest.items() if ev.status == TaskStatus.failed
     }
     if not failed_task_ids:
         return _none_diagnosis()
@@ -43,7 +43,11 @@ async def reallocator(state: RunState) -> dict[str, Any]:
         if task.task_id not in failed_task_ids:
             continue
         old = old_assignments.get(task.task_id)
-        next_attempt = (old.attempt + 1) if old else 1
+        latest_ev = latest.get(task.task_id)
+        next_attempt = (
+            (latest_ev.attempt + 1) if latest_ev is not None
+            else ((old.attempt + 1) if old else 1)
+        )
         # 使用任务原有的工具白名单，不应清空（清空意味着无工具可用）
         allowlist = task.tool_allowlist if task.tool_allowlist else []
         # 设置超时默认值，避免 None 导致无限挂起

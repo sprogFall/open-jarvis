@@ -23,6 +23,7 @@ ALLOWED_MSGPACK_TYPES: list[tuple[str, ...]] = [
     ("app.domain.assignment", "Assignment"),
     ("app.domain.diagnosis", "Diagnosis"),
     ("app.domain.diagnosis", "FaultDomain"),
+    ("app.domain.run_context", "RunContext"),
 ]
 
 

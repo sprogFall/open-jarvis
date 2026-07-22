@@ -21,6 +21,10 @@ class TaskResult(BaseModel):
     """不可变任务结果，由 Executor 追加到 RunState.task_events。"""
 
     task_id: str = Field(description="执行的任务 ID")
+    plan_version: int = Field(
+        default=1,
+        description="所属计划版本；调度/审核只投影当前版本，避免 replan 后历史事件串扰",
+    )
     attempt: int = Field(default=1, description="当前执行尝试次数，从 1 开始")
     status: TaskStatus = Field(description="任务执行终态：pending（待执行）、running（执行中）、completed（已完成）、failed（失败）、cancelled（已取消）、skipped（已跳过）")
     output: dict[str, Any] | None = Field(default=None, description="任务执行输出结果，None 表示无输出或执行失败")
