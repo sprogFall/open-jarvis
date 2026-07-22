@@ -13,6 +13,7 @@ from typing import Any
 from langchain.agents import create_agent
 from langchain_core.messages.ai import AIMessage
 from langchain_core.runnables.config import RunnableConfig
+from langgraph.errors import GraphInterrupt
 from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.domain import TaskResult, TaskStatus
@@ -202,6 +203,9 @@ async def executor(state: RunState, config: RunnableConfig) -> dict[str, Any]:
             result = await agent.ainvoke(
                 {"messages": prompt_messages} # type: ignore[arg-type]
             )
+    except GraphInterrupt:
+        # interrupt 是 LangGraph 的控制流信号，必须交还图运行时处理，不能记为任务失败。
+        raise
     except TimeoutError:
         now = _now()
         return {"task_events": [TaskResult(

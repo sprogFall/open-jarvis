@@ -6,11 +6,13 @@
 from __future__ import annotations
 
 from app.tools.base import ToolSpec
+from app.tools.builtin.github_search import github_search_spec
 from app.tools.builtin.web_search import web_search_spec
 
 # 所有内置工具规格集中声明在此
 BUILTIN_TOOLS: list[ToolSpec] = [
     web_search_spec,
+    github_search_spec,
     # 新增工具只需追加：
     # from app.tools.builtin.xxx import xxx_spec
 ]

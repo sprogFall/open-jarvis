@@ -56,6 +56,14 @@ class Settings(BaseSettings):
 
     # tool配置
     tavily_api_key: str = Field(default="", description="tavily服务的api_key,通过https://app.tavily.com 获取")
+    github_token: str = Field(
+        default="",
+        description=(
+            "GitHub Personal Access Token（可选）。"
+            "用于 github_search 工具的 HTTP 回退与提高 API 限额；"
+            "本机已登录 gh CLI 时通常不必配置"
+        ),
+    )
 
     @property
     def is_development(self) -> bool:
